@@ -828,7 +828,7 @@ async function renderCuentas(){
   let us=[];try{us=await (await api('/api/users')).json();}catch(e){return;}
   usuarios=us;
   let h=`<div class="page"><div class="conv-head-row"><h1>⚙️ Cuentas</h1><button class="btn" onclick="nuevoUsuario()">＋ Nueva cuenta</button></div><div class="sub">Vendedores y supervisores del equipo.</div><div class="panelcard">`;
-  us.forEach(x=>{h+=`<div class="frow"><span class="av" style="width:34px;height:34px;background:${avColor(x.id)};font-size:12px">${iniciales(x.nombre)}</span><div style="flex:1"><b>${esc(x.nombre)}</b> <span class="tag" style="background:var(--hover);color:var(--muted)">${roleLabel(x.rol)}</span>${x.rol==='vendedor'&&x.supervisorId?' <span class="faint" style="font-size:11.5px">· sup: '+esc(nombreVend(x.supervisorId))+'</span>':''}<div class="faint" style="font-size:12px">@${esc(x.usuario)}${x.activo===false?' · <span style="color:#ff3b30">inactivo</span>':''}</div></div>${x.rol!=='admin'?`<button class="mini" onclick="editarUsuario('${x.id}')">✏️ Editar</button>`:'<span class="faint" style="font-size:11px">vos</span>'}</div>`;});
+  us.forEach(x=>{h+=`<div class="frow"><span class="av" style="width:34px;height:34px;background:${avColor(x.id)};font-size:12px">${iniciales(x.nombre)}</span><div style="flex:1"><b>${esc(x.nombre)}</b> <span class="tag" style="background:var(--hover);color:var(--muted)">${roleLabel(x.rol)}</span>${x.rol==='vendedor'&&x.supervisorId?' <span class="faint" style="font-size:11.5px">· sup: '+esc(nombreVend(x.supervisorId))+'</span>':''}<div class="faint" style="font-size:12px">@${esc(x.usuario)}${x.activo===false?' · <span style="color:#ff3b30">inactivo</span>':''}</div></div>${x.id===me.id?`<button class="mini" onclick="cambiarMiClave()">🔑 Mi clave</button>`:(x.rol!=='admin'?`<button class="mini" onclick="editarUsuario('${x.id}')">✏️ Editar</button>`:'<span class="faint" style="font-size:11px">vos</span>')}</div>`;});
   h+='</div></div>';main.innerHTML=h;
 }
 function nuevoUsuario(){
@@ -861,6 +861,22 @@ async function guardarUsuario(id){
   const p=g('ue-pass').trim();if(p)body.pass=p;
   const err=document.getElementById('ue-err');err.textContent='';
   try{const r=await api('/api/users/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok){err.textContent=j.error||'No se pudo guardar';return;}cerrarModal();renderCuentas();}
+  catch(e){err.textContent='Error de conexión';}
+}
+function cambiarMiClave(){
+  cerrarModal();
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
+  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>🔑 Cambiar mi clave</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b"><div class="faint" style="font-size:12.5px;margin-bottom:8px">Cuenta: <b>@${esc(me.usuario||'')}</b></div><label>Nueva clave</label><input id="mc-p1" type="password" autocomplete="new-password"><label>Repetir nueva clave</label><input id="mc-p2" type="password" autocomplete="new-password"><div id="mc-err" class="lg-err"></div></div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarMiClave()">Guardar clave</button></div></div>`;
+  wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
+  const p1=document.getElementById('mc-p1');if(p1)p1.focus();
+}
+async function guardarMiClave(){
+  const g=k=>{const el=document.getElementById(k);return el?el.value:'';};
+  const p1=g('mc-p1').trim(),p2=g('mc-p2').trim();
+  const err=document.getElementById('mc-err');err.textContent='';
+  if(p1.length<4){err.textContent='La clave tiene que tener al menos 4 caracteres.';return;}
+  if(p1!==p2){err.textContent='Las dos claves no coinciden.';return;}
+  try{const r=await api('/api/users/'+me.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({pass:p1})});const j=await r.json();if(!r.ok){err.textContent=j.error||'No se pudo cambiar';return;}cerrarModal();alert('Listo, tu clave quedó cambiada. La próxima vez que entres usá la nueva.');}
   catch(e){err.textContent='Error de conexión';}
 }
 /* ---- ESTADO DE AGENDA (atrasado/hoy/próximos/semana) con 15 min de tolerancia ---- */
