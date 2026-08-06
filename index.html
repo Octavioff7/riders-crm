@@ -928,7 +928,7 @@ async function crearUsuario(){
 function editarUsuario(id){
   const x=usuarios.find(u=>u.id===id);if(!x)return;cerrarModal();
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
-  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>Editar cuenta</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b"><label>Nombre</label><input id="ue-nombre" value="${esc(x.nombre)}"><label>Nueva clave (vacío = no cambiar)</label><input id="ue-pass" type="text" placeholder="••••••"><label>Estado</label><select id="ue-activo"><option value="1" ${x.activo!==false?'selected':''}>Activo</option><option value="0" ${x.activo===false?'selected':''}>Inactivo (no puede entrar)</option></select><div id="ue-err" class="lg-err"></div></div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarUsuario('${x.id}')">Guardar</button></div></div>`;
+  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>Editar cuenta</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b"><label>Nombre</label><input id="ue-nombre" value="${esc(x.nombre)}"><label>Nueva clave (vacío = no cambiar)</label><input id="ue-pass" type="text" placeholder="••••••"><label>Estado</label><select id="ue-activo"><option value="1" ${x.activo!==false?'selected':''}>Activo</option><option value="0" ${x.activo===false?'selected':''}>Inactivo (no puede entrar)</option></select><div id="ue-err" class="lg-err"></div></div><div class="modal-f">${me.rol==='admin'?`<button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="eliminarUsuario('${x.id}','${esc(x.nombre).replace(/'/g,"\\'")}')">🗑 Eliminar</button>`:''}<button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarUsuario('${x.id}')">Guardar</button></div></div>`;
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
 }
 async function guardarUsuario(id){
@@ -938,6 +938,12 @@ async function guardarUsuario(id){
   const err=document.getElementById('ue-err');err.textContent='';
   try{const r=await api('/api/users/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok){err.textContent=j.error||'No se pudo guardar';return;}cerrarModal();renderCuentas();}
   catch(e){err.textContent='Error de conexión';}
+}
+async function eliminarUsuario(id,nombre){
+  if(!confirm('¿Eliminar la cuenta de "'+nombre+'"?\n\nNo va a poder entrar más. Sus clientes se te reasignan a vos (no se pierden).\n\nEsta acción no se puede deshacer.'))return;
+  const err=document.getElementById('ue-err');if(err)err.textContent='';
+  try{const r=await api('/api/users/'+id,{method:'DELETE'});const j=await r.json().catch(()=>({}));if(!r.ok){if(err)err.textContent=j.error||'No se pudo eliminar';else alert(j.error||'No se pudo eliminar');return;}cerrarModal();renderCuentas();}
+  catch(e){if(err)err.textContent='Error de conexión';}
 }
 function cambiarMiClave(){
   cerrarModal();

@@ -335,6 +335,19 @@ http.createServer((req,res)=>{
     if(me.rol==='admin'){if(body.rol)target.rol=body.rol;if('supervisorId' in body)target.supervisorId=body.supervisorId||null;}
     saveUsers(users);json(200,publicUser(target));
   });
+  if(mUser&&req.method==='DELETE'){
+    if(me.rol!=='admin')return json(403,{error:'Solo el admin puede eliminar cuentas'});
+    const users=loadUsers();const target=users.find(x=>x.id===mUser[1]);
+    if(!target)return json(404,{error:'No existe'});
+    if(target.id===me.id)return json(400,{error:'No podés eliminar tu propia cuenta'});
+    if(target.rol==='admin')return json(400,{error:'No se puede eliminar la cuenta admin'});
+    // Reasignar los clientes del eliminado al admin (para no perder datos)
+    const cl=loadClientes();let reas=0;cl.forEach(c=>{if(c.vendedorId===target.id){c.vendedorId=me.id;reas++;}});if(reas)saveClientes(cl);
+    // Si era supervisor, sus vendedores quedan sin supervisor
+    users.forEach(x=>{if(x.supervisorId===target.id)x.supervisorId=null;});
+    saveUsers(users.filter(x=>x.id!==target.id));
+    return json(200,{ok:true,reasignados:reas});
+  }
 
   if(apiAuth)return json(404,{error:'not found'});
 
