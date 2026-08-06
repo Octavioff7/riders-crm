@@ -811,7 +811,8 @@ function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render(
 async function renderEquipo(){
   main.innerHTML='<div class="page"><h1>📈 Equipo</h1><div class="sub">Cargando métricas…</div></div>';
   let data=[];try{data=await (await api('/api/metrics')).json();}catch(e){return;}
-  let h='<div class="page"><h1>📈 Equipo</h1><div class="sub">Rendimiento por vendedor. Tocá una tarjeta para ver su cartera.</div><div class="grid-eq">';
+  try{usuarios=await (await api('/api/users')).json();}catch(e){}
+  let h='<div class="page"><div class="conv-head-row"><h1>📈 Equipo</h1><button class="btn" onclick="nuevoUsuario()">＋ Crear usuario</button></div><div class="sub">Con "Crear usuario" sumás cuentas (usuario y clave) para que tus vendedores entren al CRM. Tocá una tarjeta para ver su cartera.</div><div class="grid-eq">';
   for(const d of data){const m=d.metrics,us=d.user;
     h+=`<div class="panelcard eqcard" style="cursor:pointer" onclick="verVendedor('${us.id}')">
       <div style="display:flex;align-items:center;gap:10px"><span class="av" style="width:34px;height:34px;background:${avColor(us.id)};font-size:12px">${iniciales(us.nombre)}</span><div><b>${esc(us.nombre)}</b><div class="faint" style="font-size:11.5px">${roleLabel(us.rol)}</div></div></div>
@@ -819,12 +820,6 @@ async function renderEquipo(){
       <div class="faint" style="font-size:12px;margin-top:8px">💰 ${m.plata?('$'+Number(m.plata).toLocaleString('es-AR')):'—'} · ${m.seguimientosSemana} seguim. esta semana</div>
     </div>`;
   }
-  h+='</div>';
-  const acts=[];data.forEach(d=>d.metrics.actividad.forEach(a=>acts.push(Object.assign({vend:d.user.nombre},a))));
-  acts.sort((a,b)=>(b.fecha+(b.hora||'')).localeCompare(a.fecha+(a.hora||'')));
-  h+='<div class="section-t" style="margin-top:14px">🕒 Actividad reciente</div><div class="panelcard">';
-  if(!acts.length)h+='<div class="empty">Sin actividad todavía.</div>';
-  acts.slice(0,15).forEach(a=>{h+=`<div class="actrow"><div class="faint" style="font-size:11px;min-width:96px">${esc(a.fecha)} ${esc(a.hora||'')}</div><div style="flex:1;min-width:0"><b>${esc(a.vend)}</b> · ${esc(a.cliente)}<div class="faint" style="font-size:12.5px">${esc((a.texto||'').slice(0,110))}</div></div></div>`;});
   h+='</div></div>';
   main.innerHTML=h;
 }
