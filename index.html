@@ -872,7 +872,8 @@ async function renderDueno(){
   });
   alertas.sort((a,b)=>b.p-a.p);
   let h='<div class="page">';
-  h+='<div class="conv-head-row"><h1>📊 Panel del equipo</h1><div class="faint" style="font-size:12.5px">Vista del dueño · '+hoyS+'</div></div>';
+  const vista=me&&me.rol==='supervisor'?'Vista del supervisor':me&&me.rol==='admin'?'Vista de administrador':'Vista del dueño';
+  h+='<div class="conv-head-row"><h1>📊 Panel del equipo</h1><div class="faint" style="font-size:12.5px">'+vista+' · '+hoyS+'</div></div>';
   h+='<div class="sub">Todo lo que está moviendo tu equipo este mes, de un vistazo.</div>';
   h+='<div class="owner-kpis">'+
     kpi('💵 Facturado del mes',money(T.facturado),T.ventasMes+' venta(s) cerradas')+
@@ -1106,11 +1107,11 @@ initEmoji();
 /* ---- Auth / arranque ---- */
 function roleLabel(r){return {admin:'Admin',dueno:'Dueño',supervisor:'Supervisor',vendedor:'Vendedor'}[r]||'';}
 function applyRoleUI(){
-  const r=me&&me.rol, owner=r==='dueno';
-  const sv=r==='admin'||r==='supervisor';
-  document.querySelectorAll('.sv-only').forEach(el=>{el.style.display=sv?'':'none';});
-  document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=(r==='admin'||owner)?'':'none';}); // Equipo: admin y dueño
-  document.querySelectorAll('.owner-only').forEach(el=>{el.style.display=owner?'':'none';});
+  const r=me&&me.rol, owner=r==='dueno', sup=r==='supervisor', adm=r==='admin';
+  const team=adm||owner||sup; // roles con herramientas de equipo (Panel + Equipo)
+  document.querySelectorAll('.sv-only').forEach(el=>{el.style.display=(adm||sup)?'':'none';});   // Cuentas: admin y supervisor
+  document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=team?'':'none';});        // Equipo: admin, dueño y supervisor
+  document.querySelectorAll('.owner-only').forEach(el=>{el.style.display=team?'':'none';});         // Panel del equipo: admin, dueño y supervisor
   // El dueño es una cuenta de solo-supervisión: en el menú solo ve su Panel y el detalle de Equipo.
   if(owner)document.querySelectorAll('#nav button').forEach(b=>{const v=b.dataset.view;b.style.display=(v==='dueno'||v==='equipo')?'':'none';});
   else document.querySelectorAll('#nav button').forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});
