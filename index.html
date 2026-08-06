@@ -204,6 +204,7 @@
   .alert-list{display:flex;flex-direction:column;gap:6px;padding:4px 0 12px}
   .alert-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:9px 12px;background:var(--hover);border-radius:10px}
   .alert-row .al-ic{font-size:16px;flex:none}
+  .temp-chip{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid;margin-left:7px;vertical-align:middle;white-space:nowrap}
   @media(max-width:820px){.owner-kpis,.owner-mini{grid-template-columns:repeat(2,1fr)}}
   .actrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--sep)}
   .vend-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--brand-soft,rgba(0,122,255,.08));border:1px solid rgba(0,122,255,.2);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:13.5px}
@@ -372,6 +373,9 @@ function temperatura(c){
   if(c.respondioUltimo==='yo'&&dias>=7)return Object.assign({id:'perdido',motivo:'Le escribiste y no responde hace '+dias+' días.'},TEMPS.perdido);
   return Object.assign({id:'seguimiento',motivo:'Hace '+dias+' días sin novedad — conviene un toque.'},TEMPS.seguimiento);
 }
+// Chip de etiqueta (caliente/frío/etc) para mostrar al lado del nombre en las listas
+function tempChip(c){const t=temperatura(c);if(!t)return '';return `<span class="temp-chip" style="color:${t.color};border-color:${t.color}55;background:${t.color}14">${t.emoji} ${esc(t.label)}</span>`;}
+function esCalienteT(c){const t=temperatura(c);return !!(t&&t.id==='caliente');}
 
 /* ============ DATOS ============ */
 function seed(){return [
@@ -981,11 +985,12 @@ const AG_SECS={
 };
 function renderAgendaSec(estado){
   const info=AG_SECS[estado];
-  const list=activos().filter(c=>enBucket(c,estado)).sort((a,b)=>proxDateTime(a)-proxDateTime(b));
-  let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s). ${info.sub}</div>`;
+  const list=activos().filter(c=>enBucket(c,estado)).sort((a,b)=>(esCalienteT(a)?0:1)-(esCalienteT(b)?0:1)||proxDateTime(a)-proxDateTime(b));
+  const nCal=list.filter(esCalienteT).length;
+  let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s). ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list){const cuando=esc(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div>${waIc(c)}</div>`;}
+  for(const c of list){const cuando=esc(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div>${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
 /* ---- AGENDA (reuniones / llamadas) ---- */
