@@ -57,7 +57,7 @@ function ensureSetup(){
 /* ---------- Alcance por rol ---------- */
 function teamIds(users,sup){return users.filter(u=>u.supervisorId===sup.id).map(u=>u.id).concat(sup.id);}
 function canSeeCliente(user,c,users){
-  if(user.rol==='admin')return true;
+  if(user.rol==='admin'||user.rol==='dueno')return true; // el dueño ve toda la operación (solo lectura)
   if(user.rol==='vendedor')return c.vendedorId===user.id;
   if(user.rol==='supervisor')return teamIds(users,user).includes(c.vendedorId);
   return false;
@@ -94,24 +94,45 @@ function mergeClientes(user,incoming){
 /* ---------- Métricas por vendedor ---------- */
 function estadoAtrasadoSrv(c){if(!c.proximo)return false;let h=(c.proximoHora&&/^\d{1,2}:\d{2}/.test(c.proximoHora))?c.proximoHora:'23:59';if(h.length===4)h='0'+h;const dt=new Date(c.proximo+'T'+h+':00');return !isNaN(dt)&&dt.getTime()<Date.now()-15*60000;}
 function esCalienteSrv(c){return c.etapa!=='vendido'&&c.etapa!=='posventa'&&c.respondioUltimo==='cliente';}
+function ultimoLogFecha(c){let f='';(c.log||[]).forEach(l=>{if((l.fecha||'')>f)f=l.fecha;});return f;}
 function metricsFor(vendId){
   const cl=loadClientes().filter(c=>c.vendedorId===vendId&&!c.borrado);
-  const weekAgo=daysAhead(-7);let seguim=0;const acts=[];
+  const weekAgo=daysAhead(-7),catorce=daysAhead(-14),mes=hoy().slice(0,7);
+  let seguim=0;const acts=[];
   cl.forEach(c=>{(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguim++;acts.push({cliente:c.nombre,fecha:l.fecha,hora:l.hora||'',texto:l.texto});});});
   acts.sort((a,b)=>(b.fecha+(b.hora||'')).localeCompare(a.fecha+(a.hora||'')));
+  const esVend=c=>c.etapa==='vendido'||c.etapa==='posventa';
+  const vendidosMes=cl.filter(c=>esVend(c)&&(c.vendidoFecha||'').slice(0,7)===mes);
+  const facturadoMes=vendidosMes.reduce((s,c)=>s+(Number(c.valor)||0),0);
+  const comisionMes=vendidosMes.reduce((s,c)=>s+(Number(c.comision)||0),0);
+  const ventasTot=cl.filter(esVend).length;
+  const abiertos=cl.filter(c=>!esVend(c));
+  const abandonados=abiertos.filter(c=>{const ref=ultimoLogFecha(c)||c.ultimoContacto||c.creado||'';return ref&&ref<catorce;});
+  const ultAct=cl.reduce((f,c)=>{const l=ultimoLogFecha(c);return l>f?l:f;},'');
   return {
     total:cl.length,
     ventas:cl.filter(c=>c.etapa==='vendido').length,
     atrasados:cl.filter(estadoAtrasadoSrv).length,
     calientes:cl.filter(esCalienteSrv).length,
-    plata:cl.filter(c=>c.etapa!=='vendido'&&c.etapa!=='posventa').reduce((s,c)=>s+(Number(c.valor)||0),0),
+    plata:abiertos.reduce((s,c)=>s+(Number(c.valor)||0),0),
     seguimientosSemana:seguim,
+    // --- Panel del dueño ---
+    ventasMes:vendidosMes.length,
+    facturadoMes:facturadoMes,
+    comisionMes:comisionMes,
+    ticket:vendidosMes.length?Math.round(facturadoMes/vendidosMes.length):0,
+    nuevosSemana:cl.filter(c=>(c.creado||'')>=weekAgo).length,
+    nuevosMes:cl.filter(c=>(c.creado||'').slice(0,7)===mes).length,
+    conversion:cl.length?Math.round(ventasTot/cl.length*100):0,
+    abandonados:abandonados.length,
+    ultimaActividad:ultAct,
     actividad:acts.slice(0,8)
   };
 }
 function metricsScoped(user){
   const users=loadUsers();let targets;
-  if(user.rol==='admin')targets=users.filter(u=>u.activo!==false);
+  if(user.rol==='admin')targets=users.filter(u=>u.activo!==false&&u.rol!=='dueno');
+  else if(user.rol==='dueno')targets=users.filter(u=>u.activo!==false&&u.rol!=='dueno');
   else if(user.rol==='supervisor')targets=users.filter(u=>(u.supervisorId===user.id||u.id===user.id)&&u.activo!==false);
   else targets=[user];
   return targets.map(u=>({user:publicUser(u),metrics:metricsFor(u.id)}));
@@ -285,18 +306,19 @@ http.createServer((req,res)=>{
   if(u==='/api/users'){
     if(req.method==='GET'){
       const users=loadUsers();let list;
-      if(me.rol==='admin')list=users;
+      if(me.rol==='admin'||me.rol==='dueno')list=users;
       else if(me.rol==='supervisor')list=users.filter(x=>x.supervisorId===me.id||x.id===me.id);
       else list=[me];
       return json(200,list.map(publicUser));
     }
     if(req.method==='POST')return readBody(body=>{
-      if(me.rol==='vendedor')return json(403,{error:'Sin permiso'});
+      if(me.rol!=='admin'&&me.rol!=='supervisor')return json(403,{error:'Sin permiso'});
       const users=loadUsers();const us=String(body.usuario||'').trim().toLowerCase();
       if(!us||!body.nombre||!body.pass)return json(400,{error:'Faltan datos (nombre, usuario y clave)'});
       if(users.some(x=>x.usuario===us))return json(400,{error:'Ese usuario ya existe'});
-      let rol=body.rol==='supervisor'?'supervisor':'vendedor',supervisorId=body.supervisorId||null;
+      let rol=['supervisor','dueno'].includes(body.rol)?body.rol:'vendedor',supervisorId=body.supervisorId||null;
       if(me.rol==='supervisor'){rol='vendedor';supervisorId=me.id;}
+      if(rol!=='vendedor')supervisorId=null;
       const {salt,hash}=hashPass(body.pass);
       const nu={id:uidU(),nombre:String(body.nombre).trim(),usuario:us,passHash:hash,salt,rol,supervisorId:rol==='vendedor'?supervisorId:null,activo:true,creado:hoy()};
       users.push(nu);saveUsers(users);json(200,publicUser(nu));
