@@ -296,7 +296,7 @@
         <div class="nav-label">Riders Miami</div>
         <button data-view="panel" class="active" aria-current="page"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Inicio</span></button>
         <button data-view="list"><span class="ic" aria-hidden="true">👥</span><span class="lbl">Todos</span><span class="count" id="cnt-list"></span></button>
-        <button class="sv-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
+        <button class="admin-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
         <button data-view="seg"><span class="ic" aria-hidden="true">🎯</span><span class="lbl">Seguimiento</span><span class="count" id="cnt-seg"></span></button>
         <button data-view="calientes"><span class="ic" aria-hidden="true">🔥</span><span class="lbl">Calientes</span><span class="count" id="cnt-cal"></span></button>
         <button data-view="frios"><span class="ic" aria-hidden="true">❄️</span><span class="lbl">Fríos</span><span class="count" id="cnt-frios"></span></button>
@@ -1006,7 +1006,7 @@ initEmoji();
 })();
 /* ---- Auth / arranque ---- */
 function roleLabel(r){return {admin:'Admin',supervisor:'Supervisor',vendedor:'Vendedor'}[r]||'';}
-function applyRoleUI(){const sv=!!(me&&(me.rol==='admin'||me.rol==='supervisor'));document.querySelectorAll('.sv-only').forEach(el=>{el.style.display=sv?'':'none';});}
+function applyRoleUI(){const sv=!!(me&&(me.rol==='admin'||me.rol==='supervisor'));document.querySelectorAll('.sv-only').forEach(el=>{el.style.display=sv?'':'none';});const adm=!!(me&&me.rol==='admin');document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=adm?'':'none';});}
 function startApp(){
   const w=document.querySelector('.window');if(w)w.style.display='';
   const ov=document.getElementById('login-ov');if(ov)ov.style.display='none';
