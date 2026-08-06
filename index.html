@@ -734,7 +734,34 @@ function listFiltered(){const q=(filtro||'').toLowerCase();let l=ordenados().fil
 function listRowsHTML(){const list=listFiltered();let r='';for(const c of list){const e=etapaDe(c.etapa),t=temperatura(c);r+=`<tr onclick="view='inbox';selectedId='${c.id}';render()"><td><b>${esc(c.nombre)}</b></td><td>${esc(c.whatsapp||'—')}</td><td>${esc(c.producto)}</td><td><span class="tag" style="background:${e.color}22;color:${e.color}">${e.nombre}</span></td><td>${t?`<span style="color:${t.color};font-weight:700">${t.emoji} ${t.label}</span>`:'—'}</td><td>${c.proximo||'—'}</td><td>${waIc(c)}</td></tr>`;}return r||`<tr><td colspan="7"><div class="empty" style="padding:14px">Sin resultados${filtro?' para "'+esc(filtro)+'"':''}</div></td></tr>`;}
 // Al buscar: actualiza SOLO la tabla, sin redibujar la página (sin parpadeo).
 function filtrarLista(v){filtro=v;const tb=document.getElementById('cli-tbody');if(tb)tb.innerHTML=listRowsHTML();const sub=document.getElementById('list-sub');if(sub)sub.textContent=activos().length+' clientes en total'+(v?(' · '+listFiltered().length+' coinciden'):'');}
+// Vista agrupada por vendedor (para supervisor/dueño): en vez de una lista suelta, cada vendedor
+// con sus clientes, cantidad y cuántos calientes/atrasados tiene.
+function gruposHTML(){
+  const q=(filtro||'').toLowerCase();
+  const base=activos().filter(c=>!q||(c.nombre+' '+c.whatsapp+' '+c.producto).toLowerCase().includes(q));
+  if(!base.length)return '<div class="empty" style="padding:16px">Sin resultados'+(q?' para "'+esc(filtro)+'"':'')+'</div>';
+  const byVend={};base.forEach(c=>{const k=c.vendedorId||'—';(byVend[k]=byVend[k]||[]).push(c);});
+  const ids=Object.keys(byVend).sort((a,b)=>byVend[b].length-byVend[a].length);
+  let h='';
+  for(const vid of ids){
+    const cs=byVend[vid].sort((a,b)=>(esCalienteT(b)?1:0)-(esCalienteT(a)?1:0));
+    const nom=nombreVend(vid),nCal=cs.filter(esCalienteT).length,nAtr=cs.filter(c=>enBucket(c,'atrasado')).length;
+    h+=`<div class="panelcard"><h3 style="display:flex;align-items:center;gap:9px"><span class="av" style="width:28px;height:28px;background:${avColor(vid)};font-size:11px">${iniciales(nom)}</span><span>${esc(nom)}</span><span class="faint" style="font-weight:600;font-size:12px">· ${cs.length} cliente(s)${nCal?' · <span style="color:#ff3b30">🔥 '+nCal+'</span>':''}${nAtr?' · <span style="color:#ff3b30">🔴 '+nAtr+' atras.</span>':''}</span></h3>`;
+    for(const c of cs){const e=etapaDe(c.etapa);h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:32px;height:32px;background:${avColor(c.id)};font-size:11px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12px;color:var(--muted)">${esc(c.whatsapp||'sin número')} · <span style="color:${e.color}">${e.nombre}</span>${c.proximo?' · 📅 '+esc(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):''):''}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;}
+    h+='</div>';
+  }
+  return h;
+}
+function filtrarGrupos(v){filtro=v;const w=document.getElementById('grp-wrap');if(w)w.innerHTML=gruposHTML();const s=document.getElementById('list-sub');if(s)s.textContent=activos().length+' clientes · '+(new Set(activos().map(c=>c.vendedorId)).size)+' vendedor(es)'+(v?' · filtrando "'+v+'"':'');}
 function renderList(){
+  // Supervisor/dueño sin cartera propia → vista agrupada por vendedor (prolija, de supervisión).
+  if(RO()&&!filtroVend){
+    const nV=new Set(activos().map(c=>c.vendedorId)).size;
+    main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>👥 Clientes del equipo</h1></div><div class="sub" id="list-sub">${activos().length} clientes · ${nV} vendedor(es)${filtro?' · filtrando "'+esc(filtro)+'"':''}</div>
+      <input id="cli-search" aria-label="Buscar clientes" placeholder="🔎 Buscar por nombre, teléfono o producto…" oninput="filtrarGrupos(this.value)" value="${esc(filtro)}" style="width:100%;max-width:440px;padding:11px 14px;border:1px solid var(--sep-strong);border-radius:8px;margin-bottom:16px;font-size:13.5px;background:var(--card)">
+      <div id="grp-wrap">${gruposHTML()}</div></div>`;
+    return;
+  }
   let banner='';
   if(filtroVend)banner=`<div class="vend-banner"><div>👤 Viendo la cartera de <b>${esc(nombreVend(filtroVend))}</b></div><button class="mini" onclick="filtroVend='';render()">Quitar filtro</button></div>`;
   else if(filtroEtapa)banner=`<div class="vend-banner"><div>Etapa: <b>${esc(etapaDe(filtroEtapa).nombre)}</b></div><button class="mini" onclick="filtroEtapa='';render()">Quitar filtro</button></div>`;
@@ -1123,13 +1150,12 @@ function applyRoleUI(){
   document.querySelectorAll('.sv-only').forEach(el=>{el.style.display=(adm||sup)?'':'none';});   // Cuentas: admin y supervisor
   document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=team?'':'none';});        // Equipo: admin, dueño y supervisor
   document.querySelectorAll('.owner-only').forEach(el=>{el.style.display=team?'':'none';});         // Panel del equipo: admin, dueño y supervisor
-  // El dueño es una cuenta de solo-supervisión: en el menú solo ve su Panel y el detalle de Equipo.
-  if(owner){document.querySelectorAll('#nav button').forEach(b=>{const v=b.dataset.view;b.style.display=(v==='dueno'||v==='equipo')?'':'none';});}
-  else{
-    document.querySelectorAll('#nav button').forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});
-    // El supervisor no tiene "Inicio" (panel personal de ventas/comisiones): su casa es el Panel del equipo.
-    if(sup){const pb=document.querySelector('#nav button[data-view="panel"]');if(pb)pb.style.display='none';}
-  }
+  // Menú por rol. Supervisión (dueño/supervisor) = menú acotado a herramientas de equipo, sin las
+  // secciones de tarea diaria de vendedor (Hoy/Calientes/Atrasados/etc.) que aparecían como listas sueltas.
+  const nav=document.querySelectorAll('#nav button');
+  if(owner){const allow=new Set(['dueno','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
+  else if(sup){const allow=new Set(['dueno','list','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
+  else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});}
 }
 function startApp(){
   const w=document.querySelector('.window');if(w)w.style.display='';
