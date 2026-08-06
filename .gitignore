@@ -1,0 +1,10 @@
+# Secretos y datos: NO subir a GitHub
+config.json
+clientes.json
+users.json
+clientes.backup-*.json
+wa-raw.txt
+
+node_modules/
+*.log
+.DS_Store
