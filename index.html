@@ -205,6 +205,11 @@
   .alert-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:9px 12px;background:var(--hover);border-radius:10px}
   .alert-row .al-ic{font-size:16px;flex:none}
   .temp-chip{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid;margin-left:7px;vertical-align:middle;white-space:nowrap}
+  /* ---- Modo solo lectura (supervisor / dueño): ven pero no editan clientes ---- */
+  body.readonly .nuevo-cli-btn{display:none!important}
+  body.readonly .col-crm input,body.readonly .col-crm textarea,body.readonly .col-crm select,body.readonly .col-crm button:not(.backbtn):not(.ficha-toggle){pointer-events:none;opacity:.5}
+  .ro-badge{display:none;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#fff;background:#8e8e93;padding:2px 8px;border-radius:999px;margin-left:8px}
+  body.readonly .ro-badge{display:inline-flex}
   @media(max-width:820px){.owner-kpis,.owner-mini{grid-template-columns:repeat(2,1fr)}}
   .actrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--sep)}
   .vend-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--brand-soft,rgba(0,122,255,.08));border:1px solid rgba(0,122,255,.2);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:13.5px}
@@ -376,6 +381,8 @@ function temperatura(c){
 // Chip de etiqueta (caliente/frío/etc) para mostrar al lado del nombre en las listas
 function tempChip(c){const t=temperatura(c);if(!t)return '';return `<span class="temp-chip" style="color:${t.color};border-color:${t.color}55;background:${t.color}14">${t.emoji} ${esc(t.label)}</span>`;}
 function esCalienteT(c){const t=temperatura(c);return !!(t&&t.id==='caliente');}
+// Solo lectura: supervisor y dueño ven la info del equipo pero NO editan clientes.
+function RO(){return !!(me&&(me.rol==='supervisor'||me.rol==='dueno'));}
 
 /* ============ DATOS ============ */
 function seed(){return [
@@ -406,7 +413,7 @@ async function api(path,opts){
   if(r.status===401){token='';localStorage.removeItem('crmToken');me=null;showLogin();throw new Error('401');}
   return r;
 }
-function save(){if(SERVER){api('/api/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clientes)}).catch(()=>{});}else{localStorage.setItem(KEY,JSON.stringify(clientes));}}
+function save(){if(RO())return;if(SERVER){api('/api/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clientes)}).catch(()=>{});}else{localStorage.setItem(KEY,JSON.stringify(clientes));}}
 function saveA(){localStorage.setItem(AKEY,JSON.stringify(asistente));}
 
 let clientes=[];
@@ -559,7 +566,7 @@ function renderInbox(){
   const c=sel();
   const total=list.length,sinResp=list.filter(needsReply).length;
   main.innerHTML=`<div class="inbox two" style="--convw:${convW}px">
-    <div class="col-conv"><div class="conv-top"><div class="conv-head-row"><h2>Chats</h2><button class="btn sm" onclick="abrirNuevoCliente()">＋ Nuevo</button></div><div class="auto-note">💬 ${total} conversaciones · ${sinResp} para responder</div><input id="inbox-search" placeholder="Buscar…" aria-label="Buscar cliente" value="${esc(filtro)}" oninput="filtrarChats(this.value)"></div><div class="conv-list">${convListItems()}</div><div class="col-resizer" onmousedown="startResize(event)" title="Arrastrá para ajustar el ancho"></div></div>
+    <div class="col-conv"><div class="conv-top"><div class="conv-head-row"><h2>Chats</h2><button class="btn sm nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo</button></div><div class="auto-note">💬 ${total} conversaciones · ${sinResp} para responder</div><input id="inbox-search" placeholder="Buscar…" aria-label="Buscar cliente" value="${esc(filtro)}" oninput="filtrarChats(this.value)"></div><div class="conv-list">${convListItems()}</div><div class="col-resizer" onmousedown="startResize(event)" title="Arrastrá para ajustar el ancho"></div></div>
     <div class="col-crm big">${c?crmHTML(c):'<div class="empty" style="margin:auto">Elegí un cliente para ver su ficha</div>'}</div>
   </div>`;
   updateCounts();
@@ -731,7 +738,7 @@ function renderList(){
   let banner='';
   if(filtroVend)banner=`<div class="vend-banner"><div>👤 Viendo la cartera de <b>${esc(nombreVend(filtroVend))}</b></div><button class="mini" onclick="filtroVend='';render()">Quitar filtro</button></div>`;
   else if(filtroEtapa)banner=`<div class="vend-banner"><div>Etapa: <b>${esc(etapaDe(filtroEtapa).nombre)}</b></div><button class="mini" onclick="filtroEtapa='';render()">Quitar filtro</button></div>`;
-  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Todos los clientes</h1><button class="btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div><div class="sub" id="list-sub">${activos().length} clientes en total${filtro?` · ${listFiltered().length} coinciden`:''}</div>${banner}
+  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Todos los clientes</h1><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div><div class="sub" id="list-sub">${activos().length} clientes en total${filtro?` · ${listFiltered().length} coinciden`:''}</div>${banner}
     <input id="cli-search" aria-label="Buscar clientes" placeholder="🔎 Buscar por nombre, teléfono o producto…" oninput="filtrarLista(this.value)" value="${esc(filtro)}" style="width:100%;max-width:440px;padding:11px 14px;border:1px solid var(--sep-strong);border-radius:8px;margin-bottom:16px;font-size:13.5px;background:var(--card)">
     <table><thead><tr><th>Cliente</th><th>WhatsApp</th><th>Producto</th><th>Etapa</th><th>Prioridad</th><th>Seguir</th><th>Chat</th></tr></thead><tbody id="cli-tbody">${listRowsHTML()}</tbody></table>
   </div>`;
@@ -785,6 +792,7 @@ function renderPorAnotar(){
 }
 /* ---- NUEVO CLIENTE (modal) ---- */
 function abrirNuevoCliente(){
+  if(RO())return;
   cerrarModal();
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
   wrap.innerHTML=`<div class="modal">
@@ -1042,7 +1050,7 @@ function renderPanel(){
   const maxDia=Math.max(1,...semanaDias.map(d=>d.n));
   const _mesLbl=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:AA.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg});}
-  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Panel</h1><button class="btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div><div class="sub">Riders Miami · ${total} clientes en total</div>
+  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Panel</h1><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div><div class="sub">Riders Miami · ${total} clientes en total</div>
     <div class="tiles">
       <div class="tile"><div class="n">${total}</div><div class="l">Clientes</div></div>
       <div class="tile hot"><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div>
@@ -1109,6 +1117,7 @@ function roleLabel(r){return {admin:'Admin',dueno:'Dueño',supervisor:'Superviso
 function applyRoleUI(){
   const r=me&&me.rol, owner=r==='dueno', sup=r==='supervisor', adm=r==='admin';
   const team=adm||owner||sup; // roles con herramientas de equipo (Panel + Equipo)
+  document.body.classList.toggle('readonly',RO()); // supervisor/dueño = solo lectura de clientes
   document.querySelectorAll('.sv-only').forEach(el=>{el.style.display=(adm||sup)?'':'none';});   // Cuentas: admin y supervisor
   document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=team?'':'none';});        // Equipo: admin, dueño y supervisor
   document.querySelectorAll('.owner-only').forEach(el=>{el.style.display=team?'':'none';});         // Panel del equipo: admin, dueño y supervisor
@@ -1120,7 +1129,7 @@ function startApp(){
   const w=document.querySelector('.window');if(w)w.style.display='';
   const ov=document.getElementById('login-ov');if(ov)ov.style.display='none';
   const acct=document.querySelector('.side-foot .acct');
-  if(acct&&me)acct.innerHTML='<span class="a">'+esc((me.nombre||'?').slice(0,1).toUpperCase())+'</span><span>'+esc(me.nombre||'')+' · '+roleLabel(me.rol)+'</span><button class="mini" onclick="logout()" title="Cerrar sesión" style="margin-left:auto">Salir</button>';
+  if(acct&&me)acct.innerHTML='<span class="a">'+esc((me.nombre||'?').slice(0,1).toUpperCase())+'</span><span>'+esc(me.nombre||'')+' · '+roleLabel(me.rol)+'<span class="ro-badge" title="Podés ver la info del equipo pero no editar clientes">👁 Solo lectura</span></span><button class="mini" onclick="logout()" title="Cerrar sesión" style="margin-left:auto">Salir</button>';
   if(me&&me.rol==='dueno')view='dueno';
   applyRoleUI();
   if(SERVER){api('/api/users').then(r=>r.json()).then(us=>{usuarios=us;render();}).catch(()=>{});}

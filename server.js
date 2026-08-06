@@ -298,7 +298,10 @@ http.createServer((req,res)=>{
 
   if(u==='/api/clientes'){
     if(req.method==='GET')return json(200,scopedClientes(me));
-    if(req.method==='POST')return readBody(body=>{mergeClientes(me,body);json(200,{ok:true});});
+    if(req.method==='POST')return readBody(body=>{
+      if(me.rol==='supervisor'||me.rol==='dueno')return json(403,{error:'Tu cuenta es de solo lectura'}); // supervisión: ven pero no editan
+      mergeClientes(me,body);json(200,{ok:true});
+    });
   }
 
   if(u==='/api/metrics'&&req.method==='GET')return json(200,metricsScoped(me));
