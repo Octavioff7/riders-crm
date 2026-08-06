@@ -1124,15 +1124,19 @@ function applyRoleUI(){
   document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=team?'':'none';});        // Equipo: admin, dueño y supervisor
   document.querySelectorAll('.owner-only').forEach(el=>{el.style.display=team?'':'none';});         // Panel del equipo: admin, dueño y supervisor
   // El dueño es una cuenta de solo-supervisión: en el menú solo ve su Panel y el detalle de Equipo.
-  if(owner)document.querySelectorAll('#nav button').forEach(b=>{const v=b.dataset.view;b.style.display=(v==='dueno'||v==='equipo')?'':'none';});
-  else document.querySelectorAll('#nav button').forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});
+  if(owner){document.querySelectorAll('#nav button').forEach(b=>{const v=b.dataset.view;b.style.display=(v==='dueno'||v==='equipo')?'':'none';});}
+  else{
+    document.querySelectorAll('#nav button').forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});
+    // El supervisor no tiene "Inicio" (panel personal de ventas/comisiones): su casa es el Panel del equipo.
+    if(sup){const pb=document.querySelector('#nav button[data-view="panel"]');if(pb)pb.style.display='none';}
+  }
 }
 function startApp(){
   const w=document.querySelector('.window');if(w)w.style.display='';
   const ov=document.getElementById('login-ov');if(ov)ov.style.display='none';
   const acct=document.querySelector('.side-foot .acct');
   if(acct&&me)acct.innerHTML='<span class="a">'+esc((me.nombre||'?').slice(0,1).toUpperCase())+'</span><span>'+esc(me.nombre||'')+' · '+roleLabel(me.rol)+'<span class="ro-badge" title="Podés ver la info del equipo pero no editar clientes">👁 Solo lectura</span></span><button class="mini" onclick="logout()" title="Cerrar sesión" style="margin-left:auto">Salir</button>';
-  if(me&&me.rol==='dueno')view='dueno';
+  if(me&&(me.rol==='dueno'||me.rol==='supervisor'))view='dueno'; // dueño y supervisor entran al Panel del equipo, no al Inicio personal
   applyRoleUI();
   if(SERVER){api('/api/users').then(r=>r.json()).then(us=>{usuarios=us;render();}).catch(()=>{});}
   loadData();
