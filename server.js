@@ -57,9 +57,8 @@ function ensureSetup(){
 /* ---------- Alcance por rol ---------- */
 function teamIds(users,sup){return users.filter(u=>u.supervisorId===sup.id).map(u=>u.id).concat(sup.id);}
 function canSeeCliente(user,c,users){
-  if(user.rol==='admin'||user.rol==='dueno')return true; // el dueño ve toda la operación (solo lectura)
+  if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')return true; // dueño y supervisor ven toda la operación (solo lectura)
   if(user.rol==='vendedor')return c.vendedorId===user.id;
-  if(user.rol==='supervisor')return teamIds(users,user).includes(c.vendedorId);
   return false;
 }
 function scopedClientes(user){const cl=loadClientes(),users=loadUsers();return cl.filter(c=>canSeeCliente(user,c,users));}
@@ -131,9 +130,7 @@ function metricsFor(vendId){
 }
 function metricsScoped(user){
   const users=loadUsers();let targets;
-  if(user.rol==='admin')targets=users.filter(u=>u.activo!==false&&u.rol!=='dueno');
-  else if(user.rol==='dueno')targets=users.filter(u=>u.activo!==false&&u.rol!=='dueno');
-  else if(user.rol==='supervisor')targets=users.filter(u=>(u.supervisorId===user.id||u.id===user.id)&&u.activo!==false);
+  if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')targets=users.filter(u=>u.activo!==false&&u.rol!=='dueno');
   else targets=[user];
   return targets.map(u=>({user:publicUser(u),metrics:metricsFor(u.id)}));
 }
@@ -309,8 +306,7 @@ http.createServer((req,res)=>{
   if(u==='/api/users'){
     if(req.method==='GET'){
       const users=loadUsers();let list;
-      if(me.rol==='admin'||me.rol==='dueno')list=users;
-      else if(me.rol==='supervisor')list=users.filter(x=>x.supervisorId===me.id||x.id===me.id);
+      if(me.rol==='admin'||me.rol==='dueno'||me.rol==='supervisor')list=users;
       else list=[me];
       return json(200,list.map(publicUser));
     }

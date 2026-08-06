@@ -840,6 +840,8 @@ function asignables(){
   if(me.rol==='supervisor')return usuarios.filter(u=>u.activo!==false&&(u.supervisorId===me.id||u.id===me.id));
   return usuarios.filter(u=>u.id===me.id);
 }
+// Quién puede editar a quién en Cuentas (coincide con el permiso del server): admin edita a cualquiera menos admin; supervisor solo a SUS vendedores.
+function puedoEditarUsuario(x){if(!me||x.id===me.id||x.rol==='admin')return false;if(me.rol==='admin')return true;if(me.rol==='supervisor')return x.rol==='vendedor'&&x.supervisorId===me.id;return false;}
 function verVendedor(id){filtroVend=id;view='list';render();}
 function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render();}
 async function renderEquipo(){
@@ -913,7 +915,7 @@ async function renderCuentas(){
   let us=[];try{us=await (await api('/api/users')).json();}catch(e){return;}
   usuarios=us;
   let h=`<div class="page"><div class="conv-head-row"><h1>⚙️ Cuentas</h1><button class="btn" onclick="nuevoUsuario()">＋ Nueva cuenta</button></div><div class="sub">Vendedores y supervisores del equipo.</div><div class="panelcard">`;
-  us.forEach(x=>{h+=`<div class="frow"><span class="av" style="width:34px;height:34px;background:${avColor(x.id)};font-size:12px">${iniciales(x.nombre)}</span><div style="flex:1"><b>${esc(x.nombre)}</b> <span class="tag" style="background:var(--hover);color:var(--muted)">${roleLabel(x.rol)}</span>${x.rol==='vendedor'&&x.supervisorId?' <span class="faint" style="font-size:11.5px">· sup: '+esc(nombreVend(x.supervisorId))+'</span>':''}<div class="faint" style="font-size:12px">@${esc(x.usuario)}${x.activo===false?' · <span style="color:#ff3b30">inactivo</span>':''}</div></div>${x.id===me.id?`<button class="mini" onclick="cambiarMiClave()">🔑 Mi clave</button>`:(x.rol!=='admin'?`<button class="mini" onclick="editarUsuario('${x.id}')">✏️ Editar</button>`:'<span class="faint" style="font-size:11px">vos</span>')}</div>`;});
+  us.forEach(x=>{h+=`<div class="frow"><span class="av" style="width:34px;height:34px;background:${avColor(x.id)};font-size:12px">${iniciales(x.nombre)}</span><div style="flex:1"><b>${esc(x.nombre)}</b> <span class="tag" style="background:var(--hover);color:var(--muted)">${roleLabel(x.rol)}</span>${x.rol==='vendedor'&&x.supervisorId?' <span class="faint" style="font-size:11.5px">· sup: '+esc(nombreVend(x.supervisorId))+'</span>':''}<div class="faint" style="font-size:12px">@${esc(x.usuario)}${x.activo===false?' · <span style="color:#ff3b30">inactivo</span>':''}</div></div>${x.id===me.id?`<button class="mini" onclick="cambiarMiClave()">🔑 Mi clave</button>`:(puedoEditarUsuario(x)?`<button class="mini" onclick="editarUsuario('${x.id}')">✏️ Editar</button>`:'')}</div>`;});
   h+='</div></div>';main.innerHTML=h;
 }
 function nuevoUsuario(){
