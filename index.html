@@ -437,7 +437,7 @@ let asistente=[];
 try{asistente=JSON.parse(localStorage.getItem(AKEY))||[];}catch(e){}
 if(!asistente.length) asistente=[{de:'bot',texto:'👋 Hola Octa! Soy tu asistente del CRM. Contame en una frase qué pasó con un cliente y yo lo <b>cargo y anoto solo</b>.<br><br>Por ejemplo:<br>• <i>"Yosvani quiere la moto roja, seguimiento el viernes"</i><br>• <i>"Cargá a Juan, preguntó por un triciclo"</i><br>• <i>"Maria ya pagó, marcala como vendida"</i>'}];
 
-let view='panel',filtro='',editNotaKey=null,_lastView=null;
+let view='panel',filtro='',editNotaKey=null,_lastView=null,inboxCtx=null;
 let convW=+localStorage.getItem('convW')||340;if(convW<240||convW>640)convW=340;
 function startResize(e){
   e.preventDefault();
@@ -486,10 +486,12 @@ function updateCounts(){
   setc('cnt-atra',A.filter(c=>enBucket(c,'atrasado')).length);setc('cnt-hoy',A.filter(c=>enBucket(c,'hoy')).length);setc('cnt-prox',A.filter(c=>enBucket(c,'proximos')).length);setc('cnt-sem',A.filter(c=>enBucket(c,'semana')).length);
 }
 function render(){
-  document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===view;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  if(view!=='inbox')inboxCtx=null; // al salir del inbox se pierde el contexto de la sección
+  const navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
+  document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
   const TITLES={panel:'Inicio',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas'};
-  const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[view]||'Riders Miami';
+  const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
   else if(view==='dueno')renderDueno();
@@ -570,17 +572,30 @@ function convWhen(c){
   return relTime((last&&last.fecha)||c.ultimoContacto||c.creado);
 }
 function needsReply(c){return c.respondioUltimo==='cliente'&&c.etapa!=='vendido'&&c.etapa!=='posventa';}
-function filteredConvs(){return ordenados().filter(c=>!filtro||(c.nombre+c.whatsapp+c.producto).toLowerCase().includes(filtro.toLowerCase()));}
+// Lista de clientes de una sección (para mostrarla como columna del medio al abrir un contacto desde ahí).
+function ctxList(ctx){const A=activos();
+  if(ctx==='calientes')return A.filter(c=>{const t=temperatura(c);return t&&t.id==='caliente';});
+  if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');});
+  if(ctx==='seg')return A.filter(c=>temperatura(c));
+  if(ctx==='anotar')return A.filter(sinAnotar);
+  if(['atrasado','hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)).sort((a,b)=>(esCalienteT(a)?0:1)-(esCalienteT(b)?0:1)||proxDateTime(a)-proxDateTime(b));
+  return null;
+}
+const CTX_LABEL={atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar'};
+function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';render();}
+function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados();return base.filter(c=>!filtro||(c.nombre+c.whatsapp+c.producto).toLowerCase().includes(filtro.toLowerCase()));}
 function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(c.whatsapp):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
 function convListItems(){const l=filteredConvs();return l.map(convRow).join('')||'<div class="empty" style="margin:14px">Sin clientes</div>';}
 // Al buscar: actualiza SOLO la lista y el contador, sin redibujar la ficha (evita el parpadeo).
-function filtrarChats(v){filtro=v;const cl=document.querySelector('.conv-list');if(cl)cl.innerHTML=convListItems();const l=filteredConvs();const n=document.querySelector('.conv-top .auto-note');if(n)n.innerHTML='💬 '+l.length+' conversaciones · '+l.filter(needsReply).length+' para responder';}
+function filtrarChats(v){filtro=v;const cl=document.querySelector('.conv-list');if(cl)cl.innerHTML=convListItems();const l=filteredConvs();const n=document.querySelector('.conv-top .auto-note');if(n)n.innerHTML=inboxCtx?('💬 '+l.length+' en esta sección · <a href="#" onclick="inboxCtx=null;render();return false" style="color:var(--accent);text-decoration:none">ver todos los chats</a>'):('💬 '+l.length+' conversaciones · '+l.filter(needsReply).length+' para responder');}
 function renderInbox(){
   const list=filteredConvs();
   const c=sel();
   const total=list.length,sinResp=list.filter(needsReply).length;
+  const titulo=inboxCtx?(CTX_LABEL[inboxCtx]||'Chats'):'Chats';
+  const nota=inboxCtx?('💬 '+total+' en esta sección · <a href="#" onclick="inboxCtx=null;render();return false" style="color:var(--accent);text-decoration:none">ver todos los chats</a>'):('💬 '+total+' conversaciones · '+sinResp+' para responder');
   main.innerHTML=`<div class="inbox two" style="--convw:${convW}px">
-    <div class="col-conv"><div class="conv-top"><div class="conv-head-row"><h2>Chats</h2><button class="btn sm nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo</button></div><div class="auto-note">💬 ${total} conversaciones · ${sinResp} para responder</div><input id="inbox-search" placeholder="Buscar…" aria-label="Buscar cliente" value="${esc(filtro)}" oninput="filtrarChats(this.value)"></div><div class="conv-list">${convListItems()}</div><div class="col-resizer" onmousedown="startResize(event)" title="Arrastrá para ajustar el ancho"></div></div>
+    <div class="col-conv"><div class="conv-top"><div class="conv-head-row"><h2>${titulo}</h2><button class="btn sm nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo</button></div><div class="auto-note">${nota}</div><input id="inbox-search" placeholder="Buscar…" aria-label="Buscar cliente" value="${esc(filtro)}" oninput="filtrarChats(this.value)"></div><div class="conv-list">${convListItems()}</div><div class="col-resizer" onmousedown="startResize(event)" title="Arrastrá para ajustar el ancho"></div></div>
     <div class="col-crm big">${c?crmHTML(c):'<div class="empty" style="margin:auto">Elegí un cliente para ver su ficha</div>'}</div>
   </div>`;
   updateCounts();
@@ -806,7 +821,7 @@ function renderSeg(){
   for(const id of ['caliente','seguimiento','sinContacto','perdido']){const t=TEMPS[id],cs=list.filter(c=>temperatura(c).id===id);
     h+=`<div class="panelcard"><h3>${t.emoji} ${t.label} <span style="color:var(--muted);font-weight:600">· ${cs.length}</span></h3>`;
     if(!cs.length)h+='<div class="empty">Nadie por ahora</div>';
-    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.whatsapp||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
+    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','seg')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.whatsapp||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
     h+='</div>';}
   main.innerHTML=h+'</div>';
 }
@@ -820,7 +835,7 @@ function renderCalientes(){
     const cs=list.filter(c=> g.id==='sinfecha' ? !c.proximo : enBucket(c,g.id));
     if(!cs.length)continue;
     h+=`<div class="panelcard"><h3>${g.emoji} ${g.label} <span style="color:var(--muted);font-weight:600">· ${cs.length}</span></h3>`;
-    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${c.proximo?('📅 '+esc(c.proximoTipo||'Seguimiento')+' · '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):'')):esc(c.whatsapp||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
+    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','calientes')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${c.proximo?('📅 '+esc(c.proximoTipo||'Seguimiento')+' · '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):'')):esc(c.whatsapp||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
     h+='</div>';
   }
   main.innerHTML=h+'</div>';
@@ -831,7 +846,7 @@ function renderFrios(){
   let h=`<div class="page"><h1>❄️ Fríos — sin contactar</h1><div class="sub">${list.length} clientes con los que casi no tuviste contacto. Dales un primer toque para activarlos.</div><div class="note">💡 <div>Son leads que entraron pero quedaron sin seguimiento. Tocá el botón verde para escribirles por WhatsApp.</div></div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay clientes fríos 🎉</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list)h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div>${waIc(c)}</div>`;
+  for(const c of list)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','frios')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div>${waIc(c)}</div>`;
   main.innerHTML=h+'</div></div>';
 }
 /* ---- POR ANOTAR (sin nota propia) ---- */
@@ -843,7 +858,7 @@ function renderPorAnotar(){
   let h=`<div class="page"><h1>📝 Por anotar</h1><div class="sub">${list.length} clientes sin ninguna nota tuya — o que solo tienen la etiqueta importada. Abrilos y anotá lo que sabés.</div><div class="note">💡 <div>Acá caen los clientes donde todavía no escribiste nada propio. Tocá uno para abrir su ficha y agregar una nota o programar un próximo contacto.</div></div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">¡Todos tienen al menos una nota tuya! 🎉</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list){const soloEtiqueta=(c.log||[]).length>0;h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div><span class="chip">${soloEtiqueta?'Solo etiqueta':'Sin nada'}</span>${waIc(c)}</div>`;}
+  for(const c of list){const soloEtiqueta=(c.log||[]).length>0;h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','anotar')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div><span class="chip">${soloEtiqueta?'Solo etiqueta':'Sin nada'}</span>${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
 /* ---- NUEVO CLIENTE (modal) ---- */
@@ -1063,7 +1078,7 @@ function renderAgendaSec(estado){
   let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s). ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list){const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div>${waIc(c)}</div>`;}
+  for(const c of list){const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div>${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
 /* ---- AGENDA (reuniones / llamadas) ---- */
