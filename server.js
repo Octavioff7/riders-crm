@@ -104,10 +104,12 @@ function tokenUid(tok){
 }
 function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const uid=tokenUid(t);if(!uid)return null;return loadUsers().find(u=>u.id===uid&&u.activo!==false)||null;}
 function publicUser(u){return u?{id:u.id,nombre:u.nombre,usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId}:null;}
-// Códigos de vinculación de Telegram (temporales, en memoria)
-const tgCodes={};
-function genTgCode(uid){const code=String(Math.floor(100000+Math.random()*900000));tgCodes[code]={uid,exp:Date.now()+15*60000};return code;}
-function consumeTgCode(code){const e=tgCodes[code];if(!e||e.exp<Date.now())return null;delete tgCodes[code];return e.uid;}
+// Códigos de vinculación de Telegram (persistidos para sobrevivir a reinicios/deploys)
+const TGCODEPATH=path.join(DATA_DIR,'tgcodes.json');
+function loadTgCodes(){try{return JSON.parse(fs.readFileSync(TGCODEPATH,'utf8'))}catch(e){return {}}}
+function saveTgCodes(o){try{fs.writeFileSync(TGCODEPATH,JSON.stringify(o))}catch(e){}}
+function genTgCode(uid){const o=loadTgCodes();const code=String(Math.floor(100000+Math.random()*900000));o[code]={uid,exp:Date.now()+30*60000};saveTgCodes(o);return code;}
+function consumeTgCode(code){const o=loadTgCodes();const e=o[code];if(!e||e.exp<Date.now())return null;delete o[code];saveTgCodes(o);return e.uid;}
 function adminUser(){return loadUsers().find(u=>u.rol==='admin');}
 
 // Primer arranque: crear admin (Octa) + asignar clientes existentes.

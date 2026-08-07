@@ -6,6 +6,7 @@ clientes.backup-*.json
 backups/
 .secret
 notified.json
+tgcodes.json
 wa-raw.txt
 
 node_modules/

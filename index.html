@@ -468,9 +468,9 @@ function fmtTel(v){
   if(v.indexOf('+1')===0){
     const d=v.slice(2).replace(/\D/g,'').slice(0,10);
     if(!d.length)return v.replace(/[^\d+()\-\s]/g,''); // "+1"/"+1 " → tal cual (permite seguir borrando)
+    // El ")" se agrega SOLO con 4+ dígitos, así el backspace borra de corrido (no se re-agrega el ")").
     let s='+1 ('+d.slice(0,Math.min(3,d.length));
-    if(d.length>=3)s+=')';
-    if(d.length>3)s+=' '+d.slice(3,Math.min(6,d.length));
+    if(d.length>3)s+=') '+d.slice(3,Math.min(6,d.length));
     if(d.length>6)s+='-'+d.slice(6,10);
     return s;
   }
@@ -1231,8 +1231,15 @@ async function conectarTelegram(){
   cerrarModal();
   let data={};try{data=await (await api('/api/tg/code',{method:'POST'})).json();}catch(e){}
   const code=data.code||'------',bot=data.bot||'RidersCRM_bot',link='https://t.me/'+bot+'?start='+code,linked=!!(me&&me.tgLinked);
+  let estado='';
+  if(me&&me.rol==='admin'){try{const bs=await (await api('/api/bot-status')).json();
+    if(!bs.tokenSet)estado='<div style="background:#ff3b301a;color:#ff3b30;padding:9px 12px;border-radius:10px;font-weight:600;margin-bottom:10px;font-size:12.5px">🔴 Falta configurar el token del bot en el servidor.</div>';
+    else if(/conflict|409/i.test(bs.lastErr||''))estado='<div style="background:#ff3b301a;color:#ff3b30;padding:9px 12px;border-radius:10px;font-weight:600;margin-bottom:10px;font-size:12.5px">🔴 Hay OTRO CRM corriendo el bot (cerrá el CRM abierto en tu PC). Solo uno puede usar el bot a la vez.</div>';
+    else if(bs.lastOkSecondsAgo!=null&&bs.lastOkSecondsAgo<120)estado='<div style="background:#34c7591a;color:#248a3d;padding:9px 12px;border-radius:10px;font-weight:600;margin-bottom:10px;font-size:12.5px">🟢 Bot conectado y funcionando.</div>';
+    else estado='<div style="background:#ff9f0a1a;color:#b26a00;padding:9px 12px;border-radius:10px;font-weight:600;margin-bottom:10px;font-size:12.5px">🟡 Bot iniciando o sin responder'+(bs.lastErr?(' ('+esc(bs.lastErr)+')'):'')+'. Probá de nuevo en 1 minuto.</div>';
+  }catch(e){}}
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
-  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>🔔 Avisos por Telegram</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">${linked?'<div style="background:#34c7591a;color:#248a3d;padding:10px 12px;border-radius:10px;font-weight:600;margin-bottom:10px">✅ Ya estás conectado. Recibís tus recordatorios en Telegram.</div>':''}<div class="faint" style="font-size:13px;line-height:1.5">Cuando llegue la hora de una llamada o seguimiento de <b>tus</b> clientes, te llega un aviso a Telegram.</div><ol style="font-size:13.5px;line-height:1.7;padding-left:18px;margin:10px 0"><li>Tocá para abrir Telegram y vincular:<br><a class="btn" style="display:inline-flex;margin-top:6px;text-decoration:none" href="${link}" target="_blank" rel="noopener">Abrir @${esc(bot)} y vincular</a></li><li>O manualmente: abrí <b>@${esc(bot)}</b> y mandá:<br><code style="background:var(--hover);padding:3px 8px;border-radius:6px;display:inline-block;margin-top:4px">/vincular ${code}</code></li></ol><div class="faint" style="font-size:11.5px">El código vence en 15 minutos y es solo para tu cuenta.</div></div><div class="modal-f">${linked?`<button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="desvincularTelegram()">Desconectar</button>`:''}<button class="btn" onclick="cerrarModal()">Listo</button></div></div>`;
+  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>🔔 Avisos por Telegram</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">${estado}${linked?'<div style="background:#34c7591a;color:#248a3d;padding:10px 12px;border-radius:10px;font-weight:600;margin-bottom:10px">✅ Ya estás conectado. Recibís tus recordatorios en Telegram.</div>':''}<div class="faint" style="font-size:13px;line-height:1.5">Cuando llegue la hora de una llamada o seguimiento de <b>tus</b> clientes, te llega un aviso a Telegram.</div><ol style="font-size:13.5px;line-height:1.7;padding-left:18px;margin:10px 0"><li>Tocá para abrir Telegram y vincular:<br><a class="btn" style="display:inline-flex;margin-top:6px;text-decoration:none" href="${link}" target="_blank" rel="noopener">Abrir @${esc(bot)} y vincular</a></li><li>O manualmente: abrí <b>@${esc(bot)}</b> y mandá:<br><code style="background:var(--hover);padding:3px 8px;border-radius:6px;display:inline-block;margin-top:4px">/vincular ${code}</code></li></ol><div class="faint" style="font-size:11.5px">El código vence en 15 minutos y es solo para tu cuenta.</div></div><div class="modal-f">${linked?`<button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="desvincularTelegram()">Desconectar</button>`:''}<button class="btn" onclick="cerrarModal()">Listo</button></div></div>`;
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
 }
 async function desvincularTelegram(){try{await api('/api/tg/unlink',{method:'POST'});}catch(e){}if(me)me.tgLinked=false;cerrarModal();}
