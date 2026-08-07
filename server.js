@@ -103,7 +103,7 @@ function tokenUid(tok){
   return d.uid;
 }
 function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const uid=tokenUid(t);if(!uid)return null;return loadUsers().find(u=>u.id===uid&&u.activo!==false)||null;}
-function publicUser(u){return u?{id:u.id,nombre:u.nombre,usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId}:null;}
+function publicUser(u){return u?{id:u.id,nombre:u.nombre,usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length)}:null;}
 // Códigos de vinculación de Telegram (persistidos para sobrevivir a reinicios/deploys)
 const TGCODEPATH=path.join(DATA_DIR,'tgcodes.json');
 function loadTgCodes(){try{return JSON.parse(fs.readFileSync(TGCODEPATH,'utf8'))}catch(e){return {}}}
@@ -111,6 +111,28 @@ function saveTgCodes(o){try{fs.writeFileSync(TGCODEPATH,JSON.stringify(o))}catch
 function genTgCode(uid){const o=loadTgCodes();const code=String(Math.floor(100000+Math.random()*900000));o[code]={uid,exp:Date.now()+30*60000};saveTgCodes(o);return code;}
 function consumeTgCode(code){const o=loadTgCodes();const e=o[code];if(!e||e.exp<Date.now())return null;delete o[code];saveTgCodes(o);return e.uid;}
 function adminUser(){return loadUsers().find(u=>u.rol==='admin');}
+
+/* ---------- Notificaciones push al celular (Web Push, sin Telegram) ---------- */
+let webpush=null;try{webpush=require('web-push');}catch(e){console.log('[push] web-push no disponible, push deshabilitado');}
+let VAPID=null;
+if(webpush){
+  const VPATH=path.join(DATA_DIR,'.vapid');
+  if(process.env.VAPID_PUBLIC&&process.env.VAPID_PRIVATE)VAPID={publicKey:process.env.VAPID_PUBLIC,privateKey:process.env.VAPID_PRIVATE};
+  if(!VAPID){try{VAPID=JSON.parse(fs.readFileSync(VPATH,'utf8'));}catch(e){}}
+  if(!VAPID){try{VAPID=webpush.generateVAPIDKeys();fs.writeFileSync(VPATH,JSON.stringify(VAPID));}catch(e){}}
+  try{if(VAPID)webpush.setVapidDetails('mailto:crm@ridersmiami.com',VAPID.publicKey,VAPID.privateKey);else webpush=null;}catch(e){webpush=null;}
+}
+function pushPubKey(){return VAPID?VAPID.publicKey:'';}
+function addPushSub(userId,sub){const users=loadUsers();const u=users.find(x=>x.id===userId);if(!u||!sub||!sub.endpoint)return false;u.pushSubs=u.pushSubs||[];if(!u.pushSubs.some(s=>s.endpoint===sub.endpoint))u.pushSubs.push(sub);saveUsers(users);return true;}
+function removePushSub(userId,endpoint){const users=loadUsers();const u=users.find(x=>x.id===userId);if(!u||!u.pushSubs)return;u.pushSubs=u.pushSubs.filter(s=>s.endpoint!==endpoint);saveUsers(users);}
+function pushToUser(userId,payload){
+  if(!webpush)return false;
+  const u=loadUsers().find(x=>x.id===userId);if(!u||!u.pushSubs||!u.pushSubs.length)return false;
+  const dead=[];
+  u.pushSubs.forEach(s=>{webpush.sendNotification(s,JSON.stringify(payload)).catch(err=>{if(err&&(err.statusCode===410||err.statusCode===404))dead.push(s.endpoint);});});
+  if(dead.length)setTimeout(()=>{const us=loadUsers();const uu=us.find(x=>x.id===userId);if(uu&&uu.pushSubs){uu.pushSubs=uu.pushSubs.filter(s=>!dead.includes(s.endpoint));saveUsers(us);}},4000);
+  return true;
+}
 
 // Primer arranque: crear admin (Octa) + asignar clientes existentes.
 function ensureSetup(){
@@ -377,8 +399,11 @@ function checkDue(){
   }catch(e){console.log('[recordatorios] error:',e.message);}
 }
 
-let offset=0,botLastOk=0,botLastErr='',botUsername='';
-function fetchBotUsername(){tg('getMe').then(r=>{if(r&&r.ok&&r.result&&r.result.username)botUsername=r.result.username;}).catch(()=>{});}
+let offset=0,botLastOk=0,botLastErr='',botUsername='',botMeErr='';
+function fetchBotUsername(){
+  if(!CFG.telegramToken||CFG.telegramToken.length<20){botMeErr='falta el token (TELEGRAM_TOKEN) en el servidor';return;}
+  tg('getMe').then(r=>{if(r&&r.ok&&r.result&&r.result.username){botUsername=r.result.username;botMeErr='';}else{botMeErr=r&&r.description?('['+(r.error_code||'?')+'] '+r.description):'Telegram no respondió';}}).catch(e=>{botMeErr=(e&&e.message)||'error de red';});
+}
 async function poll(){
   try{const upd=await tg('getUpdates',{offset:offset,timeout:30});
     if(upd&&upd.ok){botLastOk=Date.now();botLastErr='';for(const u of upd.result){offset=u.update_id+1;if(u.message)await handle(u.message);}}
@@ -416,6 +441,9 @@ http.createServer((req,res)=>{
   if(u==='/api/me'&&req.method==='GET')return json(200,{user:publicUser(me)});
   if(u==='/api/bot-status'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{tokenSet:!!(CFG.telegramToken&&CFG.telegramToken.length>10),allowedChatId:CFG.allowedChatId||null,lastOkSecondsAgo:botLastOk?Math.round((Date.now()-botLastOk)/1000):null,lastErr:botLastErr||''});}
   if(u==='/api/tg/code'&&req.method==='POST')return json(200,{code:genTgCode(me.id),bot:botUsername||CFG.telegramBotUser});
+  if(u==='/api/push/pubkey'&&req.method==='GET')return json(200,{key:pushPubKey(),enabled:!!webpush});
+  if(u==='/api/push/subscribe'&&req.method==='POST')return readBody(b=>{const ok=addPushSub(me.id,b.subscription);json(ok?200:400,{ok});});
+  if(u==='/api/push/unsubscribe'&&req.method==='POST')return readBody(b=>{removePushSub(me.id,b.endpoint||'');json(200,{ok:true});});
   if(u==='/api/tg/unlink'&&req.method==='POST'){const users=loadUsers();const usr=users.find(x=>x.id===me.id);if(usr){delete usr.telegramChatId;saveUsers(users);}return json(200,{ok:true});}
 
   if(u==='/api/clientes'){

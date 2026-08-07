@@ -5,6 +5,7 @@ users.json
 clientes.backup-*.json
 backups/
 .secret
+.vapid
 notified.json
 tgcodes.json
 wa-raw.txt
