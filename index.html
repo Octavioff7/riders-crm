@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Riders Miami — CRM</title>
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#f97316">
+<meta name="theme-color" content="#262a63">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -67,7 +67,8 @@
   /* SIDEBAR */
   .side{width:230px;flex-shrink:0;background:var(--sidebar);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border-right:1px solid var(--sep);display:flex;flex-direction:column;padding-top:6px;transition:width .28s cubic-bezier(.32,.72,0,1)}
   .brand{display:flex;align-items:center;gap:10px;padding:8px 18px 12px;color:var(--txt);font-weight:700;font-size:13px}
-  .brand .badge{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#ff6a2b,#ff9a5b);display:grid;place-items:center;font-size:14px;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .brand .badge{width:28px;height:28px;border-radius:7px;background:#262a63;display:grid;place-items:center;font-size:14px;box-shadow:0 1px 2px rgba(0,0,0,.2);overflow:hidden}
+  .badge img{width:100%;height:100%;object-fit:cover;display:block}
   .brand small{display:block;font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.4px}
   nav{display:flex;flex-direction:column;gap:1px;padding:6px 10px;flex:1}
   nav button{display:flex;align-items:center;gap:10px;background:transparent;border:none;color:var(--txt);padding:5px 8px;border-radius:7px;font-weight:500;font-size:13.5px;text-align:left;width:100%;transition:background .16s ease}
@@ -190,7 +191,7 @@
   .login-ov{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(135deg,#eef2f7,#e6ecf3);z-index:500;padding:16px}
   .login-card{background:var(--card);border:1px solid var(--sep);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.18);padding:26px;width:340px;max-width:100%;display:flex;flex-direction:column}
   .login-brand{display:flex;align-items:center;gap:11px;margin-bottom:16px}
-  .login-brand .badge{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#ff8a4c,#ff5722);color:#fff;display:grid;place-items:center;font-weight:800;font-size:16px}
+  .login-brand .badge{width:44px;height:44px;border-radius:10px;background:#262a63;color:#fff;display:grid;place-items:center;font-weight:800;font-size:16px;overflow:hidden}
   .login-card label{font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
   .login-card input{background:var(--bg);border:1px solid var(--sep-strong);border-radius:9px;padding:10px 12px;font-size:15px;color:var(--txt)}
   .login-card input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,122,255,.2)}
@@ -347,7 +348,7 @@
   </div>
   <div class="shell">
     <aside class="side">
-      <div class="brand"><span class="badge">R</span><div>Riders Miami<small>CRM</small></div></div>
+      <div class="brand"><span class="badge"><img src="/logo.jpg" alt="Riders Miami"></span><div>Riders Miami<small>CRM</small></div></div>
       <nav id="nav" aria-label="Navegación principal">
         <div class="nav-label">Riders Miami</div>
         <button data-view="panel" class="active" aria-current="page"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Inicio</span></button>
@@ -1313,7 +1314,7 @@ function showLogin(){
   const w=document.querySelector('.window');if(w)w.style.display='none';
   let ov=document.getElementById('login-ov');
   if(!ov){ov=document.createElement('div');ov.id='login-ov';ov.className='login-ov';document.body.appendChild(ov);}
-  ov.innerHTML='<form class="login-card" onsubmit="return doLogin(event)"><div class="login-brand"><span class="badge">R</span><div><b>Riders Miami</b><div class="faint" style="font-size:12px">CRM del equipo</div></div></div><label>Usuario</label><input id="lg-user" autocomplete="username"><label>Clave</label><input id="lg-pass" type="password" autocomplete="current-password"><div id="lg-err" class="lg-err"></div><button class="btn" type="submit" style="width:100%;justify-content:center;padding:11px;margin-top:6px">Entrar</button></form>';
+  ov.innerHTML='<form class="login-card" onsubmit="return doLogin(event)"><div class="login-brand"><span class="badge"><img src="/logo.jpg" alt="Riders Miami"></span><div><b>Riders Miami</b><div class="faint" style="font-size:12px">CRM del equipo</div></div></div><label>Usuario</label><input id="lg-user" autocomplete="username"><label>Clave</label><input id="lg-pass" type="password" autocomplete="current-password"><div id="lg-err" class="lg-err"></div><button class="btn" type="submit" style="width:100%;justify-content:center;padding:11px;margin-top:6px">Entrar</button></form>';
   ov.style.display='grid';
   setTimeout(()=>{const e=document.getElementById('lg-user');if(e)e.focus();},40);
 }
