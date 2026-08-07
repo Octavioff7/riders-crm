@@ -330,7 +330,7 @@ function reply(chatId,text){return tg('sendMessage',{chat_id:chatId,text:text,pa
 async function handle(msg){
   const chatId=msg.chat.id;const text=(msg.text||'').trim();if(!text)return;
   // Vinculación de vendedores: /start CODE, /vincular CODE, o un código de 6 dígitos suelto
-  const mcode=text.match(/^(?:\/start|\/vincular)\s+(\w{4,10})$/i)||text.match(/^(\d{6})$/);
+  const mcode=text.match(/^\/?(?:start|vincular|codigo|código)[\s:]+(\w{4,10})$/i)||text.match(/^\s*(\d{5,7})\s*$/);
   if(mcode){
     const uid=consumeTgCode(mcode[1]);
     if(uid){const users=loadUsers();const usr=users.find(u=>u.id===uid);if(usr){usr.telegramChatId=chatId;saveUsers(users);await reply(chatId,'✅ Listo'+(usr.nombre?', '+usr.nombre:'')+'. Vas a recibir acá los recordatorios de tus contactos.');return;}}
@@ -375,9 +375,12 @@ function checkDue(){
   }catch(e){console.log('[recordatorios] error:',e.message);}
 }
 
-let offset=0;
+let offset=0,botLastOk=0,botLastErr='';
 async function poll(){
-  try{const upd=await tg('getUpdates',{offset:offset,timeout:30});if(upd&&upd.ok){for(const u of upd.result){offset=u.update_id+1;if(u.message)await handle(u.message);}}}catch(e){}
+  try{const upd=await tg('getUpdates',{offset:offset,timeout:30});
+    if(upd&&upd.ok){botLastOk=Date.now();botLastErr='';for(const u of upd.result){offset=u.update_id+1;if(u.message)await handle(u.message);}}
+    else if(upd&&upd.error_code){botLastErr='['+upd.error_code+'] '+(upd.description||'');}
+  }catch(e){botLastErr=e.message||String(e);}
   setTimeout(poll,500);
 }
 
@@ -405,6 +408,7 @@ http.createServer((req,res)=>{
 
   if(u==='/api/logout'&&req.method==='POST'){return json(200,{ok:true});}
   if(u==='/api/me'&&req.method==='GET')return json(200,{user:publicUser(me)});
+  if(u==='/api/bot-status'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{tokenSet:!!(CFG.telegramToken&&CFG.telegramToken.length>10),allowedChatId:CFG.allowedChatId||null,lastOkSecondsAgo:botLastOk?Math.round((Date.now()-botLastOk)/1000):null,lastErr:botLastErr||''});}
   if(u==='/api/tg/code'&&req.method==='POST')return json(200,{code:genTgCode(me.id),bot:CFG.telegramBotUser});
   if(u==='/api/tg/unlink'&&req.method==='POST'){const users=loadUsers();const usr=users.find(x=>x.id===me.id);if(usr){delete usr.telegramChatId;saveUsers(users);}return json(200,{ok:true});}
 
