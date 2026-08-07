@@ -90,6 +90,12 @@
   .side-foot .demo{border-radius:7px;padding:5px 9px;font-size:11px;font-weight:600;text-align:center;margin-bottom:10px}
   .side-foot .acct{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--txt);font-weight:500}
   .side-foot .acct .a{width:26px;height:26px;border-radius:50%;background:var(--accent);display:grid;place-items:center;font-weight:700;font-size:11px;color:#fff}
+  .perfil-btn{display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:none;padding:6px 8px;border-radius:9px;cursor:pointer;color:var(--txt);text-align:left;transition:background .16s ease}
+  .perfil-btn:hover{background:var(--hover)}
+  .perfil-btn .pf-info{display:flex;flex-direction:column;min-width:0;flex:1}
+  .perfil-btn .pf-nm{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .perfil-btn .pf-rol{font-size:11px;color:var(--muted)}
+  .perfil-btn .pf-cog{color:var(--muted);font-size:15px;flex:none}
 
   main{flex:1;height:100%;overflow:hidden;min-width:0;background:var(--bg)}
   main.scroll{overflow-y:auto}
@@ -1227,6 +1233,23 @@ initEmoji();
 })();
 /* ---- Auth / arranque ---- */
 function roleLabel(r){return {admin:'Admin',dueno:'Dueño',supervisor:'Supervisor',vendedor:'Vendedor'}[r]||'';}
+function renderAcct(){const acct=document.querySelector('.side-foot .acct');if(acct&&me)acct.innerHTML='<button class="perfil-btn" onclick="abrirPerfil()" title="Mi perfil"><span class="a">'+esc((me.nombre||'?').slice(0,1).toUpperCase())+'</span><span class="pf-info"><span class="pf-nm">'+esc(me.nombre||'')+'</span><span class="pf-rol">'+roleLabel(me.rol)+(RO()?' · solo lectura':'')+'</span></span><span class="pf-cog">⚙︎</span></button>';}
+function abrirPerfil(){
+  cerrarModal();const m=me||{};
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
+  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>👤 Mi perfil</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b"><div class="row2"><div class="field"><label>Nombre</label><input id="pf-nombre" value="${esc(m.nombre||'')}"></div><div class="field"><label>Apellido</label><input id="pf-apellido" value="${esc(m.apellido||'')}"></div></div><div class="row2"><div class="field"><label>Teléfono</label><input id="pf-tel" inputmode="tel" value="${esc(m.telefono||'')}"></div><div class="field"><label>Email</label><input id="pf-email" inputmode="email" value="${esc(m.email||'')}"></div></div><div class="field"><label>Usuario (para entrar)</label><input id="pf-user" autocomplete="off" value="${esc(m.usuario||'')}"></div><div class="section-t" style="margin-top:8px">🔑 Cambiar contraseña (opcional)</div><div class="row2"><div class="field"><label>Nueva clave</label><input id="pf-p1" type="password" autocomplete="new-password" placeholder="vacío = no cambiar"></div><div class="field"><label>Repetir</label><input id="pf-p2" type="password" autocomplete="new-password"></div></div><div id="pf-err" class="lg-err"></div></div><div class="modal-f"><button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="logout()">Cerrar sesión</button><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarPerfil()">Guardar</button></div></div>`;
+  wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
+}
+async function guardarPerfil(){
+  const g=k=>{const el=document.getElementById(k);return el?el.value:'';};
+  const err=document.getElementById('pf-err');err.textContent='';
+  const body={nombre:g('pf-nombre').trim(),apellido:g('pf-apellido').trim(),telefono:g('pf-tel').trim(),email:g('pf-email').trim(),usuario:g('pf-user').trim()};
+  if(!body.nombre){err.textContent='Poné al menos un nombre.';return;}
+  const p1=g('pf-p1').trim(),p2=g('pf-p2').trim();
+  if(p1||p2){if(p1.length<4){err.textContent='La clave nueva necesita al menos 4 caracteres.';return;}if(p1!==p2){err.textContent='Las dos claves no coinciden.';return;}body.pass=p1;}
+  try{const r=await api('/api/users/'+me.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok){err.textContent=j.error||'No se pudo guardar';return;}me=j;renderAcct();cerrarModal();alert('✅ Perfil actualizado.');}
+  catch(e){err.textContent='Error de conexión';}
+}
 function urlB64ToUint8(b64){const pad='='.repeat((4-b64.length%4)%4);const s=(b64+pad).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(s);const arr=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);return arr;}
 function esStandalone(){return window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);}
 async function activarPush(){
@@ -1279,7 +1302,7 @@ function startApp(){
   const w=document.querySelector('.window');if(w)w.style.display='';
   const ov=document.getElementById('login-ov');if(ov)ov.style.display='none';
   const acct=document.querySelector('.side-foot .acct');
-  if(acct&&me)acct.innerHTML='<span class="a">'+esc((me.nombre||'?').slice(0,1).toUpperCase())+'</span><span>'+esc(me.nombre||'')+' · '+roleLabel(me.rol)+'<span class="ro-badge" title="Podés ver la info del equipo pero no editar clientes">👁 Solo lectura</span></span><button class="mini" onclick="conectarTelegram()" title="Recibir avisos por Telegram" style="margin-left:auto">🔔</button><button class="mini" onclick="logout()" title="Cerrar sesión">Salir</button>';
+  renderAcct();
   if(me&&(me.rol==='dueno'||me.rol==='supervisor'))view='dueno'; // dueño y supervisor entran al Panel del equipo, no al Inicio personal
   applyRoleUI();
   try{history.replaceState(snapState(),'');}catch(e){} // estado base para el botón atrás

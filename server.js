@@ -103,7 +103,7 @@ function tokenUid(tok){
   return d.uid;
 }
 function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const uid=tokenUid(t);if(!uid)return null;return loadUsers().find(u=>u.id===uid&&u.activo!==false)||null;}
-function publicUser(u){return u?{id:u.id,nombre:u.nombre,usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length)}:null;}
+function publicUser(u){return u?{id:u.id,nombre:u.nombre,apellido:u.apellido||'',telefono:u.telefono||'',email:u.email||'',usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length)}:null;}
 // Códigos de vinculación de Telegram (persistidos para sobrevivir a reinicios/deploys)
 const TGCODEPATH=path.join(DATA_DIR,'tgcodes.json');
 function loadTgCodes(){try{return JSON.parse(fs.readFileSync(TGCODEPATH,'utf8'))}catch(e){return {}}}
@@ -488,6 +488,10 @@ http.createServer((req,res)=>{
     const allowed=me.rol==='admin'||(me.rol==='supervisor'&&target.supervisorId===me.id)||me.id===target.id;
     if(!allowed)return json(403,{error:'Sin permiso'});
     if(typeof body.nombre==='string'&&body.nombre.trim())target.nombre=body.nombre.trim();
+    if(typeof body.apellido==='string')target.apellido=body.apellido.trim();
+    if(typeof body.telefono==='string')target.telefono=body.telefono.trim();
+    if(typeof body.email==='string')target.email=body.email.trim();
+    if(body.usuario){const us=String(body.usuario).trim().toLowerCase();if(us&&us!==target.usuario){if(!/^[\w.]{3,}$/.test(us))return json(400,{error:'Usuario inválido (mín 3, letras/números)'});if(users.some(x=>x.usuario===us&&x.id!==target.id))return json(400,{error:'Ese usuario ya existe'});target.usuario=us;}}
     if(body.pass){const {salt,hash}=hashPass(body.pass);target.salt=salt;target.passHash=hash;}
     if(typeof body.activo==='boolean'&&me.rol!=='vendedor'&&target.rol!=='admin')target.activo=body.activo;
     if(me.rol==='admin'){if(body.rol)target.rol=body.rol;if('supervisorId' in body)target.supervisorId=body.supervisorId||null;}
