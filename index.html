@@ -358,7 +358,7 @@
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
         <button class="admin-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
         <button class="sv-only" data-view="cuentas"><span class="ic" aria-hidden="true">⚙️</span><span class="lbl">Cuentas</span></button>
-        <button id="nav-avisos" onclick="conectarTelegram()"><span class="ic" aria-hidden="true" style="background:#229ED9">🔔</span><span class="lbl">Avisos y notificaciones</span></button>
+        <button id="nav-avisos" onclick="conectarTelegram()"><span class="ic" aria-hidden="true" style="background:#ff9500">🔔</span><span class="lbl">Notificaciones</span></button>
       </nav>
       <div class="side-foot"><div class="demo" style="background:rgba(52,199,89,.16);color:#34c759">● Clientes reales · WhatsApp</div><div class="acct"><span class="a">O</span><span>Octa · Riders Miami</span></div></div>
     </aside>
@@ -1253,22 +1253,13 @@ async function probarPush(){
     else alert('⚠️ No se pudo enviar la prueba.');
   }catch(e){alert('Error: '+((e&&e.message)||e));}
 }
-async function conectarTelegram(){
+function conectarTelegram(){
   cerrarModal();
-  let data={};try{data=await (await api('/api/tg/code',{method:'POST'})).json();}catch(e){}
-  const code=data.code||'------',bot=data.bot||'RidersCRM_bot',link='https://t.me/'+bot+'?start='+code,linked=!!(me&&me.tgLinked);
-  let estado='';
-  if(me&&me.rol==='admin'){try{const bs=await (await api('/api/bot-status')).json();
-    if(!bs.tokenSet)estado='<div style="background:#ff3b301a;color:#ff3b30;padding:9px 12px;border-radius:10px;font-weight:600;margin-bottom:10px;font-size:12.5px">🔴 Falta configurar el token del bot en el servidor.</div>';
-    else if(/conflict|409/i.test(bs.lastErr||''))estado='<div style="background:#ff3b301a;color:#ff3b30;padding:9px 12px;border-radius:10px;font-weight:600;margin-bottom:10px;font-size:12.5px">🔴 Hay OTRO CRM corriendo el bot (cerrá el CRM abierto en tu PC). Solo uno puede usar el bot a la vez.</div>';
-    else if(bs.lastOkSecondsAgo!=null&&bs.lastOkSecondsAgo<120)estado='<div style="background:#34c7591a;color:#248a3d;padding:9px 12px;border-radius:10px;font-weight:600;margin-bottom:10px;font-size:12.5px">🟢 Bot conectado y funcionando.</div>';
-    else estado='<div style="background:#ff9f0a1a;color:#b26a00;padding:9px 12px;border-radius:10px;font-weight:600;margin-bottom:10px;font-size:12.5px">🟡 Bot iniciando o sin responder'+(bs.lastErr?(' ('+esc(bs.lastErr)+')'):'')+'. Probá de nuevo en 1 minuto.</div>';
-  }catch(e){}}
+  const on=!!(me&&me.pushOn);
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
-  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>🔔 Avisos y notificaciones</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">${estado}<div style="border:1px solid var(--sep);border-radius:12px;padding:12px;margin-bottom:14px"><div style="font-weight:700;font-size:14px">📲 Notificación de la app</div><div class="faint" style="font-size:12.5px;line-height:1.5;margin:4px 0 8px">Llega como aviso del teléfono, igual que un WhatsApp.${me&&me.pushOn?' <b style="color:#248a3d">✅ Ya activada en algún dispositivo.</b>':''}</div><div style="display:flex;gap:8px"><button class="btn" style="flex:1;justify-content:center" onclick="activarPush()">Activar en este teléfono</button><button class="btn ghost" onclick="probarPush()">Probar</button></div><div class="faint" style="font-size:11px;margin-top:6px">En iPhone: primero agregá la app a la pantalla de inicio y abrila desde ahí. Después "Activar" y "Probar".</div></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">💬 O por Telegram</div>${linked?'<div style="background:#34c7591a;color:#248a3d;padding:10px 12px;border-radius:10px;font-weight:600;margin-bottom:10px">✅ Ya estás conectado. Recibís tus recordatorios en Telegram.</div>':''}<div class="faint" style="font-size:13px;line-height:1.5">Cuando llegue la hora de una llamada o seguimiento de <b>tus</b> clientes, te llega un aviso a Telegram.</div><ol style="font-size:13.5px;line-height:1.7;padding-left:18px;margin:10px 0"><li>Tocá para abrir Telegram y vincular:<br><a class="btn" style="display:inline-flex;margin-top:6px;text-decoration:none" href="${link}" target="_blank" rel="noopener">Abrir @${esc(bot)} y vincular</a></li><li>O manualmente: abrí <b>@${esc(bot)}</b> y mandá:<br><code style="background:var(--hover);padding:3px 8px;border-radius:6px;display:inline-block;margin-top:4px">/vincular ${code}</code></li></ol><div class="faint" style="font-size:11.5px">El código vence en 15 minutos y es solo para tu cuenta.</div></div><div class="modal-f">${linked?`<button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="desvincularTelegram()">Desconectar</button>`:''}<button class="btn" onclick="cerrarModal()">Listo</button></div></div>`;
+  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>🔔 Notificaciones</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">${on?'<div style="background:#34c7591a;color:#248a3d;padding:10px 12px;border-radius:10px;font-weight:600;margin-bottom:10px">✅ Activadas en algún dispositivo.</div>':''}<div class="faint" style="font-size:13px;line-height:1.5;margin-bottom:12px">Recibí un aviso en el teléfono (como un WhatsApp) cuando llega la hora de una llamada o seguimiento de <b>tus</b> clientes, aunque tengas la app cerrada.</div><div style="display:flex;gap:8px"><button class="btn" style="flex:1;justify-content:center" onclick="activarPush()">Activar en este teléfono</button><button class="btn ghost" onclick="probarPush()">Probar</button></div><div class="faint" style="font-size:11.5px;margin-top:8px">En iPhone: primero agregá la app a la pantalla de inicio y abrila desde ese ícono. Hay que activarlo en cada teléfono.</div></div><div class="modal-f"><button class="btn" onclick="cerrarModal()">Listo</button></div></div>`;
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
 }
-async function desvincularTelegram(){try{await api('/api/tg/unlink',{method:'POST'});}catch(e){}if(me)me.tgLinked=false;cerrarModal();}
 function applyRoleUI(){
   const r=me&&me.rol, owner=r==='dueno', sup=r==='supervisor', adm=r==='admin';
   const team=adm||owner||sup; // roles con herramientas de equipo (Panel + Equipo)
