@@ -262,6 +262,9 @@
   .note{background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.2);color:var(--txt);border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:18px;display:flex;gap:10px;line-height:1.45}
   table{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border:1px solid var(--sep);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
   th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--sep);font-size:13.5px;transition:background .14s ease}
+  .tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--radius)}
+  .tbl-scroll table{min-width:620px}
+  .tbl-scroll th,.tbl-scroll td{white-space:nowrap}
   th{color:var(--muted);font-size:11.5px;font-weight:600;background:var(--grouped)}
   tbody tr:last-child td{border-bottom:none}
   tbody tr{cursor:pointer}tbody tr:hover td{background:var(--hover)}
@@ -582,7 +585,9 @@ function ctxList(ctx){const A=activos();
   return null;
 }
 const CTX_LABEL={atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar'};
-function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';render();}
+function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();}
+// Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
+function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();}
 function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados();return base.filter(c=>!filtro||(c.nombre+c.whatsapp+c.producto).toLowerCase().includes(filtro.toLowerCase()));}
 function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(c.whatsapp):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
 function convListItems(){const l=filteredConvs();return l.map(convRow).join('')||'<div class="empty" style="margin:14px">Sin clientes</div>';}
@@ -782,7 +787,7 @@ function completarProximo(id){const c=clientes.find(x=>x.id===id);if(!c)return;c
 
 /* ---- CLIENTES ---- */
 function listFiltered(){const q=(filtro||'').toLowerCase();let l=ordenados().filter(c=>!q||(c.nombre+' '+c.whatsapp+' '+c.producto).toLowerCase().includes(q));if(filtroVend)l=l.filter(c=>c.vendedorId===filtroVend);if(filtroEtapa)l=l.filter(c=>c.etapa===filtroEtapa);return l;}
-function listRowsHTML(){const list=listFiltered();let r='';for(const c of list){const e=etapaDe(c.etapa),t=temperatura(c);r+=`<tr onclick="view='inbox';selectedId='${c.id}';render()"><td><b>${esc(c.nombre)}</b></td><td>${esc(c.whatsapp||'—')}</td><td>${esc(c.producto)}</td><td><span class="tag" style="background:${e.color}22;color:${e.color}">${e.nombre}</span></td><td>${t?`<span style="color:${t.color};font-weight:700">${t.emoji} ${t.label}</span>`:'—'}</td><td>${c.proximo?fmtFecha(c.proximo):'—'}</td><td>${waIc(c)}</td></tr>`;}return r||`<tr><td colspan="7"><div class="empty" style="padding:14px">Sin resultados${filtro?' para "'+esc(filtro)+'"':''}</div></td></tr>`;}
+function listRowsHTML(){const list=listFiltered();let r='';for(const c of list){const e=etapaDe(c.etapa),t=temperatura(c);r+=`<tr onclick="verFicha('${c.id}')"><td><b>${esc(c.nombre)}</b></td><td>${esc(c.whatsapp||'—')}</td><td>${esc(c.producto)}</td><td><span class="tag" style="background:${e.color}22;color:${e.color}">${e.nombre}</span></td><td>${t?`<span style="color:${t.color};font-weight:700">${t.emoji} ${t.label}</span>`:'—'}</td><td>${c.proximo?fmtFecha(c.proximo):'—'}</td><td>${waIc(c)}</td></tr>`;}return r||`<tr><td colspan="7"><div class="empty" style="padding:14px">Sin resultados${filtro?' para "'+esc(filtro)+'"':''}</div></td></tr>`;}
 // Al buscar: actualiza SOLO la tabla, sin redibujar la página (sin parpadeo).
 function filtrarLista(v){filtro=v;const tb=document.getElementById('cli-tbody');if(tb)tb.innerHTML=listRowsHTML();const sub=document.getElementById('list-sub');if(sub)sub.textContent=activos().length+' clientes en total'+(v?(' · '+listFiltered().length+' coinciden'):'');}
 // Vista agrupada por vendedor (para supervisor/dueño): en vez de una lista suelta, cada vendedor
@@ -798,7 +803,7 @@ function gruposHTML(){
     const cs=byVend[vid].sort((a,b)=>(esCalienteT(b)?1:0)-(esCalienteT(a)?1:0));
     const nom=nombreVend(vid),nCal=cs.filter(esCalienteT).length,nAtr=cs.filter(c=>enBucket(c,'atrasado')).length;
     h+=`<div class="panelcard"><h3 style="display:flex;align-items:center;gap:9px"><span class="av" style="width:28px;height:28px;background:${avColor(vid)};font-size:11px">${iniciales(nom)}</span><span>${esc(nom)}</span><span class="faint" style="font-weight:600;font-size:12px">· ${cs.length} cliente(s)${nCal?' · <span style="color:#ff3b30">🔥 '+nCal+'</span>':''}${nAtr?' · <span style="color:#ff3b30">🔴 '+nAtr+' atras.</span>':''}</span></h3>`;
-    for(const c of cs){const e=etapaDe(c.etapa);h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:32px;height:32px;background:${avColor(c.id)};font-size:11px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12px;color:var(--muted)">${esc(c.whatsapp||'sin número')} · <span style="color:${e.color}">${e.nombre}</span>${c.proximo?' · 📅 '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):''):''}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;}
+    for(const c of cs){const e=etapaDe(c.etapa);h+=`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:32px;height:32px;background:${avColor(c.id)};font-size:11px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12px;color:var(--muted)">${esc(c.whatsapp||'sin número')} · <span style="color:${e.color}">${e.nombre}</span>${c.proximo?' · 📅 '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):''):''}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;}
     h+='</div>';
   }
   return h;
@@ -818,7 +823,7 @@ function renderList(){
   else if(filtroEtapa)banner=`<div class="vend-banner"><div>Etapa: <b>${esc(etapaDe(filtroEtapa).nombre)}</b></div><button class="mini" onclick="filtroEtapa='';render()">Quitar filtro</button></div>`;
   main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Todos los clientes</h1><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div><div class="sub" id="list-sub">${activos().length} clientes en total${filtro?` · ${listFiltered().length} coinciden`:''}</div>${banner}
     <input id="cli-search" aria-label="Buscar clientes" placeholder="🔎 Buscar por nombre, teléfono o producto…" oninput="filtrarLista(this.value)" value="${esc(filtro)}" style="width:100%;max-width:440px;padding:11px 14px;border:1px solid var(--sep-strong);border-radius:8px;margin-bottom:16px;font-size:13.5px;background:var(--card)">
-    <table><thead><tr><th>Cliente</th><th>WhatsApp</th><th>Producto</th><th>Etapa</th><th>Prioridad</th><th>Seguir</th><th>Chat</th></tr></thead><tbody id="cli-tbody">${listRowsHTML()}</tbody></table>
+    <div class="tbl-scroll"><table><thead><tr><th>Cliente</th><th>WhatsApp</th><th>Producto</th><th>Etapa</th><th>Prioridad</th><th>Seguir</th><th>Chat</th></tr></thead><tbody id="cli-tbody">${listRowsHTML()}</tbody></table></div>
   </div>`;
 }
 /* ---- SEGUIMIENTO ---- */
@@ -1097,7 +1102,7 @@ function renderAgenda(){
   const groups=[{label:'🔴 Atrasados',f:c=>c.proximo<today},{label:'🟡 Hoy',f:c=>c.proximo===today},{label:'🔵 Próximos',f:c=>c.proximo>today}];
   for(const g of groups){const cs=list.filter(g.f);if(!cs.length)continue;
     h+=`<div class="panelcard"><h3>${g.label} <span style="color:var(--muted);font-weight:600">· ${cs.length}</span></h3>`;
-    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--accent)">📅 ${esc(c.proximoTipo||'Seguimiento')} · ${fmtFecha(c.proximo)}</div></div>${waIc(c)}<button class="mini" title="Marcar como hecho" onclick="event.stopPropagation();completarProximo('${c.id}')">✓ Hecho</button></div>`;
+    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--accent)">📅 ${esc(c.proximoTipo||'Seguimiento')} · ${fmtFecha(c.proximo)}</div></div>${waIc(c)}<button class="mini" title="Marcar como hecho" onclick="event.stopPropagation();completarProximo('${c.id}')">✓ Hecho</button></div>`;
     h+='</div>';}
   main.innerHTML=h+'</div>';
 }
@@ -1112,7 +1117,7 @@ function renderPanel(){
   const vend=AA.filter(c=>c.etapa==='vendido');
   const today=hoy();
   const hoyList=AA.filter(c=>esAtrasado(c)||esHoy(c)).sort((a,b)=>proxDateTime(a)-proxDateTime(b));
-  const row=(c,sub,done)=>`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div></div>${waIc(c)}</div>`;
+  const row=(c,sub,done)=>`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div></div>${waIc(c)}</div>`;
   const pad=n=>String(n).padStart(2,'0');
   const money=v=>'$'+Number(v||0).toLocaleString('es-AR');
   const mesAct=hoy().slice(0,7);
@@ -1141,7 +1146,7 @@ function renderPanel(){
     <div class="panelcard"><h3>🫧 Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;}).join('')}</div>
     <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom)</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
     <div class="dash-cols">
-      <div class="panelcard"><h3>💵 Ventas del mes <span class="muted">· ${vendidosMes.length}</span></h3>${vendidosMes.length?vendidosMes.map(c=>`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto)+(c.operacion?' · '+esc(c.operacion):'')}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}</div>`).join(''):'<div class="empty">Todavía no cerraste ventas este mes.</div>'}</div>
+      <div class="panelcard"><h3>💵 Ventas del mes <span class="muted">· ${vendidosMes.length}</span></h3>${vendidosMes.length?vendidosMes.map(c=>`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto)+(c.operacion?' · '+esc(c.operacion):'')}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}</div>`).join(''):'<div class="empty">Todavía no cerraste ventas este mes.</div>'}</div>
       <div class="panelcard"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
     </div>
     <div class="earnings-card" onclick="toggleEarn()" style="cursor:pointer" title="Tocá para cambiar entre este mes y el total">${earnCardHTML()}</div>
