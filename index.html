@@ -301,7 +301,7 @@
   .reg-side:hover{background:var(--card)}.reg-side:active{transform:scale(.96)}
   .ficha-toggle{display:none;background:var(--hover);border:1px solid var(--sep);border-radius:8px;padding:4px 9px;margin-left:8px;cursor:pointer;font-size:14px}
   .nota-add{display:flex;flex-direction:column;gap:8px}
-  .nota-add textarea,.nota-edit{width:100%;min-height:60px;resize:vertical;background:var(--card);border:1px solid var(--sep-strong);border-radius:8px;padding:8px 11px;color:var(--txt);font-size:13.5px;font-family:inherit;box-sizing:border-box}
+  .nota-add textarea,.nota-edit{width:100%;min-height:60px;resize:none;overflow:hidden;background:var(--card);border:1px solid var(--sep-strong);border-radius:8px;padding:8px 11px;color:var(--txt);font-size:13.5px;font-family:inherit;line-height:1.4;box-sizing:border-box}
   .nota-add textarea:focus,.nota-edit:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,122,255,.22)}
   .nota-actions{display:flex;gap:6px;margin-top:7px;justify-content:flex-end;align-items:center}
   .mini{background:transparent;border:none;cursor:pointer;font-size:12px;color:var(--muted);opacity:.8;padding:3px 8px;border-radius:6px;transition:opacity .1s,background .1s}
@@ -599,6 +599,7 @@ function renderInbox(){
     <div class="col-crm big">${c?crmHTML(c):'<div class="empty" style="margin:auto">Elegí un cliente para ver su ficha</div>'}</div>
   </div>`;
   updateCounts();
+  autoGrow(document.getElementById('edit-nota'));autoGrow(document.getElementById('nueva-nota'));
 }
 function chatHTML(c){
   const t=temperatura(c);let msgs='',ld='';
@@ -620,7 +621,7 @@ function crmHTML(c){
   const banner=t?`<div class="banner" style="background:${t.color}1a;color:${t.color}">${t.emoji}<div><b>${t.label}.</b>${t.motivo?' '+esc(t.motivo):''}</div></div>`:'<div class="banner" style="background:#34c7591a;color:#248a3d">✅<div><b>Cerrado.</b> Vendido / posventa.</div></div>';
   const notas=(c.log||[]).slice().reverse().map((l,ri)=>{
     const idx=(c.log.length-1)-ri;
-    if(editNotaKey===c.id+':'+idx) return `<div class="logitem"><textarea id="edit-nota" class="nota-edit">${esc(l.texto)}</textarea><div class="nota-actions"><button class="btn sm" onclick="guardarEdicionNota('${c.id}',${idx})">Guardar</button><button class="btn sm ghost" onclick="cancelarEdicionNota()">Cancelar</button></div></div>`;
+    if(editNotaKey===c.id+':'+idx) return `<div class="logitem"><textarea id="edit-nota" class="nota-edit" oninput="autoGrow(this)">${esc(l.texto)}</textarea><div class="nota-actions"><button class="btn sm" onclick="guardarEdicionNota('${c.id}',${idx})">Guardar</button><button class="btn sm ghost" onclick="cancelarEdicionNota()">Cancelar</button></div></div>`;
     return `<div class="logitem"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
   }).join('')||'<div class="empty">Todavía no hay notas. Escribí la primera abajo 👇</div>';
   const prox=c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';
@@ -647,7 +648,7 @@ function crmHTML(c){
       <button class="btn" style="width:100%;margin-bottom:6px" onclick="agendarProximo('${c.id}')">Agendar contacto</button>
       <button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="googleCal('${c.id}')">📅 Agendar en Google Calendar</button>
       <div class="section-t">📝 Notas del seguimiento</div>
-      <div class="nota-add"><textarea id="nueva-nota" placeholder="Escribí una nota…  (se guarda con la fecha de hoy)"></textarea><button class="btn" onclick="agregarNota('${c.id}')">Agregar nota</button></div>
+      <div class="nota-add"><textarea id="nueva-nota" placeholder="Escribí una nota…  (se guarda con la fecha de hoy)" oninput="autoGrow(this)"></textarea><button class="btn" onclick="agregarNota('${c.id}')">Agregar nota</button></div>
       <div style="margin-top:12px">${notas}</div>
       <button class="btn danger" style="width:100%;margin-top:18px" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button>
     </div>`;
@@ -656,6 +657,8 @@ function pick(id){selectedId=id;document.body.classList.add('chat-open');renderI
 function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
 function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.value.trim();if(!t||!c)return;c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:t});derive(c);save();renderInbox();}
 /* ---- Notas y agenda de seguimiento ---- */
+// El recuadro de nota crece solo con el texto (se ve la nota completa, sin cortar).
+function autoGrow(el){if(!el)return;el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
 // Redibuja el inbox SIN perder la posición del scroll de la ficha (evita el salto al editar notas).
 function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');const y=el?el.scrollTop:0;renderInbox();const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;}
 function editarNota(id,idx){editNotaKey=id+':'+idx;renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
