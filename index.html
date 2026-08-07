@@ -620,8 +620,8 @@ function crmHTML(c){
   const banner=t?`<div class="banner" style="background:${t.color}1a;color:${t.color}">${t.emoji}<div><b>${t.label}.</b>${t.motivo?' '+esc(t.motivo):''}</div></div>`:'<div class="banner" style="background:#34c7591a;color:#248a3d">✅<div><b>Cerrado.</b> Vendido / posventa.</div></div>';
   const notas=(c.log||[]).slice().reverse().map((l,ri)=>{
     const idx=(c.log.length-1)-ri;
-    if(editNotaKey===c.id+':'+idx) return `<div class="logitem"><textarea id="edit-nota" class="nota-edit">${esc(l.texto)}</textarea><div class="nota-actions"><button class="btn sm" onclick="guardarEdicionNota('${c.id}',${idx})">Guardar</button><button class="btn sm ghost" onclick="editNotaKey=null;renderInbox()">Cancelar</button></div></div>`;
-    return `<div class="logitem"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editNotaKey='${c.id}:${idx}';renderInbox()">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
+    if(editNotaKey===c.id+':'+idx) return `<div class="logitem"><textarea id="edit-nota" class="nota-edit">${esc(l.texto)}</textarea><div class="nota-actions"><button class="btn sm" onclick="guardarEdicionNota('${c.id}',${idx})">Guardar</button><button class="btn sm ghost" onclick="cancelarEdicionNota()">Cancelar</button></div></div>`;
+    return `<div class="logitem"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
   }).join('')||'<div class="empty">Todavía no hay notas. Escribí la primera abajo 👇</div>';
   const prox=c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';
   return `<div class="crm-h"><button class="backbtn" onclick="document.body.classList.remove('chat-open');document.body.classList.remove('ficha-open')" aria-label="Volver">←</button><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="nm">${esc(c.nombre)}</div><div class="wa">${esc(c.whatsapp||'Sin número guardado')}</div><button class="edit-cli" onclick="editarCliente('${c.id}')" title="Editar nombre y teléfono">✏️</button></div>
@@ -653,12 +653,16 @@ function crmHTML(c){
     </div>`;
 }
 function pick(id){selectedId=id;document.body.classList.add('chat-open');renderInbox();}
-function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInbox();}
+function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
 function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.value.trim();if(!t||!c)return;c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:t});derive(c);save();renderInbox();}
 /* ---- Notas y agenda de seguimiento ---- */
-function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:t});save();renderInbox();}
-function borrarNota(id,idx){const c=clientes.find(x=>x.id===id);if(!c||!c.log||!c.log[idx])return;if(!confirm('¿Borrar esta nota? No se puede deshacer.'))return;c.log.splice(idx,1);editNotaKey=null;save();renderInbox();}
-function guardarEdicionNota(id,idx){const c=clientes.find(x=>x.id===id);const el=document.getElementById('edit-nota');if(!c||!el||!c.log[idx])return;const t=(el.value||'').trim();if(t)c.log[idx].texto=t;editNotaKey=null;save();renderInbox();}
+// Redibuja el inbox SIN perder la posición del scroll de la ficha (evita el salto al editar notas).
+function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');const y=el?el.scrollTop:0;renderInbox();const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;}
+function editarNota(id,idx){editNotaKey=id+':'+idx;renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
+function cancelarEdicionNota(){editNotaKey=null;renderInboxKeepScroll();}
+function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:t});save();renderInboxKeepScroll();}
+function borrarNota(id,idx){const c=clientes.find(x=>x.id===id);if(!c||!c.log||!c.log[idx])return;if(!confirm('¿Borrar esta nota? No se puede deshacer.'))return;c.log.splice(idx,1);editNotaKey=null;save();renderInboxKeepScroll();}
+function guardarEdicionNota(id,idx){const c=clientes.find(x=>x.id===id);const el=document.getElementById('edit-nota');if(!c||!el||!c.log[idx])return;const t=(el.value||'').trim();if(t)c.log[idx].texto=t;editNotaKey=null;save();renderInboxKeepScroll();}
 function actualizarBanner(c){
   const t=temperatura(c);const b=document.querySelector('.col-crm .banner');if(!b)return;
   if(t){b.style.background=t.color+'1a';b.style.color=t.color;b.innerHTML=t.emoji+'<div><b>'+esc(t.label)+'.</b>'+(t.motivo?' '+esc(t.motivo):'')+'</div>';}
@@ -723,7 +727,7 @@ function setProximo(id,silent){
   save();
   // Auto (mientras escribís): guardar y actualizar contadores SIN redibujar el
   // casillero, para no interrumpir el tipeo. El botón sí redibuja la ficha.
-  if(silent)updateCounts();else renderInbox();
+  if(silent)updateCounts();else renderInboxKeepScroll();
 }
 function agendarProximo(id){setProximo(id,false);}
 function autoAgendar(id){setProximo(id,true);}
