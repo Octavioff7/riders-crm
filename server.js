@@ -444,6 +444,12 @@ http.createServer((req,res)=>{
   if(u==='/api/push/pubkey'&&req.method==='GET')return json(200,{key:pushPubKey(),enabled:!!webpush});
   if(u==='/api/push/subscribe'&&req.method==='POST')return readBody(b=>{const ok=addPushSub(me.id,b.subscription);json(ok?200:400,{ok});});
   if(u==='/api/push/unsubscribe'&&req.method==='POST')return readBody(b=>{removePushSub(me.id,b.endpoint||'');json(200,{ok:true});});
+  if(u==='/api/push/test'&&req.method==='POST'){
+    if(!webpush)return json(200,{ok:false,reason:'El servidor no tiene el push habilitado.'});
+    const uu=loadUsers().find(x=>x.id===me.id),subs=(uu&&uu.pushSubs)||[];
+    if(!subs.length)return json(200,{ok:false,reason:'Este dispositivo no está suscripto. Tocá "Activar en este teléfono" primero.',subs:0});
+    return Promise.all(subs.map(s=>webpush.sendNotification(s,JSON.stringify({title:'Riders CRM',body:'✅ Notificación de prueba — ¡funciona!'})).then(()=>({ok:true})).catch(e=>({ok:false,code:e&&e.statusCode,msg:((e&&(e.body||e.message))||'').toString().slice(0,140)})))).then(rs=>{const okc=rs.filter(r=>r.ok).length;json(200,{ok:okc>0,subs:subs.length,enviadas:okc,errores:rs.filter(r=>!r.ok)});}).catch(e=>json(200,{ok:false,reason:e.message}));
+  }
   if(u==='/api/tg/unlink'&&req.method==='POST'){const users=loadUsers();const usr=users.find(x=>x.id===me.id);if(usr){delete usr.telegramChatId;saveUsers(users);}return json(200,{ok:true});}
 
   if(u==='/api/clientes'){
