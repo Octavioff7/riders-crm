@@ -84,9 +84,24 @@ function maybeDailyBackup(){
 }
 function hashPass(pass,salt){salt=salt||crypto.randomBytes(16).toString('hex');const hash=crypto.scryptSync(String(pass),salt,64).toString('hex');return {salt,hash};}
 function verifyPass(pass,salt,hash){try{const h=crypto.scryptSync(String(pass),salt,64).toString('hex');const a=Buffer.from(h),b=Buffer.from(hash);return a.length===b.length&&crypto.timingSafeEqual(a,b);}catch(e){return false;}}
-const sessions={}; // token -> {userId, exp}
-function newSession(userId){const t=crypto.randomBytes(24).toString('hex');sessions[t]={userId,exp:Date.now()+1000*60*60*24*30};return t;}
-function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const s=sessions[t];if(!s||s.exp<Date.now())return null;return loadUsers().find(u=>u.id===s.userId&&u.activo!==false)||null;}
+// Tokens firmados (stateless): NO dependen de la memoria del servidor → la sesión sobrevive
+// a los reinicios de Render, así el usuario queda logueado y no tiene que entrar cada vez.
+const SECRETPATH=path.join(DATA_DIR,'.secret');
+let SESSION_SECRET=process.env.SESSION_SECRET||'';
+if(!SESSION_SECRET){try{SESSION_SECRET=fs.readFileSync(SECRETPATH,'utf8').trim();}catch(e){}}
+if(!SESSION_SECRET){SESSION_SECRET=crypto.randomBytes(32).toString('hex');try{fs.writeFileSync(SECRETPATH,SESSION_SECRET);}catch(e){}}
+function _b64u(buf){return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function _sign(payload){return _b64u(crypto.createHmac('sha256',SESSION_SECRET).update(payload).digest());}
+function newSession(userId){const payload=_b64u(JSON.stringify({uid:userId,exp:Date.now()+90*24*3600*1000}));return payload+'.'+_sign(payload);}
+function tokenUid(tok){
+  if(!tok||tok.indexOf('.')<0)return null;
+  const i=tok.lastIndexOf('.'),payload=tok.slice(0,i),sig=tok.slice(i+1),good=_sign(payload);
+  try{if(sig.length!==good.length||!crypto.timingSafeEqual(Buffer.from(sig),Buffer.from(good)))return null;}catch(e){return null;}
+  let d;try{d=JSON.parse(Buffer.from(payload.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8'));}catch(e){return null;}
+  if(!d||!d.uid||!d.exp||d.exp<Date.now())return null;
+  return d.uid;
+}
+function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const uid=tokenUid(t);if(!uid)return null;return loadUsers().find(u=>u.id===uid&&u.activo!==false)||null;}
 function publicUser(u){return u?{id:u.id,nombre:u.nombre,usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false}:null;}
 function adminUser(){return loadUsers().find(u=>u.rol==='admin');}
 
@@ -339,7 +354,7 @@ http.createServer((req,res)=>{
   const me=userFromReq(req);
   if(apiAuth&&!me)return json(401,{error:'No autorizado'});
 
-  if(u==='/api/logout'&&req.method==='POST'){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';delete sessions[t];return json(200,{ok:true});}
+  if(u==='/api/logout'&&req.method==='POST'){return json(200,{ok:true});}
   if(u==='/api/me'&&req.method==='GET')return json(200,{user:publicUser(me)});
 
   if(u==='/api/clientes'){
@@ -402,7 +417,7 @@ http.createServer((req,res)=>{
   // Archivos estáticos (no exponer datos sensibles)
   let f=u==='/'?'/index.html':u;const fp=path.join(DIR,decodeURIComponent(f));
   if(!fp.startsWith(DIR)){res.writeHead(403);return res.end('no');}
-  if(/(users|clientes|config)\.json$/i.test(fp)||/backups/i.test(fp)){res.writeHead(403);return res.end('no');}
+  if(/(users|clientes|config)\.json$/i.test(fp)||/backups/i.test(fp)||/\.secret$/i.test(fp)){res.writeHead(403);return res.end('no');}
   fs.readFile(fp,(e,d)=>{if(e){res.writeHead(404);res.end('not found')}else{const ext=path.extname(fp);res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type',ext==='.html'?'text/html; charset=utf-8':ext==='.js'?'text/javascript':ext==='.json'?'application/json':'text/plain; charset=utf-8');res.end(d)}});
 }).listen(process.env.PORT||CFG.port,()=>{
   console.log('CRM en http://localhost:'+CFG.port);
