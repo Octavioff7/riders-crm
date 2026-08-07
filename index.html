@@ -246,8 +246,10 @@
   .ec-switch.is-total .ec-thumb{transform:translateX(100%)}
   .ec-tab{position:relative;z-index:1;font-weight:600;font-size:12px;padding:5px 15px;border-radius:999px;color:#fff;opacity:.92;text-align:center;min-width:66px;transition:color .28s ease,opacity .28s ease}
   .ec-tab.on{color:#248a3d;opacity:1}
-  /* Transición suave al cambiar entre claro y oscuro (solo durante el switch de tema) */
+  /* Transición suave al cambiar entre claro y oscuro (respaldo si no hay View Transitions) */
   body.theme-anim,body.theme-anim *{transition:background-color .55s ease,color .5s ease,border-color .55s ease,box-shadow .55s ease,fill .5s ease !important}
+  /* View Transitions: crossfade de toda la pantalla al cambiar de tema (parejo, sin parte blanca) */
+  ::view-transition-old(root),::view-transition-new(root){animation-duration:.5s;animation-timing-function:ease}
   .ec-label{font-size:13px;font-weight:600;opacity:.92}
   .ec-amount{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-top:2px}
   .ec-sub{font-size:12.5px;opacity:.85;margin-top:2px}
@@ -1166,7 +1168,13 @@ initEmoji();
 })();
 (function(){
   function applyTheme(){const dark=localStorage.getItem('crmTheme')==='dark';document.body.classList.toggle('dark',dark);const b=document.getElementById('theme-toggle');if(b)b.textContent=dark?'☀️':'🌙';}
-  const tb=document.getElementById('theme-toggle');if(tb)tb.onclick=()=>{const d=localStorage.getItem('crmTheme')!=='dark';localStorage.setItem('crmTheme',d?'dark':'light');document.body.classList.add('theme-anim');applyTheme();clearTimeout(window._themeT);window._themeT=setTimeout(()=>document.body.classList.remove('theme-anim'),650);};
+  const tb=document.getElementById('theme-toggle');if(tb)tb.onclick=()=>{
+    const d=localStorage.getItem('crmTheme')!=='dark';
+    const apply=()=>{localStorage.setItem('crmTheme',d?'dark':'light');applyTheme();};
+    // Crossfade de TODA la pantalla de una (evita el cambio disparejo/parte blanca). Respaldo: transición por CSS.
+    if(document.startViewTransition){document.startViewTransition(apply);}
+    else{document.body.classList.add('theme-anim');apply();clearTimeout(window._themeT);window._themeT=setTimeout(()=>document.body.classList.remove('theme-anim'),650);}
+  };
   applyTheme();
 })();
 /* ---- Auth / arranque ---- */
