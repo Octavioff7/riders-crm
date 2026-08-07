@@ -239,9 +239,13 @@
   .mtable tr:last-child td{border-bottom:none}
   .earnings-card{background:linear-gradient(135deg,#34c759,#248a3d);color:#fff;border-radius:var(--radius);padding:18px 22px;margin-bottom:16px;box-shadow:0 6px 20px rgba(52,199,89,.28)}
   .ec-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-  .ec-switch{display:inline-flex;background:rgba(255,255,255,.22);border-radius:999px;padding:2px}
-  .ec-tab{border:none;background:transparent;color:#fff;font-weight:600;font-size:12px;padding:4px 13px;border-radius:999px;cursor:pointer;opacity:.9;transition:all .15s}
-  .ec-tab.on{background:#fff;color:#248a3d;opacity:1}
+  /* Switch liquid-glass estilo iOS: fondo esmerilado + thumb blanco que se desliza */
+  .ec-switch{position:relative;display:inline-flex;background:rgba(255,255,255,.16);backdrop-filter:blur(12px) saturate(1.6);-webkit-backdrop-filter:blur(12px) saturate(1.6);border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:3px;cursor:pointer;user-select:none;box-shadow:inset 0 1px 1px rgba(255,255,255,.35),0 1px 3px rgba(0,0,0,.12);transition:transform .18s ease}
+  .ec-switch:active{transform:scale(.96)}
+  .ec-thumb{position:absolute;top:3px;left:3px;bottom:3px;width:calc(50% - 3px);background:#fff;border-radius:999px;box-shadow:0 2px 7px rgba(0,0,0,.22);transition:transform .38s cubic-bezier(.32,.72,0,1);z-index:0}
+  .ec-switch.is-total .ec-thumb{transform:translateX(100%)}
+  .ec-tab{position:relative;z-index:1;font-weight:600;font-size:12px;padding:5px 15px;border-radius:999px;color:#fff;opacity:.92;text-align:center;min-width:66px;transition:color .28s ease,opacity .28s ease}
+  .ec-tab.on{color:#248a3d;opacity:1}
   .ec-label{font-size:13px;font-weight:600;opacity:.92}
   .ec-amount{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-top:2px}
   .ec-sub{font-size:12.5px;opacity:.85;margin-top:2px}
@@ -672,8 +676,17 @@ function setFechaVenta(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.
 // Ganancias: mes (se reinicia el 1° de cada mes) o total (histórico). Switch en la tarjeta del panel.
 let earnMode='mes';
 function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const vm=vend.filter(c=>(c.vendidoFecha||'').slice(0,7)===mesAct);const g=a=>a.reduce((s,c)=>s+(Number(c.comision)||0),0);return {mes:{g:g(vm),n:vm.length},total:{g:g(vend),n:vend.length}};}
-function earnCardHTML(){const e=computeEarn();const money=v=>'$'+Number(v||0).toLocaleString('es-AR');const cur=earnMode==='total'?e.total:e.mes;const label=earnMode==='total'?'💰 Ganado en total':'💰 Ganado este mes';const sub=earnMode==='total'?(cur.n+' venta(s) en total · comisiones acumuladas'):(cur.n+' venta(s) cerradas este mes');return `<div class="ec-top"><div class="ec-label">${label}</div><div class="ec-switch"><span class="ec-tab ${earnMode==='mes'?'on':''}">Este mes</span><span class="ec-tab ${earnMode==='total'?'on':''}">Total</span></div></div><div class="ec-amount">${money(cur.g)}</div><div class="ec-sub">${sub}</div>`;}
-function toggleEarn(){earnMode=earnMode==='mes'?'total':'mes';const el=document.querySelector('.earnings-card');if(el)el.innerHTML=earnCardHTML();}
+function _earnMoney(v){return '$'+Number(v||0).toLocaleString('es-AR');}
+function earnCardHTML(){return `<div class="ec-top"><div class="ec-label" id="ec-label"></div><div class="ec-switch ${earnMode==='total'?'is-total':''}"><span class="ec-thumb"></span><span class="ec-tab ${earnMode==='mes'?'on':''}">Este mes</span><span class="ec-tab ${earnMode==='total'?'on':''}">Total</span></div></div><div class="ec-amount" id="ec-amount"></div><div class="ec-sub" id="ec-sub"></div>`;}
+// Actualiza los textos + desliza el thumb SIN redibujar la tarjeta (para que la transición se vea).
+function earnApply(){const e=computeEarn(),cur=earnMode==='total'?e.total:e.mes;
+  const lab=document.getElementById('ec-label'),amt=document.getElementById('ec-amount'),sub=document.getElementById('ec-sub'),sw=document.querySelector('.ec-switch');
+  if(lab)lab.textContent=earnMode==='total'?'💰 Ganado en total':'💰 Ganado este mes';
+  if(amt)amt.textContent=_earnMoney(cur.g);
+  if(sub)sub.textContent=earnMode==='total'?(cur.n+' venta(s) en total · comisiones acumuladas'):(cur.n+' venta(s) cerradas este mes');
+  if(sw){sw.classList.toggle('is-total',earnMode==='total');sw.querySelectorAll('.ec-tab').forEach((t,i)=>t.classList.toggle('on',(i===0)===(earnMode==='mes')));}
+}
+function toggleEarn(){earnMode=earnMode==='mes'?'total':'mes';earnApply();}
 function setTagNota(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.tempNota=(v||'').trim();save();actualizarBanner(c);actualizarConvRow(c);}
 function setProximo(id,silent){
   const c=clientes.find(x=>x.id===id);if(!c)return;
@@ -1110,6 +1123,7 @@ function renderPanel(){
       <div class="panelcard"><h3>🔥 Responder ya <span class="muted">· ${cal.length}</span></h3>${cal.length?cal.slice(0,7).map(c=>row(c,esc(c.whatsapp||'sin número'),false)).join(''):'<div class="empty">Nadie caliente ahora.</div>'}</div>
     </div>
   </div>`;
+  earnApply();
 }
 document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.view){view=b.dataset.view;filtroEtapa='';filtroVend='';filtro='';render();}});
 
