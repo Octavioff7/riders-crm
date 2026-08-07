@@ -377,7 +377,8 @@ function checkDue(){
   }catch(e){console.log('[recordatorios] error:',e.message);}
 }
 
-let offset=0,botLastOk=0,botLastErr='';
+let offset=0,botLastOk=0,botLastErr='',botUsername='';
+function fetchBotUsername(){tg('getMe').then(r=>{if(r&&r.ok&&r.result&&r.result.username)botUsername=r.result.username;}).catch(()=>{});}
 async function poll(){
   try{const upd=await tg('getUpdates',{offset:offset,timeout:30});
     if(upd&&upd.ok){botLastOk=Date.now();botLastErr='';for(const u of upd.result){offset=u.update_id+1;if(u.message)await handle(u.message);}}
@@ -396,6 +397,9 @@ http.createServer((req,res)=>{
   const json=(code,obj)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(obj));};
   const readBody=cb=>{let b='';req.on('data',c=>b+=c);req.on('end',()=>{try{cb(b?JSON.parse(b):{})}catch(e){json(400,{error:'json'})}});};
 
+  // Nombre real del bot (público — el @usuario de un bot es público)
+  if(u==='/api/bot-info'&&req.method==='GET')return json(200,{bot:botUsername||CFG.telegramBotUser||'RidersCRM_bot',ok:!!botUsername});
+
   // Login (sin auth)
   if(u==='/api/login'&&req.method==='POST')return readBody(body=>{
     const us=String(body.usuario||'').trim().toLowerCase();
@@ -411,7 +415,7 @@ http.createServer((req,res)=>{
   if(u==='/api/logout'&&req.method==='POST'){return json(200,{ok:true});}
   if(u==='/api/me'&&req.method==='GET')return json(200,{user:publicUser(me)});
   if(u==='/api/bot-status'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{tokenSet:!!(CFG.telegramToken&&CFG.telegramToken.length>10),allowedChatId:CFG.allowedChatId||null,lastOkSecondsAgo:botLastOk?Math.round((Date.now()-botLastOk)/1000):null,lastErr:botLastErr||''});}
-  if(u==='/api/tg/code'&&req.method==='POST')return json(200,{code:genTgCode(me.id),bot:CFG.telegramBotUser});
+  if(u==='/api/tg/code'&&req.method==='POST')return json(200,{code:genTgCode(me.id),bot:botUsername||CFG.telegramBotUser});
   if(u==='/api/tg/unlink'&&req.method==='POST'){const users=loadUsers();const usr=users.find(x=>x.id===me.id);if(usr){delete usr.telegramChatId;saveUsers(users);}return json(200,{ok:true});}
 
   if(u==='/api/clientes'){
@@ -482,6 +486,7 @@ http.createServer((req,res)=>{
   console.log('Cerebro: '+((CFG.geminiKey&&CFG.geminiKey.length>10)?'Gemini IA':'Parser simple (sin clave de Gemini todavía)'));
   console.log('Bot de Telegram escuchando...');
   poll();
+  fetchBotUsername();setTimeout(fetchBotUsername,10000); // averigua el @usuario real del bot
   // Copias de seguridad: intenta el backup diario al arrancar y luego cada hora.
   setTimeout(maybeDailyBackup,8000);
   setInterval(maybeDailyBackup,60*60*1000);
