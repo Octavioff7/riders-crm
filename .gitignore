@@ -3,6 +3,7 @@ config.json
 clientes.json
 users.json
 clientes.backup-*.json
+backups/
 wa-raw.txt
 
 node_modules/

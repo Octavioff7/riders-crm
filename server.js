@@ -22,7 +22,7 @@ CFG.port=CFG.port||8790;
 const DATA=path.join(DATA_DIR,'clientes.json');
 
 function loadClientes(){try{return JSON.parse(fs.readFileSync(DATA,'utf8'))}catch(e){return []}}
-function saveClientes(arr){fs.writeFileSync(DATA,JSON.stringify(arr,null,1))}
+function saveClientes(arr){fs.writeFileSync(DATA,JSON.stringify(arr,null,1));try{autoBackup();}catch(e){}}
 function saveCfg(){fs.writeFileSync(CFGPATH,JSON.stringify(CFG,null,2))}
 
 /* ============================================================
@@ -33,6 +33,55 @@ const USERS=path.join(DATA_DIR,'users.json');
 function loadUsers(){try{return JSON.parse(fs.readFileSync(USERS,'utf8'))}catch(e){return []}}
 function saveUsers(arr){fs.writeFileSync(USERS,JSON.stringify(arr,null,1))}
 function uidU(){return 'u'+Math.random().toString(36).slice(2,9)}
+
+/* ============================================================
+   COPIAS DE SEGURIDAD (backups): rotativas en disco + envío diario a Telegram
+   ============================================================ */
+const BKDIR=path.join(DATA_DIR,'backups');
+try{if(!fs.existsSync(BKDIR))fs.mkdirSync(BKDIR,{recursive:true});}catch(e){}
+function _p2(n){return String(n).padStart(2,'0');}
+function _stamp(){const d=new Date();return d.getFullYear()+_p2(d.getMonth()+1)+_p2(d.getDate())+'-'+_p2(d.getHours())+_p2(d.getMinutes());}
+function _snapshot(){
+  let cl='[]',us='[]';
+  try{cl=fs.readFileSync(DATA,'utf8');}catch(e){}
+  try{us=fs.readFileSync(USERS,'utf8');}catch(e){}
+  let clA=[],usA=[];try{clA=JSON.parse(cl);}catch(e){}try{usA=JSON.parse(us);}catch(e){}
+  return JSON.stringify({fecha:new Date().toISOString(),clientes:clA,users:usA});
+}
+// Guarda un snapshot con un prefijo y conserva solo los últimos `keep` de ese prefijo.
+function writeBackup(prefix,name,keep){
+  try{
+    fs.writeFileSync(path.join(BKDIR,prefix+'-'+name+'.json'),_snapshot());
+    const files=fs.readdirSync(BKDIR).filter(f=>f.indexOf(prefix+'-')===0&&f.endsWith('.json')).sort();
+    while(files.length>keep){const old=files.shift();try{fs.unlinkSync(path.join(BKDIR,old));}catch(e){}}
+    return prefix+'-'+name+'.json';
+  }catch(e){console.log('[backup] error:',e.message);return null;}
+}
+// Auto-backup en cada guardado, como mucho 1 cada 15 min (para recuperar borrados del día).
+let _lastAutoBk=0;
+function autoBackup(){const now=Date.now();if(now-_lastAutoBk<15*60000)return;_lastAutoBk=now;writeBackup('auto',_stamp(),48);}
+// Envío multipart a Telegram (sin dependencias) del archivo de respaldo.
+function tgSendDocument(chatId,filename,content){return new Promise(resolve=>{
+  if(!CFG.telegramToken||!chatId)return resolve(false);
+  const b='----crmbk'+Date.now();
+  const pre=Buffer.from('--'+b+'\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n'+chatId+'\r\n'+
+    '--'+b+'\r\nContent-Disposition: form-data; name="caption"\r\n\r\n🗂️ Respaldo automático del CRM · '+filename+'\r\n'+
+    '--'+b+'\r\nContent-Disposition: form-data; name="document"; filename="'+filename+'"\r\nContent-Type: application/json\r\n\r\n','utf8');
+  const post=Buffer.from('\r\n--'+b+'--\r\n','utf8');
+  const body=Buffer.concat([pre,Buffer.from(content,'utf8'),post]);
+  const req=https.request('https://api.telegram.org/bot'+CFG.telegramToken+'/sendDocument',{method:'POST',headers:{'Content-Type':'multipart/form-data; boundary='+b,'Content-Length':body.length}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>resolve(true));});
+  req.on('error',()=>resolve(false));req.write(body);req.end();
+});}
+// Backup diario (1 por día): guarda snapshot 'daily' (30 días) y lo manda a tu Telegram.
+function maybeDailyBackup(){
+  const today=new Date().toISOString().slice(0,10);
+  let mark='';try{mark=fs.readFileSync(path.join(BKDIR,'.lastdaily'),'utf8').trim();}catch(e){}
+  if(mark===today)return;
+  const fname=writeBackup('daily',today.replace(/-/g,''),30);
+  try{fs.writeFileSync(path.join(BKDIR,'.lastdaily'),today);}catch(e){}
+  if(fname&&CFG.allowedChatId)tgSendDocument(CFG.allowedChatId,fname,_snapshot());
+  console.log('[backup] diario:',fname||'(falló)');
+}
 function hashPass(pass,salt){salt=salt||crypto.randomBytes(16).toString('hex');const hash=crypto.scryptSync(String(pass),salt,64).toString('hex');return {salt,hash};}
 function verifyPass(pass,salt,hash){try{const h=crypto.scryptSync(String(pass),salt,64).toString('hex');const a=Buffer.from(h),b=Buffer.from(hash);return a.length===b.length&&crypto.timingSafeEqual(a,b);}catch(e){return false;}}
 const sessions={}; // token -> {userId, exp}
@@ -353,11 +402,14 @@ http.createServer((req,res)=>{
   // Archivos estáticos (no exponer datos sensibles)
   let f=u==='/'?'/index.html':u;const fp=path.join(DIR,decodeURIComponent(f));
   if(!fp.startsWith(DIR)){res.writeHead(403);return res.end('no');}
-  if(/(users|clientes|config)\.json$/i.test(fp)){res.writeHead(403);return res.end('no');}
+  if(/(users|clientes|config)\.json$/i.test(fp)||/backups/i.test(fp)){res.writeHead(403);return res.end('no');}
   fs.readFile(fp,(e,d)=>{if(e){res.writeHead(404);res.end('not found')}else{const ext=path.extname(fp);res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type',ext==='.html'?'text/html; charset=utf-8':ext==='.js'?'text/javascript':ext==='.json'?'application/json':'text/plain; charset=utf-8');res.end(d)}});
 }).listen(process.env.PORT||CFG.port,()=>{
   console.log('CRM en http://localhost:'+CFG.port);
   console.log('Cerebro: '+((CFG.geminiKey&&CFG.geminiKey.length>10)?'Gemini IA':'Parser simple (sin clave de Gemini todavía)'));
   console.log('Bot de Telegram escuchando...');
   poll();
+  // Copias de seguridad: intenta el backup diario al arrancar y luego cada hora.
+  setTimeout(maybeDailyBackup,8000);
+  setInterval(maybeDailyBackup,60*60*1000);
 });
