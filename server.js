@@ -418,7 +418,8 @@ http.createServer((req,res)=>{
   let f=u==='/'?'/index.html':u;const fp=path.join(DIR,decodeURIComponent(f));
   if(!fp.startsWith(DIR)){res.writeHead(403);return res.end('no');}
   if(/(users|clientes|config)\.json$/i.test(fp)||/backups/i.test(fp)||/\.secret$/i.test(fp)){res.writeHead(403);return res.end('no');}
-  fs.readFile(fp,(e,d)=>{if(e){res.writeHead(404);res.end('not found')}else{const ext=path.extname(fp);res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type',ext==='.html'?'text/html; charset=utf-8':ext==='.js'?'text/javascript':ext==='.json'?'application/json':'text/plain; charset=utf-8');res.end(d)}});
+  const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.svg':'image/svg+xml','.ico':'image/x-icon','.webmanifest':'application/manifest+json'};
+  fs.readFile(fp,(e,d)=>{if(e){res.writeHead(404);res.end('not found')}else{const ext=path.extname(fp).toLowerCase();res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type',MIME[ext]||'text/plain; charset=utf-8');res.end(d)}});
 }).listen(process.env.PORT||CFG.port,()=>{
   console.log('CRM en http://localhost:'+CFG.port);
   console.log('Cerebro: '+((CFG.geminiKey&&CFG.geminiKey.length>10)?'Gemini IA':'Parser simple (sin clave de Gemini todavía)'));
