@@ -358,6 +358,7 @@
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
         <button class="admin-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
         <button class="sv-only" data-view="cuentas"><span class="ic" aria-hidden="true">⚙️</span><span class="lbl">Cuentas</span></button>
+        <button id="nav-avisos" onclick="conectarTelegram()"><span class="ic" aria-hidden="true" style="background:#229ED9">🔔</span><span class="lbl">Avisos por Telegram</span></button>
       </nav>
       <div class="side-foot"><div class="demo" style="background:rgba(52,199,89,.16);color:#34c759">● Clientes reales · WhatsApp</div><div class="acct"><span class="a">O</span><span>Octa · Riders Miami</span></div></div>
     </aside>
@@ -1244,6 +1245,7 @@ function applyRoleUI(){
   if(owner){const allow=new Set(['dueno','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
   else if(sup){const allow=new Set(['dueno','list','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
   else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});}
+  const av=document.getElementById('nav-avisos');if(av)av.style.display=''; // "Avisos por Telegram" siempre visible, para todos los roles
 }
 function startApp(){
   const w=document.querySelector('.window');if(w)w.style.display='';
