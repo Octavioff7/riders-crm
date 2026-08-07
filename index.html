@@ -756,7 +756,7 @@ function editarCliente(id){
     <div class="modal-h"><b>Editar cliente</b><button class="mini" onclick="cerrarModal()">✕</button></div>
     <div class="modal-b">
       <label>Nombre</label><input id="ed-nombre" value="${esc(c.nombre)}">
-      <label>WhatsApp</label><input id="ed-wa" value="${esc(c.whatsapp||'')}" oninput="this.value=fmtTel(this.value)" placeholder="+1 (305) 555-1234">
+      <label>WhatsApp</label><input id="ed-wa" value="${esc(c.whatsapp||'')}" oninput="this.value=fmtTel(this.value)" onfocus="var v=this.value;this.setSelectionRange(v.length,v.length)" placeholder="+1 (305) 555-1234">
     </div>
     <div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarEdicionCliente('${c.id}')">Guardar</button></div>
   </div>`;
@@ -892,7 +892,7 @@ function abrirNuevoCliente(){
     <div class="modal-h"><b>Nuevo cliente</b><button class="mini" onclick="cerrarModal()">✕</button></div>
     <div class="modal-b">
       <label>Nombre</label><input id="nc-nombre" placeholder="Nombre y apellido">
-      <label>WhatsApp</label><input id="nc-wa" value="+1 " oninput="this.value=fmtTel(this.value)" placeholder="+1 (305) 555-1234">
+      <label>WhatsApp</label><input id="nc-wa" value="+1 " oninput="this.value=fmtTel(this.value)" onfocus="var v=this.value;this.setSelectionRange(v.length,v.length)" placeholder="+1 (305) 555-1234">
       <div class="row2"><div><label>Producto</label><select id="nc-prod">${PRODUCTOS.map(p=>`<option>${p}</option>`).join('')}</select></div><div><label>Etapa</label><select id="nc-etapa">${ETAPAS.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('')}</select></div></div>
       <div class="row2"><div><label>Valor ($) — opcional</label><input id="nc-valor" type="number" placeholder="0"></div><div><label>Tipo de operación</label><select id="nc-op">${OPERACIONES.map(o=>`<option value="${o}">${o||'—'}</option>`).join('')}</select></div></div>
       <label>Seguimiento</label><textarea id="nc-seg" placeholder="Escribí una nota o seguimiento inicial (opcional)"></textarea>
