@@ -1164,10 +1164,9 @@ function _sameState(a,b){return !!a&&!!b&&a.v===b.v&&a.s===b.s&&a.c===b.c&&a.co=
 function pushHistory(){if(_navlock)return;const st=snapState();if(_sameState(history.state,st))return;try{history.pushState(st,'');}catch(e){}}
 function restoreState(st){_navlock=true;try{if(st&&st.v){view=st.v;selectedId=st.s;inboxCtx=st.c||null;filtroEtapa=st.fe||'';filtroVend=st.fv||'';filtro=st.f||'';document.body.classList.toggle('chat-open',!!st.co);render();}else{document.body.classList.remove('chat-open');}}catch(e){}finally{_navlock=false;}}
 window.addEventListener('popstate',e=>restoreState(e.state));
-// Gesto tipo iPhone: deslizar desde el borde izquierdo hacia la derecha = volver
-let _tsX=0,_tsY=0;
-document.addEventListener('touchstart',e=>{const t=e.touches[0];_tsX=t.clientX;_tsY=t.clientY;},{passive:true});
-document.addEventListener('touchend',e=>{const t=e.changedTouches[0];const dx=t.clientX-_tsX,dy=t.clientY-_tsY;if(_tsX<=32&&dx>70&&Math.abs(dy)<50)history.back();},{passive:true});
+// El gesto de deslizar desde el borde (iPhone/Android) usa el "atrás" nativo del navegador,
+// que ahora vuelve al paso anterior gracias al historial. NO agregamos un handler propio
+// para no provocar un doble "atrás" (que saltaba al inicio).
 
 /* ---- Emojis estilo Apple (imágenes desde internet, con respaldo a los de Windows) ---- */
 const EMOJI_TEST=/\p{Extended_Pictographic}/u;
