@@ -5,6 +5,7 @@ users.json
 clientes.backup-*.json
 backups/
 .secret
+notified.json
 wa-raw.txt
 
 node_modules/

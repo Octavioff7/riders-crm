@@ -18,6 +18,7 @@ CFG.geminiModel=process.env.GEMINI_MODEL||CFG.geminiModel;
 CFG.adminUser=process.env.ADMIN_USER||CFG.adminUser;
 CFG.adminPass=process.env.ADMIN_PASS||CFG.adminPass;
 if(process.env.ADMIN_CHAT_ID)CFG.allowedChatId=Number(process.env.ADMIN_CHAT_ID);
+CFG.telegramBotUser=process.env.TELEGRAM_BOT_USER||CFG.telegramBotUser||'RidersCRM_bot';
 CFG.port=CFG.port||8790;
 const DATA=path.join(DATA_DIR,'clientes.json');
 
@@ -102,7 +103,11 @@ function tokenUid(tok){
   return d.uid;
 }
 function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const uid=tokenUid(t);if(!uid)return null;return loadUsers().find(u=>u.id===uid&&u.activo!==false)||null;}
-function publicUser(u){return u?{id:u.id,nombre:u.nombre,usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false}:null;}
+function publicUser(u){return u?{id:u.id,nombre:u.nombre,usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId}:null;}
+// Códigos de vinculación de Telegram (temporales, en memoria)
+const tgCodes={};
+function genTgCode(uid){const code=String(Math.floor(100000+Math.random()*900000));tgCodes[code]={uid,exp:Date.now()+15*60000};return code;}
+function consumeTgCode(code){const e=tgCodes[code];if(!e||e.exp<Date.now())return null;delete tgCodes[code];return e.uid;}
 function adminUser(){return loadUsers().find(u=>u.rol==='admin');}
 
 // Primer arranque: crear admin (Octa) + asignar clientes existentes.
@@ -303,10 +308,18 @@ Reglas: si pide agregar seguimiento o nota, accion "actualizar" con el texto en 
   return {reply:'✅ '+(a.respuesta||('Anoté en '+c.nombre)),changed:true};
 }
 
-async function procesarMensaje(text){
-  const clientes=loadClientes();
-  const r=(CFG.geminiKey&&CFG.geminiKey.length>10)?await geminiBrain(clientes,text):parseBrain(clientes,text);
-  if(r.changed){const aid=(adminUser()||{}).id;if(aid)clientes.forEach(c=>{if(!c.vendedorId)c.vendedorId=aid;});saveClientes(clientes);}
+// El bot trabaja SCOPEADO a la cuenta del usuario: el vendedor solo ve/toca SUS clientes por el
+// chat, y lo que crea queda a su nombre. NUNCA puede ver ni modificar clientes de otra cuenta.
+async function procesarMensajeUser(text,user){
+  const all=loadClientes();
+  const esMio=c=>user.rol==='admin'?true:(c.vendedorId===user.id); // admin ve todo; vendedor solo lo suyo
+  const scope=all.filter(esMio);
+  const r=(CFG.geminiKey&&CFG.geminiKey.length>10)?await geminiBrain(scope,text):parseBrain(scope,text);
+  if(r.changed){
+    scope.forEach(c=>{if(!c.vendedorId)c.vendedorId=user.id;}); // clientes nuevos → a nombre de quien escribe
+    const byId={};all.forEach(c=>byId[c.id]=c);scope.forEach(c=>{byId[c.id]=c;}); // fusiona sin tocar los ajenos
+    saveClientes(Object.values(byId));
+  }
   return r.reply;
 }
 
@@ -316,14 +329,50 @@ function reply(chatId,text){return tg('sendMessage',{chat_id:chatId,text:text,pa
 
 async function handle(msg){
   const chatId=msg.chat.id;const text=(msg.text||'').trim();if(!text)return;
+  // Vinculación de vendedores: /start CODE, /vincular CODE, o un código de 6 dígitos suelto
+  const mcode=text.match(/^(?:\/start|\/vincular)\s+(\w{4,10})$/i)||text.match(/^(\d{6})$/);
+  if(mcode){
+    const uid=consumeTgCode(mcode[1]);
+    if(uid){const users=loadUsers();const usr=users.find(u=>u.id===uid);if(usr){usr.telegramChatId=chatId;saveUsers(users);await reply(chatId,'✅ Listo'+(usr.nombre?', '+usr.nombre:'')+'. Vas a recibir acá los recordatorios de tus contactos.');return;}}
+    await reply(chatId,'❌ Ese código no es válido o venció. Generá uno nuevo desde el CRM (botón 🔔 Avisos).');return;
+  }
   if(CFG.allowedChatId===null||CFG.allowedChatId===undefined){
     CFG.allowedChatId=chatId;saveCfg();
     await reply(chatId,'✅ ¡Hola Octa! Soy el *asistente del CRM de Riders Miami*.\nContame en una frase qué pasó con un cliente y lo *anoto solo*.\n\nEjemplos:\n• _Oscar quiere financiar, llamarlo el lunes_\n• _cargá a Juan, preguntó por una moto_\n• _Yosvani ya pagó, marcalo vendido_');
     return;
   }
-  if(chatId!==CFG.allowedChatId){await reply(chatId,'🔒 Este bot es privado.');return;}
-  if(text==='/start'||text==='/ayuda'||text==='/help'){await reply(chatId,'👋 Mandame qué hacer con un cliente. Ejemplos:\n• _anotá que Oscar quiere financiar_\n• _agendá una llamada con Oscar el viernes_\n• _cargá a Marta, preguntó por un kit solar_\n• _Oscar ya pagó, marcalo vendido_');return;}
-  try{const res=await procesarMensaje(text);await reply(chatId,res);}catch(e){await reply(chatId,'⚠️ Ups, algo falló: '+e.message);}
+  // ¿Quién es este chat? El admin (chat fijado) o un usuario vinculado por código.
+  let user=(chatId===CFG.allowedChatId)?adminUser():null;
+  if(!user)user=loadUsers().find(u=>u.telegramChatId===chatId&&u.activo!==false);
+  if(!user){await reply(chatId,'🔒 Este bot es privado. Si sos vendedor de Riders, entrá al CRM → 🔔 Avisos y seguí las instrucciones para vincularlo.');return;}
+  if(user.rol==='supervisor'||user.rol==='dueno'){await reply(chatId,'🔔 Tus recordatorios están activados. Tu cuenta es de supervisión (solo lectura): no carga clientes por el bot.');return;}
+  if(text==='/start'||text==='/ayuda'||text==='/help'){await reply(chatId,'👋 Contame qué pasó con *un cliente tuyo* y lo anoto solo. Ej:\n• _Oscar quiere financiar, llamarlo el lunes_\n• _cargá a Juan, preguntó por una moto_\n• _Yosvani ya pagó, marcalo vendido_\n\n🔒 Solo podés ver y cargar TUS clientes.');return;}
+  try{const res=await procesarMensajeUser(text,user);await reply(chatId,res);}catch(e){await reply(chatId,'⚠️ Ups, algo falló: '+e.message);}
+}
+/* ---------- Recordatorios: avisar cuando llega la hora de un contacto ---------- */
+const NOTIFPATH=path.join(DATA_DIR,'notified.json');
+let _notif=null;
+function loadNotif(){if(_notif)return _notif;try{_notif=JSON.parse(fs.readFileSync(NOTIFPATH,'utf8'));}catch(e){_notif={};}return _notif;}
+function saveNotif(){try{fs.writeFileSync(NOTIFPATH,JSON.stringify(_notif));}catch(e){}}
+function dueTime(c){if(!c.proximo)return null;let h=(c.proximoHora&&/^\d{1,2}:\d{2}/.test(c.proximoHora))?c.proximoHora:'09:00';if(h.length===4)h='0'+h;const dt=new Date(c.proximo+'T'+h+':00');return isNaN(dt)?null:dt.getTime();}
+function checkDue(){
+  try{
+    const now=Date.now(),cl=loadClientes(),users=loadUsers(),nt=loadNotif();let changed=false;
+    for(const c of cl){
+      if(c.borrado)continue;const due=dueTime(c);if(due===null)continue;
+      if(due<=now&&due>=now-6*3600000){
+        const k=c.id+'|'+c.proximo+'|'+(c.proximoHora||'');
+        if(nt[k])continue;
+        const vend=users.find(u=>u.id===c.vendedorId);
+        const txt='🔔 Recordatorio: es hora de tu '+(c.proximoTipo||'seguimiento')+' con '+c.nombre+(c.whatsapp?' ('+c.whatsapp+')':'');
+        let sent=false;
+        if(vend&&vend.telegramChatId){tg('sendMessage',{chat_id:vend.telegramChatId,text:txt});sent=true;}
+        if(typeof pushToUser==='function'&&vend){try{if(pushToUser(vend.id,{title:'Recordatorio de contacto',body:'Es hora de tu '+(c.proximoTipo||'seguimiento')+' con '+c.nombre,cid:c.id}))sent=true;}catch(e){}}
+        if(sent){nt[k]=now;changed=true;}
+      }
+    }
+    if(changed){const ks=Object.keys(nt);if(ks.length>5000){ks.sort((a,b)=>nt[a]-nt[b]).slice(0,ks.length-2000).forEach(k=>delete nt[k]);}saveNotif();}
+  }catch(e){console.log('[recordatorios] error:',e.message);}
 }
 
 let offset=0;
@@ -356,6 +405,8 @@ http.createServer((req,res)=>{
 
   if(u==='/api/logout'&&req.method==='POST'){return json(200,{ok:true});}
   if(u==='/api/me'&&req.method==='GET')return json(200,{user:publicUser(me)});
+  if(u==='/api/tg/code'&&req.method==='POST')return json(200,{code:genTgCode(me.id),bot:CFG.telegramBotUser});
+  if(u==='/api/tg/unlink'&&req.method==='POST'){const users=loadUsers();const usr=users.find(x=>x.id===me.id);if(usr){delete usr.telegramChatId;saveUsers(users);}return json(200,{ok:true});}
 
   if(u==='/api/clientes'){
     if(req.method==='GET')return json(200,scopedClientes(me));
@@ -428,4 +479,7 @@ http.createServer((req,res)=>{
   // Copias de seguridad: intenta el backup diario al arrancar y luego cada hora.
   setTimeout(maybeDailyBackup,8000);
   setInterval(maybeDailyBackup,60*60*1000);
+  // Recordatorios: revisa cada minuto qué contactos vencen y avisa al vendedor dueño.
+  setTimeout(checkDue,12000);
+  setInterval(checkDue,60*1000);
 });
