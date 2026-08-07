@@ -1139,10 +1139,6 @@ function renderPanel(){
     </div>
     <div class="earnings-card" onclick="toggleEarn()" style="cursor:pointer" title="Tocá para cambiar entre este mes y el total">${earnCardHTML()}</div>
     <div class="panelcard"><h3>📈 Evolución mensual <span class="muted" style="font-weight:500">· seguimiento a largo plazo</span></h3><table class="mtable"><thead><tr><th>Mes</th><th>Clientes nuevos</th><th>Ventas</th><th>Seguimientos</th></tr></thead><tbody>${meses.slice().reverse().map(m=>`<tr><td><b>${m.label}</b></td><td>${m.nuevos}</td><td>${m.ventas}</td><td>${m.seg}</td></tr>`).join('')}</tbody></table></div>
-    <div class="dash-cols">
-      <div class="panelcard"><h3>📅 Para hoy y atrasado <span class="muted">· ${hoyList.length}</span></h3>${hoyList.length?hoyList.slice(0,7).map(c=>row(c,esc(c.whatsapp||'sin número')+(c.proximo?' · 📅 '+fmtFecha(c.proximo):''),true)).join(''):'<div class="empty">Nada pendiente hoy 🎉</div>'}${hoyList.length>7?'<div class="muted" style="font-size:12px;padding:8px 0 0">+ '+(hoyList.length-7)+' más en Agenda</div>':''}</div>
-      <div class="panelcard"><h3>🔥 Responder ya <span class="muted">· ${cal.length}</span></h3>${cal.length?cal.slice(0,7).map(c=>row(c,esc(c.whatsapp||'sin número'),false)).join(''):'<div class="empty">Nadie caliente ahora.</div>'}</div>
-    </div>
   </div>`;
   earnApply();
 }
