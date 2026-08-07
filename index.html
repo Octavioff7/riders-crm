@@ -238,6 +238,10 @@
   .mtable td:not(:first-child),.mtable th:not(:first-child){text-align:center}
   .mtable tr:last-child td{border-bottom:none}
   .earnings-card{background:linear-gradient(135deg,#34c759,#248a3d);color:#fff;border-radius:var(--radius);padding:18px 22px;margin-bottom:16px;box-shadow:0 6px 20px rgba(52,199,89,.28)}
+  .ec-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .ec-switch{display:inline-flex;background:rgba(255,255,255,.22);border-radius:999px;padding:2px}
+  .ec-tab{border:none;background:transparent;color:#fff;font-weight:600;font-size:12px;padding:4px 13px;border-radius:999px;cursor:pointer;opacity:.9;transition:all .15s}
+  .ec-tab.on{background:#fff;color:#248a3d;opacity:1}
   .ec-label{font-size:13px;font-weight:600;opacity:.92}
   .ec-amount{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-top:2px}
   .ec-sub{font-size:12.5px;opacity:.85;margin-top:2px}
@@ -607,7 +611,7 @@ function crmHTML(c){
         <button class="tagbtn ${!(c.tags&&c.tags.length)&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
       </div>
       <div class="field" style="margin-top:8px"><input placeholder="Tu nota para la etiqueta (opcional)" value="${esc(c.tempNota||'')}" onchange="setTagNota('${c.id}',this.value)"></div>
-      <div class="venta-det" style="margin-top:8px;display:${c.etapa==='vendido'?'':'none'}"><div class="field"><label>🛒 Detalle de la venta</label><input placeholder="¿Qué compró y a qué precio? (ej: Ecoflow Delta 3 · $1250)" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" placeholder="0" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div></div>
+      <div class="venta-det" style="margin-top:8px;display:${c.etapa==='vendido'?'':'none'}"><div class="field"><label>🛒 Detalle de la venta</label><input placeholder="¿Qué compró y a qué precio? (ej: Ecoflow Delta 3 · $1250)" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" placeholder="0" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📅 Fecha de la venta</label><input type="date" value="${esc(c.vendidoFecha||hoy())}" onchange="setFechaVenta('${c.id}',this.value)"></div></div>
       <div class="row2"><div class="field"><label>Etapa</label><select onchange="setF('${c.id}','etapa',this.value)">${ETAPAS.map(e=>`<option value="${e.id}" ${c.etapa===e.id?'selected':''}>${e.nombre}</option>`).join('')}</select></div><div class="field"><label>Producto</label><select onchange="setF('${c.id}','producto',this.value)">${PRODUCTOS.map(p=>`<option ${c.producto===p?'selected':''}>${p}</option>`).join('')}</select></div></div>
       <div class="row2"><div class="field"><label>Valor ($)</label><input type="number" value="${c.valor||''}" onchange="setF('${c.id}','valor',Number(this.value)||0)"></div><div class="field"><label>Tipo de operación</label><select onchange="setF('${c.id}','operacion',this.value)">${OPERACIONES.map(o=>`<option value="${o}" ${(c.operacion||'')===o?'selected':''}>${o||'—'}</option>`).join('')}</select></div></div>
       ${(me&&me.rol!=='vendedor'&&asignables().length>1)?`<div class="field"><label>Vendedor asignado</label><select onchange="setF('${c.id}','vendedorId',this.value)">${asignables().map(u=>`<option value="${u.id}" ${c.vendedorId===u.id?'selected':''}>${esc(u.nombre)}</option>`).join('')}</select></div>`:''}
@@ -664,6 +668,12 @@ function marcarVendido(id){
 }
 function setVentaDetalle(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.ventaDetalle=(v||'').trim();save();}
 function setComision(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.comision=Number(v)||0;save();}
+function setFechaVenta(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.vendidoFecha=v||hoy();save();}
+// Ganancias: mes (se reinicia el 1° de cada mes) o total (histórico). Switch en la tarjeta del panel.
+let earnMode='mes';
+function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const vm=vend.filter(c=>(c.vendidoFecha||'').slice(0,7)===mesAct);const g=a=>a.reduce((s,c)=>s+(Number(c.comision)||0),0);return {mes:{g:g(vm),n:vm.length},total:{g:g(vend),n:vend.length}};}
+function earnCardHTML(){const e=computeEarn();const money=v=>'$'+Number(v||0).toLocaleString('es-AR');const cur=earnMode==='total'?e.total:e.mes;const label=earnMode==='total'?'💰 Ganado en total':'💰 Ganado este mes';const sub=earnMode==='total'?(cur.n+' venta(s) en total · comisiones acumuladas (histórico)'):(cur.n+' venta(s) este mes · se reinicia el 1° de cada mes');return `<div class="ec-top"><div class="ec-label">${label}</div><div class="ec-switch"><button class="ec-tab ${earnMode==='mes'?'on':''}" onclick="setEarn('mes')">Este mes</button><button class="ec-tab ${earnMode==='total'?'on':''}" onclick="setEarn('total')">Total</button></div></div><div class="ec-amount">${money(cur.g)}</div><div class="ec-sub">${sub}</div>`;}
+function setEarn(m){earnMode=m;const el=document.querySelector('.earnings-card');if(el)el.innerHTML=earnCardHTML();}
 function setTagNota(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.tempNota=(v||'').trim();save();actualizarBanner(c);actualizarConvRow(c);}
 function setProximo(id,silent){
   const c=clientes.find(x=>x.id===id);if(!c)return;
@@ -1093,7 +1103,7 @@ function renderPanel(){
       <div class="panelcard"><h3>💵 Ventas del mes <span class="muted">· ${vendidosMes.length}</span></h3>${vendidosMes.length?vendidosMes.map(c=>`<div class="frow" style="cursor:pointer" onclick="view='inbox';selectedId='${c.id}';render()"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto)+(c.operacion?' · '+esc(c.operacion):'')}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}</div>`).join(''):'<div class="empty">Todavía no cerraste ventas este mes.</div>'}</div>
       <div class="panelcard"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
     </div>
-    <div class="earnings-card"><div class="ec-label">💰 Total ganado este mes</div><div class="ec-amount">${money(gananciaMes)}</div><div class="ec-sub">${vendidosMes.length} venta(s) cerradas · comisiones acumuladas</div></div>
+    <div class="earnings-card">${earnCardHTML()}</div>
     <div class="panelcard"><h3>📈 Evolución mensual <span class="muted" style="font-weight:500">· seguimiento a largo plazo</span></h3><table class="mtable"><thead><tr><th>Mes</th><th>Clientes nuevos</th><th>Ventas</th><th>Seguimientos</th></tr></thead><tbody>${meses.slice().reverse().map(m=>`<tr><td><b>${m.label}</b></td><td>${m.nuevos}</td><td>${m.ventas}</td><td>${m.seg}</td></tr>`).join('')}</tbody></table></div>
     <div class="dash-cols">
       <div class="panelcard"><h3>📅 Para hoy y atrasado <span class="muted">· ${hoyList.length}</span></h3>${hoyList.length?hoyList.slice(0,7).map(c=>row(c,esc(c.whatsapp||'sin número')+(c.proximo?' · 📅 '+c.proximo:''),true)).join(''):'<div class="empty">Nada pendiente hoy 🎉</div>'}${hoyList.length>7?'<div class="muted" style="font-size:12px;padding:8px 0 0">+ '+(hoyList.length-7)+' más en Agenda</div>':''}</div>
