@@ -279,6 +279,7 @@
   .conv .wanum{font-weight:600;color:var(--txt);opacity:.8;font-size:12px}
   .conv.sel .wanum{color:#fff;opacity:.9}
   .crm-h{position:relative}
+  .crm-h .backbtn{position:absolute;top:12px;left:12px;margin:0}
   .edit-cli{position:absolute;top:12px;right:12px;background:var(--hover);border:1px solid var(--sep);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:14px;transition:background .12s}
   .edit-cli:hover{background:var(--card);border-color:var(--sep-strong)}.edit-cli:active{transform:scale(.94)}
   @media(max-width:760px){.col-resizer{display:none}}
@@ -585,9 +586,9 @@ function ctxList(ctx){const A=activos();
   return null;
 }
 const CTX_LABEL={atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar'};
-function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();}
+function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 // Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
-function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();}
+function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados();return base.filter(c=>!filtro||(c.nombre+c.whatsapp+c.producto).toLowerCase().includes(filtro.toLowerCase()));}
 function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(c.whatsapp):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
 function convListItems(){const l=filteredConvs();return l.map(convRow).join('')||'<div class="empty" style="margin:14px">Sin clientes</div>';}
@@ -630,7 +631,7 @@ function crmHTML(c){
     return `<div class="logitem"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
   }).join('')||'<div class="empty">Todavía no hay notas. Escribí la primera abajo 👇</div>';
   const prox=c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';
-  return `<div class="crm-h"><button class="backbtn" onclick="document.body.classList.remove('chat-open');document.body.classList.remove('ficha-open')" aria-label="Volver">←</button><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="nm">${esc(c.nombre)}</div><div class="wa">${esc(c.whatsapp||'Sin número guardado')}</div><button class="edit-cli" onclick="editarCliente('${c.id}')" title="Editar nombre y teléfono">✏️</button></div>
+  return `<div class="crm-h"><button class="backbtn" onclick="history.back()" aria-label="Volver">←</button><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="nm">${esc(c.nombre)}</div><div class="wa">${esc(c.whatsapp||'Sin número guardado')}</div><button class="edit-cli" onclick="editarCliente('${c.id}')" title="Editar nombre y teléfono">✏️</button></div>
     <div class="crm-b">${waBtnBig(c)}
       ${banner}
       <div class="section-t" style="margin-top:2px">🏷️ Etiqueta manual</div>
@@ -658,7 +659,7 @@ function crmHTML(c){
       <button class="btn danger" style="width:100%;margin-top:18px" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button>
     </div>`;
 }
-function pick(id){selectedId=id;document.body.classList.add('chat-open');renderInbox();}
+function pick(id){selectedId=id;document.body.classList.add('chat-open');renderInbox();pushHistory();}
 function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
 function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.value.trim();if(!t||!c)return;c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:t});derive(c);save();renderInbox();}
 /* ---- Notas y agenda de seguimiento ---- */
@@ -925,8 +926,8 @@ function asignables(){
 }
 // Quién puede editar a quién en Cuentas (coincide con el permiso del server): admin edita a cualquiera menos admin; supervisor solo a SUS vendedores.
 function puedoEditarUsuario(x){if(!me||x.id===me.id||x.rol==='admin')return false;if(me.rol==='admin')return true;if(me.rol==='supervisor')return x.rol==='vendedor'&&x.supervisorId===me.id;return false;}
-function verVendedor(id){filtroVend=id;view='list';render();}
-function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render();}
+function verVendedor(id){filtroVend=id;view='list';render();pushHistory();}
+function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render();pushHistory();}
 async function renderEquipo(){
   main.innerHTML='<div class="page"><h1>📈 Equipo</h1><div class="sub">Cargando métricas…</div></div>';
   let data=[];try{data=await (await api('/api/metrics')).json();}catch(e){return;}
@@ -1154,7 +1155,19 @@ function renderPanel(){
   </div>`;
   earnApply();
 }
-document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.view){view=b.dataset.view;filtroEtapa='';filtroVend='';filtro='';render();}});
+document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.view){view=b.dataset.view;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();}});
+
+/* ---- Historial: el botón atrás del navegador y el gesto de deslizar vuelven al paso anterior ---- */
+let _navlock=false;
+function snapState(){return {v:view,s:selectedId,c:inboxCtx,co:document.body.classList.contains('chat-open'),fe:filtroEtapa,fv:filtroVend,f:filtro};}
+function _sameState(a,b){return !!a&&!!b&&a.v===b.v&&a.s===b.s&&a.c===b.c&&a.co===b.co&&a.fe===b.fe&&a.fv===b.fv;}
+function pushHistory(){if(_navlock)return;const st=snapState();if(_sameState(history.state,st))return;try{history.pushState(st,'');}catch(e){}}
+function restoreState(st){_navlock=true;try{if(st&&st.v){view=st.v;selectedId=st.s;inboxCtx=st.c||null;filtroEtapa=st.fe||'';filtroVend=st.fv||'';filtro=st.f||'';document.body.classList.toggle('chat-open',!!st.co);render();}else{document.body.classList.remove('chat-open');}}catch(e){}finally{_navlock=false;}}
+window.addEventListener('popstate',e=>restoreState(e.state));
+// Gesto tipo iPhone: deslizar desde el borde izquierdo hacia la derecha = volver
+let _tsX=0,_tsY=0;
+document.addEventListener('touchstart',e=>{const t=e.touches[0];_tsX=t.clientX;_tsY=t.clientY;},{passive:true});
+document.addEventListener('touchend',e=>{const t=e.changedTouches[0];const dx=t.clientX-_tsX,dy=t.clientY-_tsY;if(_tsX<=32&&dx>70&&Math.abs(dy)<50)history.back();},{passive:true});
 
 /* ---- Emojis estilo Apple (imágenes desde internet, con respaldo a los de Windows) ---- */
 const EMOJI_TEST=/\p{Extended_Pictographic}/u;
@@ -1223,6 +1236,7 @@ function startApp(){
   if(acct&&me)acct.innerHTML='<span class="a">'+esc((me.nombre||'?').slice(0,1).toUpperCase())+'</span><span>'+esc(me.nombre||'')+' · '+roleLabel(me.rol)+'<span class="ro-badge" title="Podés ver la info del equipo pero no editar clientes">👁 Solo lectura</span></span><button class="mini" onclick="logout()" title="Cerrar sesión" style="margin-left:auto">Salir</button>';
   if(me&&(me.rol==='dueno'||me.rol==='supervisor'))view='dueno'; // dueño y supervisor entran al Panel del equipo, no al Inicio personal
   applyRoleUI();
+  try{history.replaceState(snapState(),'');}catch(e){} // estado base para el botón atrás
   if(SERVER){api('/api/users').then(r=>r.json()).then(us=>{usuarios=us;render();}).catch(()=>{});}
   loadData();
 }
