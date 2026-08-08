@@ -136,7 +136,7 @@ function procesarWebhook(body){
           c.mensajes=c.mensajes||[];c.mensajes.push({de:'cliente',fecha,hora,texto,canal:'whatsapp'});
           c.ultimoContacto=fecha;c.respondioUltimo='cliente';
         }else{
-          c={id:uid(),nombre,whatsapp:'+'+dig,producto:'Otro',etapa:'nuevo',valor:0,creado:fecha,ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
+          c={id:uid(),nombre,whatsapp:'+'+dig,producto:'Otro',etapa:'nuevo',valor:0,creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
           if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:'')});}
           clientes.push(c);
           try{if(typeof pushToUser==='function'&&vendId)pushToUser(vendId,{title:'🆕 Nueva consulta',body:nombre+': '+String(texto).slice(0,80)});}catch(e){}
@@ -290,7 +290,7 @@ function nuevoNombre(t){const m=t.match(/(?:cargá|carga|agregá|agrega|nuevo cl
 function parseBrain(clientes,text){
   const acc=[];let c=findClient(clientes,text);
   const crearKW=/(cargá|carga|agregá|agrega|nuevo cliente|nuevo lead|anotá a|anota a|sumá a|suma a)/i.test(text);
-  if(!c&&crearKW){const nom=nuevoNombre(text);if(nom){c={id:uid(),nombre:nom,whatsapp:'',producto:detProducto(text)||'Otro',ubicacion:'',etapa:'nuevo',valor:0,proximo:'',proximoTipo:'',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'cliente',log:[],mensajes:[]};clientes.push(c);acc.push('creé el cliente *'+nom+'*');}}
+  if(!c&&crearKW){const nom=nuevoNombre(text);if(nom){c={id:uid(),nombre:nom,whatsapp:'',producto:detProducto(text)||'Otro',ubicacion:'',etapa:'nuevo',valor:0,proximo:'',proximoTipo:'',creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'cliente',log:[],mensajes:[]};clientes.push(c);acc.push('creé el cliente *'+nom+'*');}}
   if(!c)return {reply:'🤔 No identifiqué de qué cliente hablás. Probá con el nombre — ej: _"Oscar quiere financiar"_. Para uno nuevo: _"cargá a Juan, preguntó por una moto"_.',changed:false};
   const p=detProducto(text);if(p&&p!==c.producto){c.producto=p;acc.push('producto → *'+p+'*');}
   const e=detEtapa(text);if(e&&e!==c.etapa){c.etapa=e;acc.push('etapa → *'+ETAPAS[e]+'*');}
@@ -353,7 +353,7 @@ Reglas: si pide agregar seguimiento o nota, accion "actualizar" con el texto en 
   if(!c){
     if(accion==='crear'){
       const num=a.whatsapp||(/\d{6,}/.test(String(a.cliente||''))?a.cliente:'');
-      c={id:uid(),nombre:a.cliente||num||'Nuevo',whatsapp:num||'',producto:a.producto||'Otro',operacion:a.operacion||'',ubicacion:'',etapa:a.etapa||'nuevo',valor:a.valor||0,proximo:'',proximoTipo:'',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'cliente',canal:'whatsapp',log:[],mensajes:[]};
+      c={id:uid(),nombre:a.cliente||num||'Nuevo',whatsapp:num||'',producto:a.producto||'Otro',operacion:a.operacion||'',ubicacion:'',etapa:a.etapa||'nuevo',valor:a.valor||0,proximo:'',proximoTipo:'',creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'cliente',canal:'whatsapp',log:[],mensajes:[]};
       clientes.push(c);
     } else return {reply:a.respuesta||'No identifiqué el cliente. Decime el nombre o el número, o pedime crearlo.',changed:false};
   }

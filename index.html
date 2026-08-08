@@ -820,7 +820,8 @@ function googleCal(id){
 function completarProximo(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:'✅ Contacto realizado ('+(c.proximoTipo||'seguimiento')+' del '+c.proximo+(c.proximoHora?' '+c.proximoHora:'')+')'});c.proximo='';c.proximoTipo='';c.proximoHora='';c.ultimoContacto=hoy();c.respondioUltimo='yo';save();render();}
 
 /* ---- CLIENTES ---- */
-function listFiltered(){const q=(filtro||'').toLowerCase();let l=ordenados().filter(c=>!q||(c.nombre+' '+c.whatsapp+' '+c.producto).toLowerCase().includes(q));if(filtroVend)l=l.filter(c=>c.vendedorId===filtroVend);if(filtroEtapa)l=l.filter(c=>c.etapa===filtroEtapa);return l;}
+function creaKey(c){return c.creadoTs||(c.creado?(Date.parse(c.creado+'T00:00:00')||0):0);}
+function listFiltered(){const q=(filtro||'').toLowerCase();let l=activos().filter(c=>!q||(c.nombre+' '+c.whatsapp+' '+c.producto).toLowerCase().includes(q));if(filtroVend)l=l.filter(c=>c.vendedorId===filtroVend);if(filtroEtapa)l=l.filter(c=>c.etapa===filtroEtapa);return l.sort((a,b)=>creaKey(b)-creaKey(a));}
 function listRowsHTML(){const list=listFiltered();let r='';for(const c of list){const e=etapaDe(c.etapa),t=temperatura(c);r+=`<tr onclick="verFicha('${c.id}')"><td><b>${esc(c.nombre)}</b></td><td>${esc(c.whatsapp||'—')}</td><td>${esc(c.producto)}</td><td><span class="tag" style="background:${e.color}22;color:${e.color}">${e.nombre}</span></td><td>${t?`<span style="color:${t.color};font-weight:700">${t.emoji} ${t.label}</span>`:'—'}</td><td>${c.proximo?fmtFecha(c.proximo):'—'}</td><td>${waIc(c)}</td></tr>`;}return r||`<tr><td colspan="7"><div class="empty" style="padding:14px">Sin resultados${filtro?' para "'+esc(filtro)+'"':''}</div></td></tr>`;}
 // Al buscar: actualiza SOLO la tabla, sin redibujar la página (sin parpadeo).
 function filtrarLista(v){filtro=v;const tb=document.getElementById('cli-tbody');if(tb)tb.innerHTML=listRowsHTML();const sub=document.getElementById('list-sub');if(sub)sub.textContent=activos().length+' clientes en total'+(v?(' · '+listFiltered().length+' coinciden'):'');}
@@ -942,7 +943,7 @@ async function guardarNuevoCliente(){
       if(!confirm(msg))return;
     }
   }catch(e){}}
-  const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,vendedorId:filtroVend||(me&&me.id)||'',proximo:'',proximoTipo:'',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
+  const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,vendedorId:filtroVend||(me&&me.id)||'',proximo:'',proximoTipo:'',creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
   clientes.push(c);save();cerrarModal();selectedId=c.id;view='list';render();
 }
 /* ---- ELIMINAR / PAPELERA ---- */
