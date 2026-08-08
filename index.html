@@ -354,6 +354,7 @@
       <nav id="nav" aria-label="Navegación principal">
         <div class="nav-label">Riders Miami</div>
         <button data-view="panel" class="active" aria-current="page"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Inicio</span></button>
+        <button data-view="nuevas"><span class="ic" aria-hidden="true" style="background:#34c759">🆕</span><span class="lbl">Nuevas consultas</span><span class="count" id="cnt-nuevas"></span></button>
         <button data-view="list"><span class="ic" aria-hidden="true">👥</span><span class="lbl">Todos</span><span class="count" id="cnt-list"></span></button>
         <button data-view="calientes"><span class="ic" aria-hidden="true">🔥</span><span class="lbl">Calientes</span><span class="count" id="cnt-cal"></span></button>
         <button data-view="frios"><span class="ic" aria-hidden="true">❄️</span><span class="lbl">Fríos</span><span class="count" id="cnt-frios"></span></button>
@@ -516,6 +517,7 @@ function updateCounts(){
   const ci=document.getElementById('cnt-inbox');if(ci)ci.textContent=A.filter(c=>c.respondioUltimo==='cliente'&&c.etapa!=='vendido'&&c.etapa!=='posventa').length;
   const cn=document.getElementById('cnt-anotar');if(cn)cn.textContent=A.filter(sinAnotar).length;
   const cp=document.getElementById('cnt-papelera');if(cp)cp.textContent=misTodos().filter(c=>c.borrado).length;
+  const cnu=document.getElementById('cnt-nuevas');if(cnu)cnu.textContent=A.filter(c=>c.sinAtender).length;
   const setc=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
   setc('cnt-atra',A.filter(c=>enBucket(c,'atrasado')).length);setc('cnt-hoy',A.filter(c=>enBucket(c,'hoy')).length);setc('cnt-prox',A.filter(c=>enBucket(c,'proximos')).length);setc('cnt-sem',A.filter(c=>enBucket(c,'semana')).length);
 }
@@ -524,10 +526,11 @@ function render(){
   const navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
+  else if(view==='nuevas')renderNuevas();
   else if(view==='dueno')renderDueno();
   else if(view==='asis')renderAsis();
   else if(view==='inbox')renderInbox();
@@ -954,6 +957,20 @@ function eliminarDefinitivo(id){const c=clientes.find(x=>x.id===id);if(!c)return
     c.descartado=true;c.descartadoFecha=hoy();c.descartadoPor=(me&&me.nombre)||'';save();render();
   }
 }
+/* ---- NUEVAS CONSULTAS (llegan solas desde WhatsApp/ads) ---- */
+function renderNuevas(){
+  const list=activos().filter(c=>c.sinAtender).sort((a,b)=>String(b.ultimoContacto||'').localeCompare(String(a.ultimoContacto||'')));
+  let h=`<div class="page"><h1>🆕 Nuevas consultas</h1><div class="sub">${list.length} consulta(s) sin atender. Tocá una para atenderla y empezar a cargar notas, interés y etiquetas.</div>`;
+  if(!list.length){main.innerHTML=h+'<div class="empty">No hay consultas nuevas por ahora 🎉<br><span class="faint" style="font-size:12px">Cuando conectemos WhatsApp, las consultas de tus anuncios van a aparecer acá solas.</span></div></div>';return;}
+  h+='<div class="panelcard">';
+  for(const c of list){
+    const last=(c.mensajes&&c.mensajes.length)?c.mensajes[c.mensajes.length-1].texto:(c.log&&c.log.length?c.log[c.log.length-1].texto:'');
+    const ad=c.origen==='ad'?' <span class="chip" style="background:#34c75922;color:#248a3d">📣 Anuncio</span>':'';
+    h+=`<div class="frow" style="cursor:pointer" onclick="abrirConsulta('${c.id}')"><div class="av" style="width:36px;height:36px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${ad}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.whatsapp||'')}${last?' · '+esc(last):''}</div></div>${waIc(c)}<button class="btn sm" onclick="event.stopPropagation();abrirConsulta('${c.id}')">Atender</button></div>`;
+  }
+  main.innerHTML=h+'</div></div>';
+}
+function abrirConsulta(id){const c=clientes.find(x=>x.id===id);if(c&&c.sinAtender){c.sinAtender=false;save();}verFicha(id);}
 function renderPapelera(){
   const esAdmin=!!(me&&me.rol==='admin');
   const ord=(a,b)=>String((b.descartadoFecha||b.borradoFecha)||'').localeCompare(String((a.descartadoFecha||a.borradoFecha)||''));

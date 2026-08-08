@@ -8,6 +8,7 @@ backups/
 .vapid
 notified.json
 tgcodes.json
+wamap.json
 wa-raw.txt
 
 node_modules/

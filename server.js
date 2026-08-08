@@ -21,6 +21,10 @@ if(process.env.ADMIN_CHAT_ID)CFG.allowedChatId=Number(process.env.ADMIN_CHAT_ID)
 CFG.telegramBotUser=process.env.TELEGRAM_BOT_USER||CFG.telegramBotUser||'RidersCRM_bot';
 CFG.port=CFG.port||8790;
 const DATA=path.join(DATA_DIR,'clientes.json');
+// WhatsApp Cloud API (Meta): token para verificar el webhook y mapeo número→vendedor.
+const WA_VERIFY=process.env.WHATSAPP_VERIFY_TOKEN||'riders-crm-verify';
+const WAMAPPATH=path.join(DATA_DIR,'wamap.json');
+function loadWaMap(){try{return JSON.parse(fs.readFileSync(WAMAPPATH,'utf8'))}catch(e){return {}}}
 
 function loadClientes(){try{return JSON.parse(fs.readFileSync(DATA,'utf8'))}catch(e){return []}}
 function saveClientes(arr){fs.writeFileSync(DATA,JSON.stringify(arr,null,1));try{autoBackup();}catch(e){}}
@@ -111,6 +115,38 @@ function saveTgCodes(o){try{fs.writeFileSync(TGCODEPATH,JSON.stringify(o))}catch
 function genTgCode(uid){const o=loadTgCodes();const code=String(Math.floor(100000+Math.random()*900000));o[code]={uid,exp:Date.now()+30*60000};saveTgCodes(o);return code;}
 function consumeTgCode(code){const o=loadTgCodes();const e=o[code];if(!e||e.exp<Date.now())return null;delete o[code];saveTgCodes(o);return e.uid;}
 function adminUser(){return loadUsers().find(u=>u.rol==='admin');}
+
+/* ---------- WhatsApp: entra un mensaje → se crea/actualiza la consulta en el CRM ---------- */
+function procesarWebhook(body){
+  if(!body||!Array.isArray(body.entry))return;
+  const clientes=loadClientes();const map=loadWaMap();const admin=adminUser();let changed=false;
+  for(const e of body.entry){
+    for(const ch of (e.changes||[])){
+      const v=ch.value||{};const pnid=(v.metadata&&v.metadata.phone_number_id)||'';
+      const vendId=map[pnid]||(admin&&admin.id)||''; // por número: al vendedor dueño; si no está mapeado, al admin
+      const contacts=v.contacts||[];
+      for(const m of (v.messages||[])){
+        if(!m||m.type==='reaction'||m.type==='system')continue;
+        const from=m.from||'';const dig=String(from).replace(/\D/g,'');if(dig.length<6)continue;
+        const ct=contacts.find(x=>x.wa_id===from)||{};const nombre=(ct.profile&&ct.profile.name)||('+'+dig);
+        const texto=m.text?m.text.body:(m.button?m.button.text:(m.interactive&&m.interactive.button_reply?m.interactive.button_reply.title:('['+(m.type||'mensaje')+']')));
+        const fecha=hoy(),hora=ahora();
+        let c=clientes.find(x=>!x.borrado&&!x.descartado&&x.vendedorId===vendId&&(()=>{const cd=String(x.whatsapp||'').replace(/\D/g,'');return cd.length>=7&&(cd.endsWith(dig)||dig.endsWith(cd));})());
+        if(c){
+          c.mensajes=c.mensajes||[];c.mensajes.push({de:'cliente',fecha,hora,texto,canal:'whatsapp'});
+          c.ultimoContacto=fecha;c.respondioUltimo='cliente';
+        }else{
+          c={id:uid(),nombre,whatsapp:'+'+dig,producto:'Otro',etapa:'nuevo',valor:0,creado:fecha,ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
+          if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:'')});}
+          clientes.push(c);
+          try{if(typeof pushToUser==='function'&&vendId)pushToUser(vendId,{title:'🆕 Nueva consulta',body:nombre+': '+String(texto).slice(0,80)});}catch(e){}
+        }
+        changed=true;
+      }
+    }
+  }
+  if(changed)saveClientes(clientes);
+}
 
 /* ---------- Notificaciones push al celular (Web Push, sin Telegram) ---------- */
 let webpush=null;try{webpush=require('web-push');}catch(e){console.log('[push] web-push no disponible, push deshabilitado');}
@@ -424,6 +460,14 @@ http.createServer((req,res)=>{
 
   // Nombre real del bot (público — el @usuario de un bot es público)
   if(u==='/api/bot-info'&&req.method==='GET')return json(200,{bot:botUsername||CFG.telegramBotUser||'RidersCRM_bot',ok:!!botUsername});
+
+  // Webhook de WhatsApp (Meta): verificación (GET) y recepción de mensajes (POST)
+  if(u==='/webhook'&&req.method==='GET'){
+    const qp=new URLSearchParams(req.url.split('?')[1]||'');
+    if(qp.get('hub.mode')==='subscribe'&&qp.get('hub.verify_token')===WA_VERIFY){res.writeHead(200,{'Content-Type':'text/plain'});return res.end(qp.get('hub.challenge')||'');}
+    res.writeHead(403);return res.end('no');
+  }
+  if(u==='/webhook'&&req.method==='POST')return readBody(body=>{try{procesarWebhook(body);}catch(e){console.log('[webhook] error:',e.message);}json(200,{ok:true});});
 
   // Login (sin auth)
   if(u==='/api/login'&&req.method==='POST')return readBody(body=>{
