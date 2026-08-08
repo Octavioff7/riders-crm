@@ -452,6 +452,16 @@ http.createServer((req,res)=>{
   }
   if(u==='/api/tg/unlink'&&req.method==='POST'){const users=loadUsers();const usr=users.find(x=>x.id===me.id);if(usr){delete usr.telegramChatId;saveUsers(users);}return json(200,{ok:true});}
 
+  // ¿Ya existe un cliente con este número (de cualquier vendedor)? Devuelve quién lo tiene.
+  if(u==='/api/clientes/check'&&req.method==='GET'){
+    const wa=new URLSearchParams(req.url.split('?')[1]||'').get('wa')||'';
+    const d=wa.replace(/\D/g,'');
+    if(d.length<7)return json(200,{exists:false});
+    const match=loadClientes().find(c=>{if(c.borrado||c.descartado)return false;const cd=String(c.whatsapp||'').replace(/\D/g,'');return cd.length>=7&&(cd.endsWith(d)||d.endsWith(cd));});
+    if(!match)return json(200,{exists:false});
+    const owner=loadUsers().find(x=>x.id===match.vendedorId);
+    return json(200,{exists:true,mismo:match.vendedorId===me.id,vendedor:owner?owner.nombre:'—',cliente:match.nombre});
+  }
   if(u==='/api/clientes'){
     if(req.method==='GET')return json(200,scopedClientes(me));
     if(req.method==='POST')return readBody(body=>{

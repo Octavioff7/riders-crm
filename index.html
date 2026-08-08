@@ -925,12 +925,20 @@ function abrirNuevoCliente(){
   const n=document.getElementById('nc-nombre');if(n){n.focus();n.onkeydown=e=>{if(e.key==='Enter')guardarNuevoCliente();};}
 }
 function cerrarModal(){const m=document.getElementById('modal-nuevo');if(m)m.remove();}
-function guardarNuevoCliente(){
+async function guardarNuevoCliente(){
   const g=id=>{const el=document.getElementById(id);return el?(el.value||'').trim():'';};
   const nombre=g('nc-nombre');
   if(!nombre){alert('Poné al menos un nombre.');return;}
   const seg=g('nc-seg');
   const waRaw=g('nc-wa');const wa=(waRaw.replace(/\D/g,'').replace(/^1/,'').length>=7)?waRaw:'';
+  // Aviso de duplicado: si el número ya lo tiene otro (o vos), preguntar antes de cargar.
+  if(wa&&SERVER){try{const chk=await (await api('/api/clientes/check?wa='+encodeURIComponent(wa))).json();
+    if(chk&&chk.exists){
+      const msg=chk.mismo?('Ya tenés cargado este número como "'+chk.cliente+'".\n\n¿Cargarlo igual?')
+        :('⚠️ Este número ya lo tiene el vendedor '+chk.vendedor+' (cliente "'+chk.cliente+'").\n\n¿Cargarlo igual?');
+      if(!confirm(msg))return;
+    }
+  }catch(e){}}
   const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,vendedorId:filtroVend||(me&&me.id)||'',proximo:'',proximoTipo:'',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
   clientes.push(c);save();cerrarModal();selectedId=c.id;view='list';render();
 }
