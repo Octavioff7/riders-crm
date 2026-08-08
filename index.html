@@ -970,7 +970,7 @@ async function guardarNuevoCliente(){
 function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c||RO())return;
   appModal({
     titulo:'Mandar a la papelera',
-    texto:'Mandás a "'+c.nombre+'" a la papelera.\n¿Motivo? Así después sabés si conviene reciclarlo.\nEj: no responde · muy caro · ya compró · sin plata\n(Podés dejarlo vacío)',
+    texto:'Mandás a "'+c.nombre+'" a la papelera.',
     conInput:true, inputPlaceholder:'Motivo (opcional)',
     okLabel:'🗑️ Mandar a papelera',
     onOk:motivo=>{c.borrado=true;c.borradoFecha=hoy();c.borradoMotivo=(motivo||'').trim();if(selectedId===id)selectedId=null;save();render();}
