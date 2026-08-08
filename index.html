@@ -232,8 +232,8 @@
   .tagbtn{background:var(--hover);border:1px solid var(--sep);border-radius:20px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;transition:filter .12s,background .12s}
   .tagbtn:hover{background:var(--card)}.tagbtn:active{transform:scale(.96)}
   .tagbtn.on{color:#fff;border-color:transparent}
-  .tagbtn.cal.on{background:#ff3b30}.tagbtn.fri.on{background:#3b82f6}.tagbtn.otr.on{background:#8e8e93}
-  .tagbtn.on:not(.cal):not(.fri):not(.otr):not(.ven){background:var(--accent)}
+  .tagbtn.cal.on{background:#ff3b30}.tagbtn.fri.on{background:#3b82f6}.tagbtn.otr.on{background:#8e8e93}.tagbtn.seg.on{background:#ff9f0a}
+  .tagbtn.on:not(.cal):not(.fri):not(.otr):not(.ven):not(.seg){background:var(--accent)}
   .tagbtn.ven.on{background:#34c759}
   .fnl{display:flex;align-items:center;gap:10px;padding:5px 0}
   .fnl-l{width:96px;font-size:13px;font-weight:600;color:var(--txt);flex-shrink:0}
@@ -403,7 +403,7 @@ function relTime(f){const d=diasDesde(f);if(d<=0)return 'Hoy';if(d===1)return 'A
 function derive(c){if(c.mensajes&&c.mensajes.length){const m=c.mensajes[c.mensajes.length-1];c.ultimoContacto=m.fecha;c.respondioUltimo=(m.de==='cliente')?'cliente':'yo';}}
 function tagsDe(c){return (c.tags&&c.tags.length)?c.tags:(c.tempManual?[c.tempManual]:[]);}
 function temperatura(c){
-  const _t=tagsDe(c);const _p=['caliente','frio','otro'].find(t=>_t.includes(t));
+  const _t=tagsDe(c);const _p=['caliente','frio','otro','seguimiento'].find(t=>_t.includes(t));
   if(_p&&TEMPS[_p])return Object.assign({id:_p,motivo:c.tempNota||'',manual:true,tags:_t},TEMPS[_p]);
   if(c.etapa==='vendido'||c.etapa==='posventa')return null;
   if(c.etapa==='nuevo')return Object.assign({id:'sinContacto',motivo:'Apenas hubo contacto — falta un primer seguimiento en serio.'},TEMPS.sinContacto);
@@ -586,7 +586,7 @@ function nuevoNombre(t){const m=t.match(/(?:cargá|carga|agregá|agrega|nuevo cl
 function procesar(text){
   const acc=[];let c=findClient(text);
   const crearKW=/(cargá|carga|agregá|agrega|nuevo cliente|nuevo lead|anotá a|anota a|sumá a|suma a)/i.test(text);
-  if(!c&&crearKW){const nom=nuevoNombre(text);if(nom){c={id:uid(),nombre:nom,whatsapp:'',producto:detProducto(text)||'Moto',ubicacion:'',etapa:'nuevo',valor:0,proximo:'',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'cliente',log:[],mensajes:[]};clientes.push(c);acc.push('creé el cliente <b>'+esc(nom)+'</b>');}}
+  if(!c&&crearKW){const nom=nuevoNombre(text);if(nom){c={id:uid(),nombre:nom,whatsapp:'',producto:detProducto(text)||'Moto',ubicacion:'',etapa:'nuevo',valor:0,proximo:hoy(),proximoTipo:'Seguimiento',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'cliente',log:[],mensajes:[]};clientes.push(c);acc.push('creé el cliente <b>'+esc(nom)+'</b>');}}
   if(!c)return 'No identifiqué de qué cliente hablás. Probá con el nombre — ej: <i>"Yosvani quiere la moto roja"</i>. Para uno nuevo: <i>"Cargá a Juan, preguntó por un triciclo"</i>.';
   const p=detProducto(text);if(p&&p!==c.producto){c.producto=p;acc.push('producto → <b>'+p+'</b>');}
   const e=detEtapa(text);if(e&&e!==c.etapa){c.etapa=e;acc.push('etapa → <b>'+etapaDe(e).nombre+'</b>');}
@@ -672,6 +672,7 @@ function crmHTML(c){
         <button class="tagbtn cal ${(c.tags||[]).includes('caliente')?'on':''}" onclick="toggleTag('${c.id}','caliente')">🔥 Caliente</button>
         <button class="tagbtn fri ${(c.tags||[]).includes('frio')?'on':''}" onclick="toggleTag('${c.id}','frio')">❄️ Frío</button>
         <button class="tagbtn otr ${(c.tags||[]).includes('otro')?'on':''}" onclick="toggleTag('${c.id}','otro')">🏷️ Otro</button>
+        <button class="tagbtn seg ${(c.tags||[]).includes('seguimiento')?'on':''}" onclick="toggleTag('${c.id}','seguimiento')" title="Mantener en seguimiento aunque esté vendido">🟡 Seguimiento</button>
         <button class="tagbtn ven ${c.etapa==='vendido'?'on':''}" onclick="marcarVendido('${c.id}')" title="Marcar / desmarcar vendido">✅ Vendido</button>
         <button class="tagbtn ${!(c.tags&&c.tags.length)&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
       </div>
@@ -718,6 +719,7 @@ function refreshTagButtons(c){
     if(b.classList.contains('cal'))on=tags.includes('caliente');
     else if(b.classList.contains('fri'))on=tags.includes('frio');
     else if(b.classList.contains('otr'))on=tags.includes('otro');
+    else if(b.classList.contains('seg'))on=tags.includes('seguimiento');
     else if(b.classList.contains('ven'))on=c.etapa==='vendido';
     else on=!tags.length&&c.etapa!=='vendido';
     b.classList.toggle('on',on);
@@ -732,7 +734,7 @@ function toggleTag(id,t){
 function limpiarTags(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.tags=[];c.tempManual='';save();refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();}
 function marcarVendido(id){
   const c=clientes.find(x=>x.id===id);if(!c)return;
-  if(c.etapa==='vendido'){c.etapa='negociando';}else{c.etapa='vendido';if(!c.vendidoFecha)c.vendidoFecha=hoy();c.tags=[];}
+  if(c.etapa==='vendido'){c.etapa='negociando';}else{c.etapa='vendido';if(!c.vendidoFecha)c.vendidoFecha=hoy();c.tags=(c.tags||[]).filter(t=>t==='seguimiento');}
   save();const sel=document.querySelector('.col-crm select[onchange*="etapa"]');if(sel)sel.value=c.etapa;
   const vd=document.querySelector('.col-crm .venta-det');if(vd)vd.style.display=c.etapa==='vendido'?'':'none';
   refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();
@@ -943,11 +945,15 @@ async function guardarNuevoCliente(){
       if(!confirm(msg))return;
     }
   }catch(e){}}
-  const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,vendedorId:filtroVend||(me&&me.id)||'',proximo:'',proximoTipo:'',creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
+  const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,vendedorId:filtroVend||(me&&me.id)||'',proximo:hoy(),proximoTipo:'Seguimiento',proximoHora:ahora(),creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
   clientes.push(c);save();cerrarModal();selectedId=c.id;view='list';render();
 }
 /* ---- ELIMINAR / PAPELERA ---- */
-function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;if(!confirm('¿Mandar a "'+c.nombre+'" a la papelera? Después lo podés restaurar.'))return;c.borrado=true;c.borradoFecha=hoy();if(selectedId===id)selectedId=null;save();render();}
+function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;
+  const motivo=prompt('Mandar a "'+c.nombre+'" a la papelera.\n\n¿Motivo? (así después sabés si conviene reciclarlo y volver a escribirle)\nEj: no responde · muy caro · ya compró · sin plata ahora\n\nPodés dejarlo vacío. Cancelar = no borrar.');
+  if(motivo===null)return;
+  c.borrado=true;c.borradoFecha=hoy();c.borradoMotivo=(motivo||'').trim();
+  if(selectedId===id)selectedId=null;save();render();}
 function restaurarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.borrado=false;delete c.borradoFecha;c.descartado=false;delete c.descartadoFecha;delete c.descartadoPor;save();render();}
 function eliminarDefinitivo(id){const c=clientes.find(x=>x.id===id);if(!c)return;
   if(me&&me.rol==='admin'){
@@ -981,7 +987,8 @@ function renderPapelera(){
     if(c.descartado)meta.push('<span style="color:#ff3b30">❌ descartado por '+esc(c.descartadoPor||nombreVend(c.vendedorId))+(c.descartadoFecha?' el '+fmtFecha(c.descartadoFecha):'')+'</span>');
     else if(c.borradoFecha)meta.push('borrado el '+fmtFecha(c.borradoFecha));
     const btnDel=esAdmin?`<button class="btn sm danger" onclick="eliminarDefinitivo('${c.id}')">Eliminar</button>`:`<button class="btn sm danger" onclick="eliminarDefinitivo('${c.id}')">Descartar</button>`;
-    return `<div class="frow"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${meta.filter(Boolean).join(' · ')}</div></div><button class="btn sm ghost" onclick="restaurarCliente('${c.id}')">↩ Restaurar</button>${btnDel}</div>`;
+    const motivoHtml=c.borradoMotivo?`<div style="font-size:12px;color:var(--txt);margin-top:2px">📝 <i>${esc(c.borradoMotivo)}</i></div>`:'';
+    return `<div class="frow"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${meta.filter(Boolean).join(' · ')}</div>${motivoHtml}</div><button class="btn sm ghost" onclick="restaurarCliente('${c.id}')">↩ Restaurar</button>${btnDel}</div>`;
   };
   let h=`<div class="page"><h1>🗑️ Papelera</h1>`;
   if(esAdmin){
@@ -1145,6 +1152,8 @@ function esHoy(c){return !!c.proximo&&c.proximo===hoy();}
 function diasA(c){if(!c.proximo)return null;return Math.round((new Date(c.proximo+'T00:00:00')-new Date(hoy()+'T00:00:00'))/86400000);}
 function enBucket(c,b){
   if(!c.proximo)return false;
+  // Un cliente vendido/posventa sale de las carpetas de agenda, salvo que tenga la etiqueta "seguimiento"
+  if((c.etapa==='vendido'||c.etapa==='posventa')&&!(c.tags&&c.tags.includes('seguimiento')))return false;
   if(b==='atrasado')return esAtrasado(c);
   if(b==='hoy')return esHoy(c);
   if(b==='proximos'){const d=diasA(c);return d>=1&&d<=6;}
