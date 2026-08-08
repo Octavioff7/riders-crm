@@ -1386,7 +1386,12 @@ async function boot(){
   catch(e){showLogin();}
 }
 boot();
-if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol==='https:'){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  // Cuando se instala una versión nueva, la app se actualiza sola (sin refrescar a mano).
+  let _swReload=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(_swReload)return;_swReload=true;location.reload();});
+}
 </script>
 </body>
 </html>
