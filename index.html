@@ -931,8 +931,8 @@ function guardarNuevoCliente(){
   if(!nombre){alert('Poné al menos un nombre.');return;}
   const seg=g('nc-seg');
   const waRaw=g('nc-wa');const wa=(waRaw.replace(/\D/g,'').replace(/^1/,'').length>=7)?waRaw:'';
-  const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,proximo:'',proximoTipo:'',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
-  clientes.push(c);save();cerrarModal();selectedId=c.id;view='inbox';render();
+  const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,vendedorId:filtroVend||(me&&me.id)||'',proximo:'',proximoTipo:'',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
+  clientes.push(c);save();cerrarModal();selectedId=c.id;view='list';render();
 }
 /* ---- ELIMINAR / PAPELERA ---- */
 function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;if(!confirm('¿Mandar a "'+c.nombre+'" a la papelera? Después lo podés restaurar.'))return;c.borrado=true;c.borradoFecha=hoy();if(selectedId===id)selectedId=null;save();render();}
