@@ -336,6 +336,8 @@
   .muted{color:var(--muted);font-weight:600}
   @media(max-width:900px){.tiles{grid-template-columns:repeat(2,1fr)}.dash-cols{grid-template-columns:1fr}}
   @media(max-width:1000px){.side{width:60px}.brand div,.brand small,nav button span.lbl,nav button .count,.nav-label,.side-foot .acct span:not(.a),.side-foot .demo{display:none}nav button{justify-content:center}}
+  /* Celular: campos con letra 16px para que iOS NO haga zoom al tocarlos (y no quede zoomeado). */
+  @media(max-width:760px){input,select,textarea{font-size:16px!important}}
   @media(max-width:760px){.inbox.two{grid-template-columns:1fr}.col-crm{display:none}body.chat-open .col-conv{display:none}body.chat-open .col-crm{display:block}.backbtn{display:inline-block}.crm-b{padding-bottom:calc(64px + env(safe-area-inset-bottom))}}
 </style>
 </head>
@@ -490,9 +492,9 @@ function sel(){return clientes.find(c=>c.id===selectedId);}
 //  - Admin → SOLO sus propios clientes (los ajenos se ven únicamente entrando por Equipo).
 //  - Vendedor → los suyos (el server ya manda solo esos). Supervisor/Dueño → todo (vista de equipo).
 function misTodos(){
-  if(filtroVend)return clientes.filter(c=>c.vendedorId===filtroVend);
-  if(me&&me.rol==='admin')return clientes.filter(c=>c.vendedorId===me.id);
-  return clientes;
+  if(filtroVend)return clientes.filter(c=>c.vendedorId===filtroVend&&!c.descartado);
+  if(me&&me.rol==='admin')return clientes.filter(c=>c.vendedorId===me.id&&!c.descartado);
+  return clientes.filter(c=>!c.descartado);
 }
 function activos(){return misTodos().filter(c=>!c.borrado);}
 function ordenados(){return activos().slice().sort((a,b)=>(b.ultimoContacto||'').localeCompare(a.ultimoContacto||''));}
@@ -934,15 +936,39 @@ function guardarNuevoCliente(){
 }
 /* ---- ELIMINAR / PAPELERA ---- */
 function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;if(!confirm('¿Mandar a "'+c.nombre+'" a la papelera? Después lo podés restaurar.'))return;c.borrado=true;c.borradoFecha=hoy();if(selectedId===id)selectedId=null;save();render();}
-function restaurarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.borrado=false;delete c.borradoFecha;save();render();}
-function eliminarDefinitivo(id){const c=clientes.find(x=>x.id===id);if(!c)return;if(!confirm('¿Eliminar a "'+c.nombre+'" PARA SIEMPRE? Esto no se puede deshacer.'))return;const i=clientes.findIndex(x=>x.id===id);if(i>=0)clientes.splice(i,1);save();render();}
+function restaurarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.borrado=false;delete c.borradoFecha;c.descartado=false;delete c.descartadoFecha;delete c.descartadoPor;save();render();}
+function eliminarDefinitivo(id){const c=clientes.find(x=>x.id===id);if(!c)return;
+  if(me&&me.rol==='admin'){
+    if(!confirm('¿Eliminar a "'+c.nombre+'" PARA SIEMPRE? Esto no se puede deshacer.'))return;
+    const i=clientes.findIndex(x=>x.id===id);if(i>=0)clientes.splice(i,1);save();render();
+  }else{
+    if(!confirm('¿Descartar a "'+c.nombre+'" definitivamente? Sale de tu papelera.'))return;
+    c.descartado=true;c.descartadoFecha=hoy();c.descartadoPor=(me&&me.nombre)||'';save();render();
+  }
+}
 function renderPapelera(){
-  const list=misTodos().filter(c=>c.borrado).sort((a,b)=>String(b.borradoFecha||'').localeCompare(String(a.borradoFecha||'')));
-  let h=`<div class="page"><h1>🗑️ Papelera</h1><div class="sub">${list.length} clientes borrados. Restauralos o eliminalos para siempre.</div>`;
-  if(!list.length){main.innerHTML=h+'<div class="empty">La papelera está vacía.</div></div>';return;}
-  h+='<div class="panelcard">';
-  for(const c of list)h+=`<div class="frow"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(c.whatsapp):''}${c.borradoFecha?' · borrado el '+fmtFecha(c.borradoFecha):''}</div></div><button class="btn sm ghost" onclick="restaurarCliente('${c.id}')">↩ Restaurar</button><button class="btn sm danger" onclick="eliminarDefinitivo('${c.id}')">Eliminar</button></div>`;
-  main.innerHTML=h+'</div></div>';
+  const esAdmin=!!(me&&me.rol==='admin');
+  const ord=(a,b)=>String((b.descartadoFecha||b.borradoFecha)||'').localeCompare(String((a.descartadoFecha||a.borradoFecha)||''));
+  const fila=(c,eq)=>{
+    const meta=[esc(c.producto||'')+(c.whatsapp?' · '+esc(c.whatsapp):'')];
+    if(eq)meta.push('cartera de '+esc(nombreVend(c.vendedorId)));
+    if(c.descartado)meta.push('<span style="color:#ff3b30">❌ descartado por '+esc(c.descartadoPor||nombreVend(c.vendedorId))+(c.descartadoFecha?' el '+fmtFecha(c.descartadoFecha):'')+'</span>');
+    else if(c.borradoFecha)meta.push('borrado el '+fmtFecha(c.borradoFecha));
+    const btnDel=esAdmin?`<button class="btn sm danger" onclick="eliminarDefinitivo('${c.id}')">Eliminar</button>`:`<button class="btn sm danger" onclick="eliminarDefinitivo('${c.id}')">Descartar</button>`;
+    return `<div class="frow"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${meta.filter(Boolean).join(' · ')}</div></div><button class="btn sm ghost" onclick="restaurarCliente('${c.id}')">↩ Restaurar</button>${btnDel}</div>`;
+  };
+  let h=`<div class="page"><h1>🗑️ Papelera</h1>`;
+  if(esAdmin){
+    const mias=clientes.filter(c=>c.borrado&&!c.descartado&&c.vendedorId===me.id).sort(ord);
+    const equipo=clientes.filter(c=>c.vendedorId!==me.id&&(c.borrado||c.descartado)).sort(ord);
+    h+=`<div class="sub">Tu papelera y la de tu equipo. Lo que un vendedor descarta queda archivado acá.</div>`;
+    h+=`<div class="panelcard"><h3>🗑️ Mi papelera <span class="muted" style="font-weight:500">· ${mias.length}</span></h3>${mias.length?mias.map(c=>fila(c,false)).join(''):'<div class="empty">Vacía.</div>'}</div>`;
+    h+=`<div class="panelcard"><h3>👥 Papelera del equipo <span class="muted" style="font-weight:500">· ${equipo.length}</span></h3>${equipo.length?equipo.map(c=>fila(c,true)).join(''):'<div class="empty">Nada del equipo por ahora.</div>'}</div>`;
+  }else{
+    const mias=misTodos().filter(c=>c.borrado&&!c.descartado).sort(ord);
+    h+=`<div class="sub">${mias.length} cliente(s) en tu papelera. Restauralos o descartalos.</div><div class="panelcard">${mias.length?mias.map(c=>fila(c,false)).join(''):'<div class="empty">La papelera está vacía.</div>'}</div>`;
+  }
+  main.innerHTML=h+'</div>';
 }
 /* ---- EQUIPO / CUENTAS (admin + supervisor) ---- */
 function nombreVend(id){const u=usuarios.find(x=>x.id===id);return u?u.nombre:'—';}

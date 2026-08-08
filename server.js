@@ -151,7 +151,7 @@ function ensureSetup(){
 function teamIds(users,sup){return users.filter(u=>u.supervisorId===sup.id).map(u=>u.id).concat(sup.id);}
 function canSeeCliente(user,c,users){
   if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')return true; // dueño y supervisor ven toda la operación (solo lectura)
-  if(user.rol==='vendedor')return c.vendedorId===user.id;
+  if(user.rol==='vendedor')return c.vendedorId===user.id&&!c.descartado; // los descartados quedan solo para el admin
   return false;
 }
 function scopedClientes(user){const cl=loadClientes(),users=loadUsers();return cl.filter(c=>canSeeCliente(user,c,users));}
