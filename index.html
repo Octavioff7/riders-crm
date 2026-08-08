@@ -1287,6 +1287,19 @@ async function guardarPerfil(){
 }
 function urlB64ToUint8(b64){const pad='='.repeat((4-b64.length%4)%4);const s=(b64+pad).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(s);const arr=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);return arr;}
 function esStandalone(){return window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);}
+// Mantiene el push activo solo: si ya diste permiso una vez, en cada apertura re-registra la
+// suscripción en silencio (aunque el navegador la haya rotado o el server la haya perdido).
+async function ensurePushSubscribed(){
+  try{
+    if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window))return;
+    if(Notification.permission!=='granted')return;
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){const pk=await (await api('/api/push/pubkey')).json();if(!pk.enabled||!pk.key)return;sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(pk.key)});}
+    await api('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription:sub})});
+    if(me)me.pushOn=true;
+  }catch(e){}
+}
 async function activarPush(){
   const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
   if(isIOS&&!esStandalone()){alert('📲 En iPhone las notificaciones solo funcionan con la app instalada.\n\n1) Tocá el botón Compartir de Safari.\n2) "Agregar a pantalla de inicio".\n3) Abrí la app DESDE ESE ÍCONO (no desde Safari) y volvé a tocar Activar.');return;}
@@ -1343,6 +1356,7 @@ function startApp(){
   try{history.replaceState(snapState(),'');}catch(e){} // estado base para el botón atrás
   if(SERVER){api('/api/users').then(r=>r.json()).then(us=>{usuarios=us;render();}).catch(()=>{});}
   loadData();
+  ensurePushSubscribed(); // mantiene el push activo solo (si ya se dio permiso una vez)
 }
 function showLogin(){
   const w=document.querySelector('.window');if(w)w.style.display='none';
