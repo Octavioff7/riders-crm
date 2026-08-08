@@ -931,6 +931,24 @@ function abrirNuevoCliente(){
   const n=document.getElementById('nc-nombre');if(n){n.focus();n.onkeydown=e=>{if(e.key==='Enter')guardarNuevoCliente();};}
 }
 function cerrarModal(){const m=document.getElementById('modal-nuevo');if(m)m.remove();}
+// Modal propio del CRM (reemplaza los prompt()/confirm() del navegador). Opcional: campo de texto.
+function cerrarAppModal(){const m=document.getElementById('modal-app');if(m)m.remove();}
+function appModal(o){
+  cerrarAppModal();
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-app';
+  const inputHtml=o.conInput?`<input id="am-input" placeholder="${esc(o.inputPlaceholder||'')}" value="${esc(o.inputValue||'')}" style="width:100%">`:'';
+  wrap.innerHTML=`<div class="modal" style="max-width:420px">
+    <div class="modal-h"><b>${esc(o.titulo||'')}</b><button class="mini" onclick="cerrarAppModal()">✕</button></div>
+    <div class="modal-b">${o.texto?`<div style="color:var(--muted);font-size:13.5px;line-height:1.55;white-space:pre-line;margin-bottom:${o.conInput?'10px':'0'}">${esc(o.texto)}</div>`:''}${inputHtml}</div>
+    <div class="modal-f"><button class="btn ghost" onclick="cerrarAppModal()">${esc(o.cancelLabel||'Cancelar')}</button><button class="btn ${o.okDanger?'danger':''}" id="am-ok">${esc(o.okLabel||'Aceptar')}</button></div>
+  </div>`;
+  wrap.onclick=e=>{if(e.target===wrap)cerrarAppModal();};
+  document.body.appendChild(wrap);
+  const ok=document.getElementById('am-ok');const inp=document.getElementById('am-input');
+  const done=()=>{const v=inp?inp.value:'';cerrarAppModal();if(o.onOk)o.onOk(v);};
+  ok.onclick=done;
+  if(inp){inp.focus();inp.onkeydown=e=>{if(e.key==='Enter')done();};}else{ok.focus();}
+}
 async function guardarNuevoCliente(){
   const g=id=>{const el=document.getElementById(id);return el?(el.value||'').trim():'';};
   const nombre=g('nc-nombre');
@@ -949,19 +967,22 @@ async function guardarNuevoCliente(){
   clientes.push(c);save();cerrarModal();selectedId=c.id;view='list';render();
 }
 /* ---- ELIMINAR / PAPELERA ---- */
-function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;
-  const motivo=prompt('Mandar a "'+c.nombre+'" a la papelera.\n\n¿Motivo? (así después sabés si conviene reciclarlo y volver a escribirle)\nEj: no responde · muy caro · ya compró · sin plata ahora\n\nPodés dejarlo vacío. Cancelar = no borrar.');
-  if(motivo===null)return;
-  c.borrado=true;c.borradoFecha=hoy();c.borradoMotivo=(motivo||'').trim();
-  if(selectedId===id)selectedId=null;save();render();}
+function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c||RO())return;
+  appModal({
+    titulo:'Mandar a la papelera',
+    texto:'Mandás a "'+c.nombre+'" a la papelera.\n¿Motivo? Así después sabés si conviene reciclarlo.\nEj: no responde · muy caro · ya compró · sin plata\n(Podés dejarlo vacío)',
+    conInput:true, inputPlaceholder:'Motivo (opcional)',
+    okLabel:'🗑️ Mandar a papelera',
+    onOk:motivo=>{c.borrado=true;c.borradoFecha=hoy();c.borradoMotivo=(motivo||'').trim();if(selectedId===id)selectedId=null;save();render();}
+  });}
 function restaurarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.borrado=false;delete c.borradoFecha;c.descartado=false;delete c.descartadoFecha;delete c.descartadoPor;save();render();}
 function eliminarDefinitivo(id){const c=clientes.find(x=>x.id===id);if(!c)return;
   if(me&&me.rol==='admin'){
-    if(!confirm('¿Eliminar a "'+c.nombre+'" PARA SIEMPRE? Esto no se puede deshacer.'))return;
-    const i=clientes.findIndex(x=>x.id===id);if(i>=0)clientes.splice(i,1);save();render();
+    appModal({titulo:'Eliminar para siempre',texto:'¿Eliminar a "'+c.nombre+'" PARA SIEMPRE?\nEsto no se puede deshacer.',okLabel:'Eliminar',okDanger:true,
+      onOk:()=>{const i=clientes.findIndex(x=>x.id===id);if(i>=0)clientes.splice(i,1);save();render();}});
   }else{
-    if(!confirm('¿Descartar a "'+c.nombre+'" definitivamente? Sale de tu papelera.'))return;
-    c.descartado=true;c.descartadoFecha=hoy();c.descartadoPor=(me&&me.nombre)||'';save();render();
+    appModal({titulo:'Descartar cliente',texto:'¿Descartar a "'+c.nombre+'" definitivamente?\nSale de tu papelera.',okLabel:'Descartar',okDanger:true,
+      onOk:()=>{c.descartado=true;c.descartadoFecha=hoy();c.descartadoPor=(me&&me.nombre)||'';save();render();}});
   }
 }
 /* ---- NUEVAS CONSULTAS (llegan solas desde WhatsApp/ads) ---- */
