@@ -274,6 +274,7 @@
   .panelcard{background:var(--card);border:1px solid var(--sep);border-radius:var(--radius);padding:4px 16px 8px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
   .panelcard h3{margin:0;padding:13px 0 4px;font-size:15px;font-weight:600;letter-spacing:-0.01em}
   .frow{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--sep)}
+  .frow>div{min-width:0}
   .note{background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.2);color:var(--txt);border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:18px;display:flex;gap:10px;line-height:1.45}
   table{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border:1px solid var(--sep);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
   th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--sep);font-size:13.5px;transition:background .14s ease}
@@ -1201,7 +1202,7 @@ function renderAgendaSec(estado){
   let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s). ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list){const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div>${waIc(c)}</div>`;}
+  for(const c of list){const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}</div>${c.whatsapp?`<div style="font-size:12.5px;color:var(--muted)">${esc(c.whatsapp)}</div>`:''}</div>${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
 /* ---- AGENDA (reuniones / llamadas) ---- */
