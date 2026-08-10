@@ -4,6 +4,9 @@
    - Bot de Telegram: le escribís y actualiza el CRM solo
    - Cerebro: Gemini si hay clave; si no, un parser simple
    ============================================================ */
+// Zona horaria: el servidor calcula fechas/horas y recordatorios en horario de Miami
+// (si no, Render corre en UTC y los avisos salían ~4-5 h antes). Se puede sobreescribir con env TZ.
+process.env.TZ=process.env.TZ||'America/New_York';
 const http=require('http'),https=require('https'),fs=require('fs'),path=require('path');
 const DIR=__dirname;
 // DATA_DIR: en local es la carpeta actual; en hosting apunta al disco persistente (env DATA_DIR).
