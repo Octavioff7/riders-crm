@@ -1197,7 +1197,8 @@ const AG_SECS={
 };
 function renderAgendaSec(estado){
   const info=AG_SECS[estado];
-  const list=activos().filter(c=>enBucket(c,estado)).sort((a,b)=>(esCalienteT(a)?0:1)-(esCalienteT(b)?0:1)||proxDateTime(a)-proxDateTime(b));
+  // Atrasados: puro orden por fecha (más atrasado arriba). Resto: calientes primero, luego por fecha.
+  const list=activos().filter(c=>enBucket(c,estado)).sort((a,b)=> estado==='atrasado' ? (proxDateTime(a)-proxDateTime(b)) : ((esCalienteT(a)?0:1)-(esCalienteT(b)?0:1)||proxDateTime(a)-proxDateTime(b)));
   const nCal=list.filter(esCalienteT).length;
   let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s). ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
