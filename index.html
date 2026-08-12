@@ -247,14 +247,16 @@
   .wb-n{font-size:13px;font-weight:700}
   .wb-bar{width:72%;max-width:34px;background:var(--accent);border-radius:5px 5px 0 0;min-height:3px;transition:height .3s}
   .wb-l{font-size:11px;color:var(--muted);font-weight:600}
-  /* Mini gráfico de barras de ventas (eje en L: ventas vertical, día horizontal) */
-  .vchart-top{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:2px 0 12px}
+  /* Mini gráfico de LÍNEA de ventas (eje en L con marcas; la línea sube al acumular ventas) */
+  .vchart-top{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:2px 0 8px}
   .vchart-top .obj{font-size:15px;font-weight:600;color:var(--muted)}
   .vchart-top .done{color:#34c759}
-  .vbars{display:flex;align-items:flex-end;gap:3px;height:130px;border-left:1.5px solid var(--sep-strong);border-bottom:1.5px solid var(--sep-strong);padding:0 2px 0 6px}
-  .vb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
-  .vb-bar{width:80%;max-width:22px;background:#34c759;border-radius:3px 3px 0 0;min-height:2px}
-  .vb-l{font-size:10px;color:var(--muted);margin-top:4px;white-space:nowrap;height:12px}
+  .vline{width:100%;height:auto;display:block;overflow:visible}
+  .vline .ax{stroke:var(--sep-strong);stroke-width:1;fill:none}
+  .vline .tgt{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:.5;fill:none}
+  .vline .ln{stroke:#34c759;stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+  .vline .dot{fill:#34c759}
+  .vline text{fill:var(--muted)}
   .mtable{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:4px}
   .mtable th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:7px 8px;border-bottom:1px solid var(--sep)}
   .mtable td{padding:9px 8px;border-bottom:1px solid var(--sep)}
@@ -1269,7 +1271,16 @@ function renderPanel(){
   const _now2=new Date();const _yr=_now2.getFullYear(),_mo=_now2.getMonth();const diasEnMes=new Date(_yr,_mo+1,0).getDate();
   const ventasMo=[];for(let day=1;day<=diasEnMes;day++){const ds=_yr+'-'+pad(_mo+1)+'-'+pad(day);ventasMo.push({l:day,n:AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')===ds).length,showL:(day===1||day%5===0)});}
   const enfriando=AA.filter(c=>{const x=T(c);return x&&x.id==='perdido';}).sort((a,b)=>diasDesde(b.ultimoContacto||b.creado)-diasDesde(a.ultimoContacto||a.creado));
-  const chartVentas=(titulo,dias,total,obj)=>{const mx=Math.max(1,...dias.map(d=>d.n));return `<div class="panelcard"><h3>${titulo}</h3><div class="vchart-top"><span class="${total>=obj?'done':''}">${total}</span><span class="obj"> / ${obj} 🎯</span></div><div class="vbars">${dias.map(d=>`<div class="vb" title="${d.l}: ${d.n} venta(s)"><div class="vb-bar" style="height:${Math.round(d.n/mx*108)}px${d.n?'':';opacity:.2'}"></div><div class="vb-l">${d.showL===false?'':d.l}</div></div>`).join('')}</div></div>`;};
+  const chartVentas=(titulo,dias,total,obj)=>{
+    const W=320,H=180,pl=22,pr=10,pt=10,pb=18,plotW=W-pl-pr,plotH=H-pt-pb,x0=pl,y0=pt+plotH;
+    const maxY=Math.max(obj,total,1),yat=v=>y0-(v/maxY*plotH),n=dias.length,xat=i=>x0+(n>1?i/(n-1)*plotW:0);
+    let cum=0;const pts=[[x0,y0]];dias.forEach((d,i)=>{cum+=d.n;pts.push([xat(i),yat(cum)]);});
+    const poly=pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    const stepLbl=maxY<=8?1:5;let yT='';for(let v=1;v<=maxY;v++){const y=yat(v).toFixed(1);yT+='<line x1="'+(x0-3)+'" y1="'+y+'" x2="'+x0+'" y2="'+y+'" class="ax"/>';if(v%stepLbl===0)yT+='<text x="'+(x0-5)+'" y="'+(yat(v)+3).toFixed(1)+'" text-anchor="end" font-size="8">'+v+'</text>';}
+    let xT='';dias.forEach((d,i)=>{const x=xat(i).toFixed(1);xT+='<line x1="'+x+'" y1="'+y0+'" x2="'+x+'" y2="'+(y0+3)+'" class="ax"/>';if(d.showL!==false)xT+='<text x="'+x+'" y="'+(H-4)+'" text-anchor="middle" font-size="8">'+d.l+'</text>';});
+    const lp=pts[pts.length-1];
+    return '<div class="panelcard"><h3>'+titulo+'</h3><div class="vchart-top"><span class="'+(total>=obj?'done':'')+'">'+total+'</span><span class="obj"> / '+obj+' 🎯</span></div><svg viewBox="0 0 '+W+' '+H+'" class="vline"><line x1="'+x0+'" y1="'+yat(obj).toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yat(obj).toFixed(1)+'" class="tgt"/><line x1="'+x0+'" y1="'+pt+'" x2="'+x0+'" y2="'+y0+'" class="ax"/><line x1="'+x0+'" y1="'+y0+'" x2="'+(W-pr)+'" y2="'+y0+'" class="ax"/>'+yT+xT+'<polyline points="'+poly+'" class="ln"/><circle cx="'+lp[0].toFixed(1)+'" cy="'+lp[1].toFixed(1)+'" r="2.5" class="dot"/></svg></div>';
+  };
   main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Panel</h1><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div><div class="sub">Riders Miami · ${total} clientes en total</div>
     <div class="tiles">
       <div class="tile"><div class="n">${total}</div><div class="l">Clientes</div></div>
@@ -1280,10 +1291,9 @@ function renderPanel(){
     </div>
     <div class="panelcard"><h3>🫧 Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;}).join('')}</div>
     <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom)</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
-    <div class="panelcard"><h3>💵 Ventas del mes <span class="muted">· ${vendidosMes.length}</span></h3>${vendidosMes.length?(vendidosMes.slice().sort((a,b)=>(Number(b.comision)||0)-(Number(a.comision)||0)).slice(0,3).map(c=>`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto)+(c.operacion?' · '+esc(c.operacion):'')}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}</div>`).join('')+(vendidosMes.length>3?`<div class="frow" style="cursor:pointer;justify-content:center;color:var(--accent);font-weight:600" onclick="verEtapa('vendido')">Ver todas las ventas (${vendidosMes.length}) →</div>`:'')):'<div class="empty">Todavía no cerraste ventas este mes.</div>'}</div>
     <div class="dash-cols">
-      <div class="panelcard"><h3>❄️ Enfriándose <span class="muted" style="font-weight:500">· ${enfriando.length}</span></h3>${enfriando.length?enfriando.slice(0,4).map(c=>row(c,'No responde hace '+diasDesde(c.ultimoContacto||c.creado)+' días')).join('')+(enfriando.length>4?`<div class="frow" style="cursor:pointer;justify-content:center;color:var(--accent);font-weight:600" onclick="irVista('seg')">Ver todos (${enfriando.length}) →</div>`:''):'<div class="empty">Nada enfriándose 🎉</div>'}</div>
-      <div class="panelcard"><h3>💵 Ventas de la semana <span class="muted" style="font-weight:500">· ${ventasSemTotal}${gananciaSem?' · '+money(gananciaSem):''}</span></h3>${ventasSemLista.length?ventasSemLista.slice(0,4).map(c=>row(c,(c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto))+(c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):''))).join(''):'<div class="empty">Sin ventas esta semana todavía.</div>'}</div>
+      <div class="panelcard"><h3>💵 Ventas del mes <span class="muted">· ${vendidosMes.length}</span></h3>${vendidosMes.length?(vendidosMes.slice().sort((a,b)=>(Number(b.comision)||0)-(Number(a.comision)||0)).slice(0,3).map(c=>`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto)+(c.operacion?' · '+esc(c.operacion):'')}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}</div>`).join('')+(vendidosMes.length>3?`<div class="frow" style="cursor:pointer;justify-content:center;color:var(--accent);font-weight:600" onclick="verEtapa('vendido')">Ver todas las ventas (${vendidosMes.length}) →</div>`:'')):'<div class="empty">Todavía no cerraste ventas este mes.</div>'}</div>
+      <div class="panelcard"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
     </div>
     <div class="earnings-card" onclick="toggleEarn()" style="cursor:pointer" title="Tocá para cambiar entre este mes y el total">${earnCardHTML()}</div>
     <div class="dash-cols">${chartVentas('📊 Ventas — Semana',ventasWk,ventasSemTotal,OBJ_SEM)}${chartVentas('📊 Ventas — Mes',ventasMo,vendidosMes.length,OBJ_MES)}</div>
