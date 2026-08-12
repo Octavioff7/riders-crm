@@ -247,14 +247,14 @@
   .wb-n{font-size:13px;font-weight:700}
   .wb-bar{width:72%;max-width:34px;background:var(--accent);border-radius:5px 5px 0 0;min-height:3px;transition:height .3s}
   .wb-l{font-size:11px;color:var(--muted);font-weight:600}
-  /* Mini gráfico vertical de ventas (eje en L: ventas vertical, día horizontal) */
-  .vchart-top{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:2px 0 10px}
-  .vchart-top .obj{font-size:14px;font-weight:600;color:var(--muted)}
+  /* Mini gráfico de barras de ventas (eje en L: ventas vertical, día horizontal) */
+  .vchart-top{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:2px 0 12px}
+  .vchart-top .obj{font-size:15px;font-weight:600;color:var(--muted)}
   .vchart-top .done{color:#34c759}
-  .vbars{display:flex;align-items:flex-end;gap:3px;height:84px;border-left:1.5px solid var(--sep-strong);border-bottom:1.5px solid var(--sep-strong);padding:0 2px 0 5px}
+  .vbars{display:flex;align-items:flex-end;gap:3px;height:130px;border-left:1.5px solid var(--sep-strong);border-bottom:1.5px solid var(--sep-strong);padding:0 2px 0 6px}
   .vb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
-  .vb-bar{width:80%;max-width:18px;background:#34c759;border-radius:3px 3px 0 0;min-height:2px}
-  .vb-l{font-size:9px;color:var(--muted);margin-top:3px;white-space:nowrap;height:11px}
+  .vb-bar{width:80%;max-width:22px;background:#34c759;border-radius:3px 3px 0 0;min-height:2px}
+  .vb-l{font-size:10px;color:var(--muted);margin-top:4px;white-space:nowrap;height:12px}
   .mtable{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:4px}
   .mtable th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:7px 8px;border-bottom:1px solid var(--sep)}
   .mtable td{padding:9px 8px;border-bottom:1px solid var(--sep)}
@@ -1269,7 +1269,7 @@ function renderPanel(){
   const _now2=new Date();const _yr=_now2.getFullYear(),_mo=_now2.getMonth();const diasEnMes=new Date(_yr,_mo+1,0).getDate();
   const ventasMo=[];for(let day=1;day<=diasEnMes;day++){const ds=_yr+'-'+pad(_mo+1)+'-'+pad(day);ventasMo.push({l:day,n:AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')===ds).length,showL:(day===1||day%5===0)});}
   const enfriando=AA.filter(c=>{const x=T(c);return x&&x.id==='perdido';}).sort((a,b)=>diasDesde(b.ultimoContacto||b.creado)-diasDesde(a.ultimoContacto||a.creado));
-  const chartVentas=(titulo,dias,total,obj)=>{const mx=Math.max(1,...dias.map(d=>d.n));return `<div class="panelcard"><h3>${titulo}</h3><div class="vchart-top"><span class="${total>=obj?'done':''}">${total}</span><span class="obj"> / ${obj} 🎯</span></div><div class="vbars">${dias.map(d=>`<div class="vb" title="${d.l}: ${d.n} venta(s)"><div class="vb-bar" style="height:${Math.round(d.n/mx*72)}px${d.n?'':';opacity:.2'}"></div><div class="vb-l">${d.showL===false?'':d.l}</div></div>`).join('')}</div></div>`;};
+  const chartVentas=(titulo,dias,total,obj)=>{const mx=Math.max(1,...dias.map(d=>d.n));return `<div class="panelcard"><h3>${titulo}</h3><div class="vchart-top"><span class="${total>=obj?'done':''}">${total}</span><span class="obj"> / ${obj} 🎯</span></div><div class="vbars">${dias.map(d=>`<div class="vb" title="${d.l}: ${d.n} venta(s)"><div class="vb-bar" style="height:${Math.round(d.n/mx*108)}px${d.n?'':';opacity:.2'}"></div><div class="vb-l">${d.showL===false?'':d.l}</div></div>`).join('')}</div></div>`;};
   main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Panel</h1><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div><div class="sub">Riders Miami · ${total} clientes en total</div>
     <div class="tiles">
       <div class="tile"><div class="n">${total}</div><div class="l">Clientes</div></div>
