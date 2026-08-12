@@ -688,7 +688,7 @@ function crmHTML(c){
         <button class="tagbtn ${!(c.tags&&c.tags.length)&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
       </div>
       <div class="field" style="margin-top:8px"><input placeholder="Tu nota para la etiqueta (opcional)" value="${esc(c.tempNota||'')}" onchange="setTagNota('${c.id}',this.value)"></div>
-      <div class="venta-det" style="margin-top:8px;background:#34c7591a;padding:13px 14px;border-radius:12px;display:${c.etapa==='vendido'?'block':'none'}"><div class="field"><label>🛒 Detalle de la venta</label><input placeholder="¿Qué compró y a qué precio? (ej: Ecoflow Delta 3 · $1250)" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" inputmode="numeric" placeholder="0" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📅 Fecha de la venta</label><input type="date" value="${esc(c.vendidoFecha||hoy())}" onchange="setFechaVenta('${c.id}',this.value)"></div></div>
+      <div class="venta-det" style="margin-top:8px;background:#34c7591a;padding:13px 14px;border-radius:12px;display:${c.etapa==='vendido'?'block':'none'}"><div class="field"><label>🛒 Detalle de la venta</label><input placeholder="¿Qué compró y a qué precio? (ej: Ecoflow Delta 3 · $1250)" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📦 Cantidad de productos</label><select onchange="setCantidad('${c.id}',this.value)">${Array.from({length:20},(_,i)=>i+1).map(n=>`<option ${(c.cantidad||1)===n?'selected':''}>${n}</option>`).join('')}</select></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" inputmode="numeric" placeholder="0" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📅 Fecha de la venta</label><input type="date" value="${esc(c.vendidoFecha||hoy())}" onchange="setFechaVenta('${c.id}',this.value)"></div></div>
       <div class="row2"><div class="field"><label>Etapa</label><select onchange="setF('${c.id}','etapa',this.value)">${ETAPAS.map(e=>`<option value="${e.id}" ${c.etapa===e.id?'selected':''}>${e.nombre}</option>`).join('')}</select></div><div class="field"><label>Producto</label><select onchange="setF('${c.id}','producto',this.value)">${PRODUCTOS.map(p=>`<option ${c.producto===p?'selected':''}>${p}</option>`).join('')}</select></div></div>
       <div class="row2"><div class="field"><label>Valor ($)</label><input type="number" inputmode="numeric" value="${c.valor||''}" onchange="setF('${c.id}','valor',Number(this.value)||0)"></div><div class="field"><label>Tipo de operación</label><select onchange="setF('${c.id}','operacion',this.value)">${OPERACIONES.map(o=>`<option value="${o}" ${(c.operacion||'')===o?'selected':''}>${o||'—'}</option>`).join('')}</select></div></div>
       ${(me&&me.rol!=='vendedor'&&asignables().length>1)?`<div class="field"><label>Vendedor asignado</label><select onchange="setF('${c.id}','vendedorId',this.value)">${asignables().map(u=>`<option value="${u.id}" ${c.vendedorId===u.id?'selected':''}>${esc(u.nombre)}</option>`).join('')}</select></div>`:''}
@@ -753,9 +753,10 @@ function marcarVendido(id){
 function setVentaDetalle(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.ventaDetalle=(v||'').trim();save();}
 function setComision(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.comision=Number(v)||0;save();}
 function setFechaVenta(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.vendidoFecha=v||hoy();save();}
+function setCantidad(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.cantidad=Math.max(1,Number(v)||1);save();}
 // Ganancias: mes (se reinicia el 1° de cada mes) o total (histórico). Switch en la tarjeta del panel.
 let earnMode='mes';
-function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const vm=vend.filter(c=>(c.vendidoFecha||'').slice(0,7)===mesAct);const g=a=>a.reduce((s,c)=>s+(Number(c.comision)||0),0);return {mes:{g:g(vm),n:vm.length},total:{g:g(vend),n:vend.length}};}
+function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const vm=vend.filter(c=>(c.vendidoFecha||'').slice(0,7)===mesAct);const g=a=>a.reduce((s,c)=>s+(Number(c.comision)||0),0);const q=a=>a.reduce((s,c)=>s+(Number(c.cantidad)||1),0);return {mes:{g:g(vm),n:q(vm)},total:{g:g(vend),n:q(vend)}};}
 function _earnMoney(v){return '$'+Number(v||0).toLocaleString('es-AR');}
 function earnCardHTML(){return `<div class="ec-top"><div class="ec-label" id="ec-label"></div><div class="ec-switch ${earnMode==='total'?'is-total':''}"><span class="ec-thumb"></span><span class="ec-tab ${earnMode==='mes'?'on':''}">Este mes</span><span class="ec-tab ${earnMode==='total'?'on':''}">Total</span></div></div><div class="ec-amount" id="ec-amount"></div><div class="ec-sub" id="ec-sub"></div>`;}
 // Actualiza los textos + desliza el thumb SIN redibujar la tarjeta (para que la transición se vea).
@@ -1264,17 +1265,19 @@ function renderPanel(){
   const esVenta=c=>(c.etapa==='vendido'||c.etapa==='posventa');
   const monDs=_mon.getFullYear()+'-'+pad(_mon.getMonth()+1)+'-'+pad(_mon.getDate());
   const diasSemNom=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  const ventasWk=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());ventasWk.push({l:diasSemNom[i],n:AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')===ds).length});}
+  const ventasWk=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());ventasWk.push({l:diasSemNom[i],n:AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')===ds).reduce((s,c)=>s+(Number(c.cantidad)||1),0)});}
   const ventasSemTotal=ventasWk.reduce((s,d)=>s+d.n,0);
   const ventasSemLista=AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')>=monDs).sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));
   const gananciaSem=ventasSemLista.reduce((s,c)=>s+(Number(c.comision)||0),0);
   const _now2=new Date();const _yr=_now2.getFullYear(),_mo=_now2.getMonth();const diasEnMes=new Date(_yr,_mo+1,0).getDate();
-  const ventasMo=[];for(let day=1;day<=diasEnMes;day++){const ds=_yr+'-'+pad(_mo+1)+'-'+pad(day);ventasMo.push({l:day,n:AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')===ds).length,showL:(day===1||day%5===0)});}
+  const ventasMo=[];for(let day=1;day<=diasEnMes;day++){const ds=_yr+'-'+pad(_mo+1)+'-'+pad(day);ventasMo.push({l:day,n:AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')===ds).reduce((s,c)=>s+(Number(c.cantidad)||1),0),showL:(day===1||day%5===0)});}
+  const qtyMes=ventasMo.reduce((s,d)=>s+d.n,0);const hoyDiaIdx=new Date().getDate()-1;
   const enfriando=AA.filter(c=>{const x=T(c);return x&&x.id==='perdido';}).sort((a,b)=>diasDesde(b.ultimoContacto||b.creado)-diasDesde(a.ultimoContacto||a.creado));
-  const chartVentas=(titulo,dias,total,obj)=>{
+  const chartVentas=(titulo,dias,total,obj,upTo)=>{
     const W=320,H=180,pl=22,pr=10,pt=10,pb=18,plotW=W-pl-pr,plotH=H-pt-pb,x0=pl,y0=pt+plotH;
     const maxY=Math.max(obj,total,1),yat=v=>y0-(v/maxY*plotH),n=dias.length,xat=i=>x0+(n>1?i/(n-1)*plotW:0);
-    let cum=0;const pts=[[x0,y0]];dias.forEach((d,i)=>{cum+=d.n;pts.push([xat(i),yat(cum)]);});
+    const lim=(upTo==null?n-1:Math.max(0,Math.min(upTo,n-1)));
+    let cum=0;const pts=[[x0,y0]];for(let i=0;i<=lim;i++){cum+=dias[i].n;pts.push([xat(i),yat(cum)]);}
     const poly=pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
     const stepLbl=maxY<=8?1:5;let yT='';for(let v=1;v<=maxY;v++){const y=yat(v).toFixed(1);yT+='<line x1="'+(x0-3)+'" y1="'+y+'" x2="'+x0+'" y2="'+y+'" class="ax"/>';if(v%stepLbl===0)yT+='<text x="'+(x0-5)+'" y="'+(yat(v)+3).toFixed(1)+'" text-anchor="end" font-size="8">'+v+'</text>';}
     let xT='';dias.forEach((d,i)=>{const x=xat(i).toFixed(1);xT+='<line x1="'+x+'" y1="'+y0+'" x2="'+x+'" y2="'+(y0+3)+'" class="ax"/>';if(d.showL!==false)xT+='<text x="'+x+'" y="'+(H-4)+'" text-anchor="middle" font-size="8">'+d.l+'</text>';});
@@ -1296,7 +1299,7 @@ function renderPanel(){
       <div class="panelcard"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
     </div>
     <div class="earnings-card" onclick="toggleEarn()" style="cursor:pointer" title="Tocá para cambiar entre este mes y el total">${earnCardHTML()}</div>
-    <div class="dash-cols">${chartVentas('📊 Ventas — Semana',ventasWk,ventasSemTotal,OBJ_SEM)}${chartVentas('📊 Ventas — Mes',ventasMo,vendidosMes.length,OBJ_MES)}</div>
+    <div class="dash-cols">${chartVentas('📊 Ventas — Semana',ventasWk,ventasSemTotal,OBJ_SEM,_dow)}${chartVentas('📊 Ventas — Mes',ventasMo,qtyMes,OBJ_MES,hoyDiaIdx)}</div>
     <div class="panelcard"><h3>📈 Evolución mensual <span class="muted" style="font-weight:500">· seguimiento a largo plazo</span></h3><table class="mtable"><thead><tr><th>Mes</th><th>Clientes nuevos</th><th>Ventas</th><th>Seguimientos</th></tr></thead><tbody>${meses.slice().reverse().map(m=>`<tr><td><b>${m.label}</b></td><td>${m.nuevos}</td><td>${m.ventas}</td><td>${m.seg}</td></tr>`).join('')}</tbody></table></div>
   </div>`;
   earnApply();
