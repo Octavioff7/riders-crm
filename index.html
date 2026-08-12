@@ -634,10 +634,11 @@ function ctxList(ctx){const A=activos();
   if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');});
   if(ctx==='seg')return A.filter(c=>temperatura(c));
   if(ctx==='anotar')return A.filter(sinAnotar);
+  if(ctx==='vendidos')return A.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));
   if(['atrasado','hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)).sort((a,b)=>(esCalienteT(a)?0:1)-(esCalienteT(b)?0:1)||proxDateTime(a)-proxDateTime(b));
   return null;
 }
-const CTX_LABEL={atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar'};
+const CTX_LABEL={atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
 function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 // Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
 function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
@@ -1066,7 +1067,7 @@ function renderVendidos(){
   let h=`<div class="page"><h1>✅ Vendidos</h1><div class="sub">${list.length} cliente(s) con venta cerrada · ${totalQty} producto(s)${totalCom?' · $'+totalCom.toLocaleString('es-AR')+' en comisiones':''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Todavía no hay ventas cerradas.</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list){const sub=(c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto))+((c.cantidad&&c.cantidad>1)?' · '+c.cantidad+' u.':'')+(c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):'');h+=`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${sub}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}${waIc(c)}</div>`;}
+  for(const c of list){const sub=(c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto))+((c.cantidad&&c.cantidad>1)?' · '+c.cantidad+' u.':'')+(c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','vendidos')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${sub}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
 async function renderEquipo(){
