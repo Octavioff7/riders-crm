@@ -257,6 +257,11 @@
   .vline .ln{stroke:#34c759;stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
   .vline .dot{fill:#34c759}
   .vline text{fill:var(--muted)}
+  /* Chips para elegir cantidad de productos (estilo app, no el select del sistema) */
+  .cantchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
+  .cantchip{min-width:34px;padding:7px 8px;text-align:center;background:var(--hover);border:1px solid var(--sep);border-radius:10px;font-size:13px;font-weight:700;color:var(--txt);cursor:pointer;transition:filter .12s,background .12s}
+  .cantchip:hover{background:var(--card)}.cantchip:active{transform:scale(.95)}
+  .cantchip.on{background:#34c759;color:#fff;border-color:transparent}
   .mtable{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:4px}
   .mtable th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:7px 8px;border-bottom:1px solid var(--sep)}
   .mtable td{padding:9px 8px;border-bottom:1px solid var(--sep)}
@@ -374,6 +379,7 @@
         <button data-view="proximos"><span class="ic" aria-hidden="true">🔵</span><span class="lbl">Próximos días</span><span class="count" id="cnt-prox"></span></button>
         <button data-view="semana"><span class="ic" aria-hidden="true">🗓️</span><span class="lbl">Próxima semana</span><span class="count" id="cnt-sem"></span></button>
         <button data-view="anotar"><span class="ic" aria-hidden="true">📝</span><span class="lbl">Por anotar</span><span class="count" id="cnt-anotar"></span></button>
+        <button data-view="vendidos"><span class="ic" aria-hidden="true">✅</span><span class="lbl">Vendidos</span><span class="count" id="cnt-vendidos"></span></button>
         <button data-view="papelera"><span class="ic" aria-hidden="true">🗑️</span><span class="lbl">Papelera</span><span class="count" id="cnt-papelera"></span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
         <button class="admin-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
@@ -531,13 +537,14 @@ function updateCounts(){
   const cnu=document.getElementById('cnt-nuevas');if(cnu)cnu.textContent=A.filter(c=>c.sinAtender).length;
   const setc=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
   setc('cnt-atra',A.filter(c=>enBucket(c,'atrasado')).length);setc('cnt-hoy',A.filter(c=>enBucket(c,'hoy')).length);setc('cnt-prox',A.filter(c=>enBucket(c,'proximos')).length);setc('cnt-sem',A.filter(c=>enBucket(c,'semana')).length);
+  setc('cnt-vendidos',A.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length);
 }
 function render(){
   if(view!=='inbox')inboxCtx=null; // al salir del inbox se pierde el contexto de la sección
   const navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
@@ -557,6 +564,7 @@ function render(){
   else if(view==='papelera')renderPapelera();
   else if(view==='equipo')renderEquipo();
   else if(view==='cuentas')renderCuentas();
+  else if(view==='vendidos')renderVendidos();
   else renderSeg();
   if(view!==_lastView){const el=main.firstElementChild;if(el)el.classList.add('anim-in');_lastView=view;}
 }
@@ -688,7 +696,7 @@ function crmHTML(c){
         <button class="tagbtn ${!(c.tags&&c.tags.length)&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
       </div>
       <div class="field" style="margin-top:8px"><input placeholder="Tu nota para la etiqueta (opcional)" value="${esc(c.tempNota||'')}" onchange="setTagNota('${c.id}',this.value)"></div>
-      <div class="venta-det" style="margin-top:8px;background:#34c7591a;padding:13px 14px;border-radius:12px;display:${c.etapa==='vendido'?'block':'none'}"><div class="field"><label>🛒 Detalle de la venta</label><input placeholder="¿Qué compró y a qué precio? (ej: Ecoflow Delta 3 · $1250)" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📦 Cantidad de productos</label><select onchange="setCantidad('${c.id}',this.value)">${Array.from({length:20},(_,i)=>i+1).map(n=>`<option ${(c.cantidad||1)===n?'selected':''}>${n}</option>`).join('')}</select></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" inputmode="numeric" placeholder="0" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📅 Fecha de la venta</label><input type="date" value="${esc(c.vendidoFecha||hoy())}" onchange="setFechaVenta('${c.id}',this.value)"></div></div>
+      <div class="venta-det" style="margin-top:8px;background:#34c7591a;padding:13px 14px;border-radius:12px;display:${c.etapa==='vendido'?'block':'none'}"><div class="field"><label>🛒 Detalle de la venta</label><input placeholder="¿Qué compró y a qué precio? (ej: Ecoflow Delta 3 · $1250)" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📦 Cantidad de productos</label><div class="cantchips" id="cant-${c.id}">${cantChipsHTML(c)}</div></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" inputmode="numeric" placeholder="0" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📅 Fecha de la venta</label><input type="date" value="${esc(c.vendidoFecha||hoy())}" onchange="setFechaVenta('${c.id}',this.value)"></div></div>
       <div class="row2"><div class="field"><label>Etapa</label><select onchange="setF('${c.id}','etapa',this.value)">${ETAPAS.map(e=>`<option value="${e.id}" ${c.etapa===e.id?'selected':''}>${e.nombre}</option>`).join('')}</select></div><div class="field"><label>Producto</label><select onchange="setF('${c.id}','producto',this.value)">${PRODUCTOS.map(p=>`<option ${c.producto===p?'selected':''}>${p}</option>`).join('')}</select></div></div>
       <div class="row2"><div class="field"><label>Valor ($)</label><input type="number" inputmode="numeric" value="${c.valor||''}" onchange="setF('${c.id}','valor',Number(this.value)||0)"></div><div class="field"><label>Tipo de operación</label><select onchange="setF('${c.id}','operacion',this.value)">${OPERACIONES.map(o=>`<option value="${o}" ${(c.operacion||'')===o?'selected':''}>${o||'—'}</option>`).join('')}</select></div></div>
       ${(me&&me.rol!=='vendedor'&&asignables().length>1)?`<div class="field"><label>Vendedor asignado</label><select onchange="setF('${c.id}','vendedorId',this.value)">${asignables().map(u=>`<option value="${u.id}" ${c.vendedorId===u.id?'selected':''}>${esc(u.nombre)}</option>`).join('')}</select></div>`:''}
@@ -753,7 +761,10 @@ function marcarVendido(id){
 function setVentaDetalle(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.ventaDetalle=(v||'').trim();save();}
 function setComision(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.comision=Number(v)||0;save();}
 function setFechaVenta(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.vendidoFecha=v||hoy();save();}
-function setCantidad(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.cantidad=Math.max(1,Number(v)||1);save();}
+function cantChipsHTML(c){const cur=c.cantidad||1;return [1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="cantchip ${cur===n?'on':''}" onclick="setCantidad('${c.id}',${n})">${n}</button>`).join('')+`<button class="cantchip ${cur>10?'on':''}" onclick="setCantidadMas('${c.id}')">${cur>10?cur:'10+'}</button>`;}
+function _refreshCant(c){const el=document.getElementById('cant-'+c.id);if(el)el.innerHTML=cantChipsHTML(c);}
+function setCantidad(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.cantidad=Math.max(1,Number(v)||1);save();_refreshCant(c);}
+function setCantidadMas(id){const c=clientes.find(x=>x.id===id);if(!c)return;appModal({titulo:'Cantidad de productos',texto:'¿Cuántos productos compró? (más de 10)',conInput:true,inputPlaceholder:'Ej: 12',inputValue:(c.cantidad>10?String(c.cantidad):''),okLabel:'Guardar',onOk:v=>{c.cantidad=Math.max(1,parseInt(v,10)||1);save();_refreshCant(c);}});}
 // Ganancias: mes (se reinicia el 1° de cada mes) o total (histórico). Switch en la tarjeta del panel.
 let earnMode='mes';
 function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const vm=vend.filter(c=>(c.vendidoFecha||'').slice(0,7)===mesAct);const g=a=>a.reduce((s,c)=>s+(Number(c.comision)||0),0);const q=a=>a.reduce((s,c)=>s+(Number(c.cantidad)||1),0);return {mes:{g:g(vm),n:q(vm)},total:{g:g(vend),n:q(vend)}};}
@@ -1049,6 +1060,15 @@ function puedoEditarUsuario(x){if(!me||x.id===me.id||x.rol==='admin')return fals
 function verVendedor(id){filtroVend=id;view='list';render();pushHistory();}
 function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render();pushHistory();}
 function irVista(v){view=v;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();}
+function renderVendidos(){
+  const list=activos().filter(c=>c.etapa==='vendido'||c.etapa==='posventa').sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));
+  const totalQty=list.reduce((s,c)=>s+(Number(c.cantidad)||1),0);const totalCom=list.reduce((s,c)=>s+(Number(c.comision)||0),0);
+  let h=`<div class="page"><h1>✅ Vendidos</h1><div class="sub">${list.length} cliente(s) con venta cerrada · ${totalQty} producto(s)${totalCom?' · $'+totalCom.toLocaleString('es-AR')+' en comisiones':''}</div>`;
+  if(!list.length){main.innerHTML=h+'<div class="empty">Todavía no hay ventas cerradas.</div></div>';return;}
+  h+='<div class="panelcard">';
+  for(const c of list){const sub=(c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto))+((c.cantidad&&c.cantidad>1)?' · '+c.cantidad+' u.':'')+(c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):'');h+=`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${sub}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}${waIc(c)}</div>`;}
+  main.innerHTML=h+'</div></div>';
+}
 async function renderEquipo(){
   main.innerHTML='<div class="page"><h1>📈 Equipo</h1><div class="sub">Cargando métricas…</div></div>';
   let data=[];try{data=await (await api('/api/metrics')).json();}catch(e){return;}
