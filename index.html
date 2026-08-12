@@ -630,12 +630,17 @@ function convWhen(c){
 function needsReply(c){return c.respondioUltimo==='cliente'&&c.etapa!=='vendido'&&c.etapa!=='posventa';}
 // Lista de clientes de una sección (para mostrarla como columna del medio al abrir un contacto desde ahí).
 function ctxList(ctx){const A=activos();
-  if(ctx==='calientes')return A.filter(c=>{const t=temperatura(c);return t&&t.id==='caliente';});
-  if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');});
-  if(ctx==='seg')return A.filter(c=>temperatura(c));
-  if(ctx==='anotar')return A.filter(sinAnotar);
-  if(ctx==='vendidos')return A.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));
-  if(['atrasado','hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)).sort((a,b)=>(esCalienteT(a)?0:1)-(esCalienteT(b)?0:1)||proxDateTime(a)-proxDateTime(b));
+  const byNuevo=(a,b)=>creaKey(b)-creaKey(a);                    // más nuevo (agregado) arriba
+  const byProxAsc=(a,b)=>proxDateTime(a)-proxDateTime(b);         // fecha más temprana/atrasada arriba
+  const byProxDesc=(a,b)=>proxDateTime(b)-proxDateTime(a);        // fecha más nueva arriba
+  const byVenta=(a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')); // venta más nueva arriba
+  if(ctx==='calientes')return A.filter(c=>{const t=temperatura(c);return t&&t.id==='caliente';}).sort(byNuevo);
+  if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');}).sort(byNuevo);
+  if(ctx==='seg')return A.filter(c=>temperatura(c)).sort(byNuevo);
+  if(ctx==='anotar')return A.filter(sinAnotar).sort(byNuevo);
+  if(ctx==='vendidos')return A.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').sort(byVenta);
+  if(ctx==='atrasado')return A.filter(c=>enBucket(c,'atrasado')).sort(byProxAsc);
+  if(['hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)).sort(byProxDesc);
   return null;
 }
 const CTX_LABEL={atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
@@ -915,7 +920,7 @@ function renderCalientes(){
 }
 /* ---- FRÍOS (sin contactar) ---- */
 function renderFrios(){
-  const list=ordenados().filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');});
+  const list=activos().filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');}).sort((a,b)=>creaKey(b)-creaKey(a));
   let h=`<div class="page"><h1>❄️ Fríos — sin contactar</h1><div class="sub">${list.length} clientes con los que casi no tuviste contacto. Dales un primer toque para activarlos.</div><div class="note">💡 <div>Son leads que entraron pero quedaron sin seguimiento. Tocá el botón verde para escribirles por WhatsApp.</div></div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay clientes fríos 🎉</div></div>';return;}
   h+='<div class="panelcard">';
@@ -927,7 +932,7 @@ function esNotaAuto(t){t=(t||'').trim();return t.startsWith('🏷')||t.startsWit
 function tieneNotaReal(c){return (c.log||[]).some(l=>{const t=(l.texto||'').trim();return t&&!esNotaAuto(t);});}
 function sinAnotar(c){return !tieneNotaReal(c);}
 function renderPorAnotar(){
-  const list=ordenados().filter(sinAnotar);
+  const list=activos().filter(sinAnotar).sort((a,b)=>creaKey(b)-creaKey(a));
   let h=`<div class="page"><h1>📝 Por anotar</h1><div class="sub">${list.length} clientes sin ninguna nota tuya — o que solo tienen la etiqueta importada. Abrilos y anotá lo que sabés.</div><div class="note">💡 <div>Acá caen los clientes donde todavía no escribiste nada propio. Tocá uno para abrir su ficha y agregar una nota o programar un próximo contacto.</div></div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">¡Todos tienen al menos una nota tuya! 🎉</div></div>';return;}
   h+='<div class="panelcard">';
@@ -1231,7 +1236,7 @@ const AG_SECS={
 function renderAgendaSec(estado){
   const info=AG_SECS[estado];
   // Atrasados: puro orden por fecha (más atrasado arriba). Resto: calientes primero, luego por fecha.
-  const list=activos().filter(c=>enBucket(c,estado)).sort((a,b)=> estado==='atrasado' ? (proxDateTime(a)-proxDateTime(b)) : ((esCalienteT(a)?0:1)-(esCalienteT(b)?0:1)||proxDateTime(a)-proxDateTime(b)));
+  const list=activos().filter(c=>enBucket(c,estado)).sort((a,b)=> estado==='atrasado' ? (proxDateTime(a)-proxDateTime(b)) : (proxDateTime(b)-proxDateTime(a)));
   const nCal=list.filter(esCalienteT).length;
   let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s). ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
