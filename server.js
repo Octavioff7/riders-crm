@@ -312,6 +312,15 @@ function geminiCall(prompt){return new Promise((resolve)=>{
   const req=https.request('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+CFG.geminiKey,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{const j=JSON.parse(d);const txt=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts[0].text;resolve(txt||null);}catch(e){resolve(null)}})});
   req.on('error',()=>resolve(null));req.write(body);req.end();
 });}
+// Visión: manda una o más imágenes (base64) + prompt y devuelve el texto de Gemini
+function geminiVision(images,prompt){return new Promise((resolve)=>{
+  if(!CFG.geminiKey||CFG.geminiKey.length<10)return resolve(null);
+  const model=CFG.geminiModel||'gemini-2.0-flash';
+  const parts=[{text:prompt}].concat((images||[]).map(im=>({inline_data:{mime_type:im.mime||'image/jpeg',data:im.data}})));
+  const body=JSON.stringify({contents:[{parts}],generationConfig:{temperature:0.1,responseMimeType:'application/json'}});
+  const req=https.request('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+CFG.geminiKey,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{const j=JSON.parse(d);const txt=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts[0].text;resolve(txt||null);}catch(e){resolve(null)}})});
+  req.on('error',()=>resolve(null));req.write(body);req.end();
+});}
 
 async function geminiBrain(clientes,text){
   const activos=clientes.filter(c=>!c.borrado);
@@ -492,6 +501,25 @@ http.createServer((req,res)=>{
   if(u==='/api/push/pubkey'&&req.method==='GET')return json(200,{key:pushPubKey(),enabled:!!webpush});
   if(u==='/api/push/subscribe'&&req.method==='POST')return readBody(b=>{const ok=addPushSub(me.id,b.subscription);json(ok?200:400,{ok});});
   if(u==='/api/push/unsubscribe'&&req.method==='POST')return readBody(b=>{removePushSub(me.id,b.endpoint||'');json(200,{ok:true});});
+
+  // Escaneo de documento (licencia / carnet cubano) con Gemini Vision → autocompleta datos
+  if(u==='/api/scan-doc'&&req.method==='POST')return readBody(b=>{
+    if(!CFG.geminiKey||CFG.geminiKey.length<10)return json(200,{ok:false,reason:'La IA no está configurada.'});
+    const imgs=(b.images||[]).filter(x=>x&&x.data).slice(0,2);
+    if(!imgs.length)return json(400,{error:'sin imagen'});
+    const cubano=b.tipo==='cubano';
+    const prompt=cubano
+      ? 'Estas son fotos de un documento de identidad de una persona (puede ser un carnet de identidad cubano, pasaporte u otro documento). Extraé los datos de la persona. Respondé SOLO un objeto JSON con estas claves exactas (usá string vacío "" si el dato no se ve): {"nombre":"","apellido":"","direccion":"","apt":"","ciudad":"","estado":""}. "nombre"=nombre de pila, "apellido"=apellido(s). No inventes datos que no estén en la imagen.'
+      : 'Estas son fotos (frente y dorso) de una licencia de conducir de Estados Unidos. Extraé los datos del titular. Respondé SOLO un objeto JSON con estas claves exactas (usá string vacío "" si el dato no se ve): {"nombre":"","apellido":"","direccion":"","apt":"","ciudad":"","estado":""}. "nombre"=first name, "apellido"=last name, "direccion"=número y calle (street address, sin apt), "apt"=número de apartamento/unidad si hay, "ciudad"=city, "estado"=state en 2 letras (ej FL). No inventes datos que no estén en la imagen.';
+    geminiVision(imgs,prompt).then(raw=>{
+      if(!raw)return json(200,{ok:false,reason:'No pude leer el documento. Cargá los datos a mano.'});
+      let data=null;
+      try{data=JSON.parse(raw);}catch(e){try{data=JSON.parse(String(raw).replace(/```json/gi,'').replace(/```/g,'').trim());}catch(e2){data=null;}}
+      if(!data||typeof data!=='object')return json(200,{ok:false,reason:'No pude interpretar el documento. Cargá los datos a mano.'});
+      const clean=k=>String(data[k]==null?'':data[k]).trim();
+      json(200,{ok:true,data:{nombre:clean('nombre'),apellido:clean('apellido'),direccion:clean('direccion'),apt:clean('apt'),ciudad:clean('ciudad'),estado:clean('estado')}});
+    }).catch(()=>json(200,{ok:false,reason:'Error escaneando el documento.'}));
+  });
   if(u==='/api/push/test'&&req.method==='POST'){
     if(!webpush)return json(200,{ok:false,reason:'El servidor no tiene el push habilitado.'});
     const uu=loadUsers().find(x=>x.id===me.id),subs=(uu&&uu.pushSubs)||[];
