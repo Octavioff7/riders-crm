@@ -1288,28 +1288,33 @@ function _ventaTot(){const el=document.getElementById('v-tot');if(el)el.innerHTM
 // Calcula lo que paga el cliente: por cada pago, base + (7% tax si la financiera lo lleva) + fee de la financiera
 function _ventaCalc(){
   let base=0,tax=0,fee=0;const lineas=[];
+  let total=0;
   _venta.pagos.forEach(p=>{
-    const m=parseFloat(p.monto)||0;let t=0,f=0,fin=null;
+    const m=parseFloat(p.monto)||0;let t=0,f=0,fin=null,resta=false;
     if(p.metodo==='financiado'){
+      // La financiera presta el monto y le descuenta tax+fee → el negocio recibe MENOS
+      resta=true;
       if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?m*0.07:0;f=m*fin.fee;}
     }else if(p.metodo==='zelle'||p.metodo==='debito'||p.metodo==='credito'){
-      t=m*0.07; // tarjeta/zelle: 7% de taxes (el cash no lleva)
+      t=m*0.07; // tarjeta/zelle: el cliente paga 7% de taxes de más (el cash no lleva)
     }
-    base+=m;tax+=t;fee+=f;lineas.push({p,m,t,f,fin,total:m+t+f});
+    const lt=resta?(m-t-f):(m+t+f);
+    base+=m;tax+=t;fee+=f;total+=lt;lineas.push({p,m,t,f,fin,resta,total:lt});
   });
-  return {base,tax,fee,total:base+tax+fee,lineas};
+  return {base,tax,fee,total,lineas};
 }
 function _ventaCalcHTML(){
   const c=_ventaCalc();
-  let h='<div class="v-calc-t">Total a cobrar al cliente</div>';
+  let h='<div class="v-calc-t">Total de la venta</div>';
   c.lineas.forEach(L=>{
     if(!L.m)return;
     const label=_VMETLBL[L.p.metodo]||L.p.metodo;
     const fin=(L.p.metodo==='financiado'&&L.p.financiera)?' · '+L.p.financiera:'';
-    const extra=[];if(L.t)extra.push('+7% tax');if(L.f)extra.push('+'+_pctLabel(L.fin.fee)+' fee');
+    const sg=L.resta?'−':'+';
+    const extra=[];if(L.t)extra.push(sg+'7% tax');if(L.f)extra.push(sg+_pctLabel(L.fin.fee)+' fee');
     h+='<div class="v-calc-ln"><span>'+esc(label+fin)+' · $'+_money(L.m)+(extra.length?' <span class="v-calc-x">('+extra.join(' ')+')</span>':'')+'</span><b>$'+_money(L.total)+'</b></div>';
   });
-  h+='<div class="v-calc-tot"><span>Total a cobrar</span><b>$'+_money(c.total)+'</b></div>';
+  h+='<div class="v-calc-tot"><span>Total</span><b>$'+_money(c.total)+'</b></div>';
   if(_venta.pagos.some(p=>p.metodo==='financiado'&&!p.financiera))h+='<div class="v-calc-note">⚠️ Elegí la financiera para calcular su fee.</div>';
   return h;
 }
@@ -1408,7 +1413,7 @@ function ventaResumenHTML(c){
   h+='<div class="vr-ln" style="margin-top:5px">Total productos: <b>$'+_money(v.total||0)+'</b></div>';
   if(v.cobro&&(v.cobro.tax||v.cobro.fee)){
     h+='<div class="vr-ln" style="opacity:.8">Taxes: $'+_money(v.cobro.tax)+' · Fees: $'+_money(v.cobro.fee)+'</div>';
-    h+='<div class="vr-ln" style="margin-top:3px;font-size:14.5px"><b>Total a cobrar: $'+_money(v.cobro.total)+'</b></div>';
+    h+='<div class="vr-ln" style="margin-top:3px;font-size:14.5px"><b>Total de la venta: $'+_money(v.cobro.total)+'</b></div>';
   }
   h+='</div></div>';
   return h;
