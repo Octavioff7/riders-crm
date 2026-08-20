@@ -232,6 +232,10 @@
   .v-prow>.v-selbtn{flex:1;min-width:0}
   .pick-back{z-index:400}
   .pick-modal{width:min(360px,calc(100vw - 32px));max-height:80vh;display:flex;flex-direction:column}
+  .pick-search-wrap{padding:10px 12px 4px}
+  .pick-search{width:100%;background:var(--bg);border:1px solid var(--sep-strong);border-radius:8px;padding:9px 12px;color:var(--txt);font-size:14px;font-family:inherit;box-sizing:border-box}
+  .pick-search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,122,255,.2)}
+  .v-selprice{color:var(--muted);font-weight:400;font-size:12.5px;margin-left:4px}
   .pick-list{overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:2px}
   .pick-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:none;border:none;border-radius:9px;padding:12px 13px;font-size:14.5px;color:var(--txt);cursor:pointer;font-family:inherit;text-align:left}
   .pick-row:hover{background:var(--bg)}
@@ -1112,6 +1116,26 @@ const _FIN=[
 const _FINANCIERAS=_FIN.map(f=>f.n);
 const _FINBY={};_FIN.forEach(f=>{_FINBY[f.n]=f;});
 const _pctLabel=f=>Math.round(f*100)+'%';
+// Inventario (Precios agosto 2026). cat: moto / triciclo / kit. Numerado de corrido 1..47.
+const INVENTARIO=[
+  {n:1,nombre:'MATIAS',precio:4600,cat:'moto'},{n:2,nombre:'TITAN',precio:4500,cat:'moto'},{n:3,nombre:'GTX',precio:4500,cat:'moto'},
+  {n:4,nombre:'XMT',precio:4400,cat:'moto'},{n:5,nombre:'GP 250cc',precio:4300,cat:'moto'},{n:6,nombre:'KRATHOS',precio:4000,cat:'moto'},
+  {n:7,nombre:'RAVEN',precio:3800,cat:'moto'},{n:8,nombre:'XMOX RR',precio:4700,cat:'moto'},{n:9,nombre:'MAJESTIC',precio:3900,cat:'moto'},
+  {n:10,nombre:'VHAGAR',precio:5000,cat:'moto'},{n:11,nombre:'DUCASU',precio:4000,cat:'moto'},{n:12,nombre:'KRESTON',precio:3600,cat:'moto'},
+  {n:13,nombre:'FALCON',precio:4300,cat:'moto'},{n:14,nombre:'TANK',precio:3300,cat:'moto'},{n:15,nombre:'TANK SPORT',precio:3500,cat:'moto'},
+  {n:16,nombre:'INTREPID',precio:3600,cat:'moto'},{n:17,nombre:'SUPRA',precio:4400,cat:'moto'},{n:18,nombre:'EAGLE',precio:3500,cat:'moto'},
+  {n:19,nombre:'SUZUKI 200cc',precio:4100,cat:'moto'},{n:20,nombre:'CHP',precio:3500,cat:'moto'},{n:21,nombre:'MISAKI',precio:2900,cat:'moto'},
+  {n:22,nombre:'FOCUS',precio:3200,cat:'moto'},{n:23,nombre:'SUZUKI GN 125',precio:3600,cat:'moto'},{n:24,nombre:'UNISON AX100',precio:2700,cat:'moto'},
+  {n:25,nombre:'TANK ELECTRICA',precio:3200,cat:'moto'},{n:26,nombre:'TANK SPORT ELECTRICA',precio:3200,cat:'moto'},{n:27,nombre:'FOCUS ELECTRICA',precio:3200,cat:'moto'},
+  {n:28,nombre:'GRILLO',precio:2300,cat:'moto'},{n:29,nombre:'MASTERSONIC',precio:1600,cat:'moto'},{n:30,nombre:'MASTERSONIC 2.0',precio:2300,cat:'moto'},
+  {n:31,nombre:'TRICICLO ROOFHYBRID',precio:5700,cat:'triciclo'},{n:32,nombre:'TRICICLO HIBRIDO SOLAR',precio:5350,cat:'triciclo'},{n:33,nombre:'TRICICLO HIBRIDO LITIO',precio:5250,cat:'triciclo'},
+  {n:34,nombre:'TRICICLO HIBRIDO GEL',precio:5000,cat:'triciclo'},{n:35,nombre:'TRICICLO ELECTRICO',precio:4500,cat:'triciclo'},
+  {n:36,nombre:'KIT 2',precio:7200,cat:'kit'},{n:37,nombre:'KIT 1',precio:6350,cat:'kit'},{n:38,nombre:'KIT RESIDENCIAL',precio:5600,cat:'kit'},
+  {n:39,nombre:'KIT MUST',precio:4600,cat:'kit'},{n:40,nombre:'BATERIA 15K',precio:2500,cat:'kit'},{n:41,nombre:'INVERSOR 10K',precio:2000,cat:'kit'},
+  {n:42,nombre:'PANEL SOLAR',precio:230,cat:'kit'},{n:43,nombre:'RIVER 2',precio:1000,cat:'kit'},{n:44,nombre:'DELTA 3 CLASSIC',precio:1250,cat:'kit'},
+  {n:45,nombre:'DELTA 3 PLUS',precio:1500,cat:'kit'},{n:46,nombre:'DELTA 2 MAX',precio:1950,cat:'kit'},{n:47,nombre:'DELTA PRO',precio:2900,cat:'kit'}
+];
+const _PRODCAT={'Moto':'moto','Triciclo':'triciclo','Kit solar':'kit','Otro':null};
 function abrirCargarVenta(){
   if(RO())return;
   cerrarModal();cerrarVenta();
@@ -1121,7 +1145,7 @@ function abrirCargarVenta(){
     receptorModo:'ahora',
     receptor:{nombre:'',apellido:'',carnet:'',telefono:'',direccion:'',apt:'',ciudad:'',estado:''},
     receptorImgs:[],
-    productos:[{producto:'Moto',color:'',detalle:'',precio:''}],
+    productos:[{producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:''}],
     pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null}]};
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-venta';
   wrap.innerHTML='<div class="modal venta-modal"><div class="modal-h"><b>Cargar venta</b><button class="mini" onclick="cerrarVenta()">✕</button></div><div class="venta-steps" id="venta-steps"></div><div class="modal-b" id="venta-body"></div><div class="modal-f" id="venta-foot"></div></div>';
@@ -1221,12 +1245,13 @@ function _ventaStep2(){
 function _ventaStep3(){
   let h='<div class="v-sec-t">🛒 Productos vendidos</div><div class="v-rows">';
   _venta.productos.forEach((p,i)=>{
+    const detDisp=p.detalle?(esc(p.detalle)+(p.listaPrecio?' <span class="v-selprice">$'+_money(p.listaPrecio)+'</span>':'')):'Elegí el producto…';
     h+='<div class="v-card">'
       +'<div class="v-prow">'+_vSelBtn('','🛒 '+(p.producto||'Producto'),false,'_pickProducto('+i+')')
       +'<input class="v-price" placeholder="Precio $" inputmode="decimal" value="'+esc(p.precio)+'" oninput="_venta.productos['+i+'].precio=this.value;_ventaTot()">'
       +(_venta.productos.length>1?'<button class="v-del" onclick="_ventaDelProd('+i+')">✕</button>':'<span class="v-del-sp"></span>')+'</div>'
+      +'<button type="button" class="v-selbtn v-full'+(p.detalle?'':' ph')+'" onclick="_pickDetalle('+i+')">'+detDisp+'<span class="v-selarr">▾</span></button>'
       +'<input class="v-full" placeholder="Color (opcional)" value="'+esc(p.color)+'" oninput="_venta.productos['+i+'].color=this.value">'
-      +'<input class="v-full" placeholder="Detalle del producto (opcional)" value="'+esc(p.detalle)+'" oninput="_venta.productos['+i+'].detalle=this.value">'
       +'</div>';
   });
   h+='</div><button class="v-add" onclick="_ventaAddProd()">＋ Agregar producto</button>';
@@ -1262,15 +1287,31 @@ function _vSelBtn(cls,display,ph,onclickExpr){return '<button type="button" clas
 function appPick(o){
   cerrarPick();
   const wrap=document.createElement('div');wrap.className='modal-back pick-back';wrap.id='modal-pick';
-  wrap.innerHTML='<div class="modal pick-modal"><div class="modal-h"><b>'+esc(o.titulo||'Elegí')+'</b><button class="mini" onclick="cerrarPick()">✕</button></div><div class="pick-list">'
-    +(o.opciones||[]).map(op=>'<button type="button" class="pick-row'+(String(op.value)===String(o.actual)?' on':'')+'" data-v="'+esc(op.value)+'"><span class="pick-lbl">'+esc(op.label)+'</span><span class="pick-right">'+(op.nota?'<span class="pick-nota">'+esc(op.nota)+'</span>':'')+(String(op.value)===String(o.actual)?'<span class="pick-ck">✓</span>':'')+'</span></button>').join('')
+  const searchHtml=o.search?'<div class="pick-search-wrap"><input class="pick-search" id="pick-search" placeholder="🔎 Buscar por nombre…" autocomplete="off"></div>':'';
+  wrap.innerHTML='<div class="modal pick-modal"><div class="modal-h"><b>'+esc(o.titulo||'Elegí')+'</b><button class="mini" onclick="cerrarPick()">✕</button></div>'+searchHtml+'<div class="pick-list" id="pick-list">'
+    +(o.opciones||[]).map(op=>'<button type="button" class="pick-row'+(String(op.value)===String(o.actual)?' on':'')+'" data-v="'+esc(op.value)+'" data-search="'+esc(String(op.label).toLowerCase())+'"><span class="pick-lbl">'+esc(op.label)+'</span><span class="pick-right">'+(op.nota?'<span class="pick-nota">'+esc(op.nota)+'</span>':'')+(String(op.value)===String(o.actual)?'<span class="pick-ck">✓</span>':'')+'</span></button>').join('')
     +'</div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarPick();};
   document.body.appendChild(wrap);
   wrap.querySelectorAll('.pick-row').forEach(b=>b.onclick=()=>{const v=b.getAttribute('data-v');cerrarPick();if(o.onPick)o.onPick(v);});
+  if(o.search){
+    const si=document.getElementById('pick-search');
+    if(si){si.oninput=()=>{const q=si.value.toLowerCase().trim();document.querySelectorAll('#pick-list .pick-row').forEach(b=>{const t=b.getAttribute('data-search')||'';b.style.display=(!q||t.indexOf(q)>=0)?'':'none';});};setTimeout(()=>si.focus(),30);}
+  }
+}
+function _pickDetalle(i){
+  const p=_venta.productos[i];const cat=_PRODCAT[p.producto];
+  if(!cat){ // "Otro" → texto libre
+    appModal({titulo:'Detalle del producto',texto:'Escribí el detalle (este producto no está en la lista).',conInput:true,inputValue:p.detalle||'',okLabel:'Guardar',onOk:v=>{p.detalle=(v||'').trim();p.listaPrecio=null;_ventaRender();}});
+    return;
+  }
+  const items=INVENTARIO.filter(x=>x.cat===cat);
+  appPick({titulo:'Elegí el producto',search:true,actual:p.detalle||'',
+    opciones:items.map(x=>({value:x.nombre,label:x.n+'. '+x.nombre,nota:'$'+_money(x.precio)})),
+    onPick:v=>{const it=items.find(x=>x.nombre===v);p.detalle=v;p.listaPrecio=it?it.precio:null;_ventaRender();}});
 }
 function cerrarPick(){const m=document.getElementById('modal-pick');if(m)m.remove();}
-function _pickProducto(i){appPick({titulo:'Producto',actual:_venta.productos[i].producto,opciones:PRODUCTOS.map(p=>({value:p,label:p})),onPick:v=>{_venta.productos[i].producto=v;_ventaRender();}});}
+function _pickProducto(i){appPick({titulo:'Producto',actual:_venta.productos[i].producto,opciones:PRODUCTOS.map(p=>({value:p,label:p})),onPick:v=>{const p=_venta.productos[i];if(p.producto!==v){p.detalle='';p.listaPrecio=null;}p.producto=v;_ventaRender();}});}
 function _pickMetodo(i){appPick({titulo:'Medio de pago',actual:_venta.pagos[i].metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_venta.pagos[i].metodo=v;_ventaRender();}});}
 function _pickFinanciera(i){appPick({titulo:'Elegí la financiera',actual:_venta.pagos[i].financiera||'',opciones:[{value:'',label:'— Sin especificar —'}].concat(_FIN.map(f=>({value:f.n,label:f.n,nota:f.dias}))),onPick:v=>{_venta.pagos[i].financiera=v;_ventaRender();}});}
 function _ventaSum(arr,key){return arr.reduce((s,x)=>s+(parseFloat(x[key])||0),0);}
@@ -1328,8 +1369,8 @@ function _ventaCalcHTML(){
   if(_venta.pagos.some(p=>p.metodo==='financiado'&&!p.financiera))h+='<div class="v-calc-note">⚠️ Elegí la financiera para calcular su fee.</div>';
   return h;
 }
-function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',precio:''});_ventaRender();}
-function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',precio:''});_ventaRender();}
+function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:''});_ventaRender();}
+function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:''});_ventaRender();}
 function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
 function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
 async function _subirDocs(imgs){
@@ -1370,7 +1411,7 @@ async function guardarVenta(){
     comprador:{nombre:cmp.nombre,apellido:cmp.apellido,telefono:cmp.telefono,email:cmp.email,direccion:cmp.direccion,apt:cmp.apt,ciudad:cmp.ciudad,estado:cmp.estado,codigoPostal:cmp.codigoPostal},
     receptor:(rec&&!recVacio)?{nombre:rec.nombre,apellido:rec.apellido,carnet:rec.carnet,telefono:rec.telefono,direccion:rec.direccion,apt:rec.apt,ciudad:rec.ciudad,estado:rec.estado}:null,
     receptorPendiente:_venta.receptorModo==='despues'||recVacio,
-    productos:prods.map(p=>({producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),precio:parseFloat(p.precio)||0})),
+    productos:prods.map(p=>({producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),listaPrecio:p.listaPrecio||null,precio:parseFloat(p.precio)||0})),
     pagos:pagosOut,
     total};
   const _calc=_ventaCalc();
@@ -1413,7 +1454,7 @@ function ventaResumenHTML(c){
   }else{h+='<div class="vr-ln" style="opacity:.7">Pendiente de cargar</div>';}
   h+='</div>';
   h+='<div class="vr-blk"><div class="vr-lbl">🛒 Productos</div>';
-  (v.productos||[]).forEach(p=>{h+='<div class="vr-ln">• '+esc(p.producto)+(p.color?' <span style="opacity:.7">('+esc(p.color)+')</span>':'')+' — <b>$'+_money(p.precio)+'</b>'+(p.detalle?'<div class="vr-sub">'+esc(p.detalle)+'</div>':'')+'</div>';});
+  (v.productos||[]).forEach(p=>{h+='<div class="vr-ln">• '+esc(p.producto)+(p.color?' <span style="opacity:.7">('+esc(p.color)+')</span>':'')+' — <b>$'+_money(p.precio)+'</b>'+(p.detalle?'<div class="vr-sub">'+esc(p.detalle)+(p.listaPrecio?' · lista $'+_money(p.listaPrecio):'')+'</div>':'')+'</div>';});
   if(v.pagos&&v.pagos.length){
     h+='<div class="vr-ln" style="margin-top:5px">💳 Pagos:</div>';
     v.pagos.forEach(p=>{h+='<div class="vr-ln" style="margin-left:12px">• '+esc(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' <span style="opacity:.7">— '+esc(p.financiera)+'</span>':'')+' <b>$'+_money(p.monto)+'</b>'+(p.fecha?' <span style="opacity:.7">· '+(typeof fmtFecha==='function'?fmtFecha(p.fecha):esc(p.fecha))+'</span>':'')+'</div>';});
