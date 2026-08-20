@@ -315,15 +315,27 @@ function geminiCall(prompt){return new Promise((resolve)=>{
   const req=https.request('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+CFG.geminiKey,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{const j=JSON.parse(d);const txt=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts[0].text;resolve(txt||null);}catch(e){resolve(null)}})});
   req.on('error',()=>resolve(null));req.write(body);req.end();
 });}
-// Visión: manda una o más imágenes (base64) + prompt y devuelve el texto de Gemini
-function geminiVision(images,prompt){return new Promise((resolve)=>{
-  if(!CFG.geminiKey||CFG.geminiKey.length<10)return resolve(null);
-  const model=CFG.geminiModel||'gemini-2.0-flash';
-  const parts=[{text:prompt}].concat((images||[]).map(im=>({inline_data:{mime_type:im.mime||'image/jpeg',data:im.data}})));
+// Visión: una llamada. Devuelve {status, text}
+function _geminiVisionOnce(model,parts){return new Promise((resolve)=>{
   const body=JSON.stringify({contents:[{parts}],generationConfig:{temperature:0.1,responseMimeType:'application/json'}});
-  const req=https.request('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+CFG.geminiKey,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{const j=JSON.parse(d);const txt=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts[0].text;resolve(txt||null);}catch(e){resolve(null)}})});
-  req.on('error',()=>resolve(null));req.write(body);req.end();
+  const req=https.request('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+CFG.geminiKey,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{let txt=null;try{const j=JSON.parse(d);txt=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts[0].text;}catch(e){}resolve({status:r.statusCode,text:txt||null});})});
+  req.on('error',()=>resolve({status:0,text:null}));req.write(body);req.end();
 });}
+// Visión con reintentos ante saturación (503/429/500). Devuelve {ok,text} o {ok:false,reason}
+async function geminiVision(images,prompt){
+  if(!CFG.geminiKey||CFG.geminiKey.length<10)return {ok:false,reason:'noconfig'};
+  const model=CFG.geminiModel||'gemini-flash-latest';
+  const parts=[{text:prompt}].concat((images||[]).map(im=>({inline_data:{mime_type:im.mime||'image/jpeg',data:im.data}})));
+  let last=0;
+  for(let i=0;i<3;i++){
+    const r=await _geminiVisionOnce(model,parts);
+    if(r.text)return {ok:true,text:r.text};
+    last=r.status;
+    if(![429,500,503,0].includes(r.status))break; // errores no transitorios: no reintentar
+    if(i<2)await new Promise(res=>setTimeout(res,1200*(i+1)));
+  }
+  return {ok:false,reason:[429,500,503,0].includes(last)?'overload':'unreadable',status:last};
+}
 
 async function geminiBrain(clientes,text){
   const activos=clientes.filter(c=>!c.borrado);
@@ -514,8 +526,14 @@ http.createServer((req,res)=>{
     const prompt=cubano
       ? 'Estas son fotos de un documento de identidad de una persona (puede ser un carnet de identidad cubano, pasaporte u otro documento). Extraé los datos de la persona. Respondé SOLO un objeto JSON con estas claves exactas (usá string vacío "" si el dato no se ve): {"nombre":"","apellido":"","direccion":"","apt":"","ciudad":"","estado":""}. "nombre"=nombre de pila, "apellido"=apellido(s). No inventes datos que no estén en la imagen.'
       : 'Estas son fotos (frente y dorso) de una licencia de conducir de Estados Unidos. Extraé los datos del titular. Respondé SOLO un objeto JSON con estas claves exactas (usá string vacío "" si el dato no se ve): {"nombre":"","apellido":"","direccion":"","apt":"","ciudad":"","estado":""}. "nombre"=first name, "apellido"=last name, "direccion"=número y calle (street address, sin apt), "apt"=número de apartamento/unidad si hay, "ciudad"=city, "estado"=state en 2 letras (ej FL). No inventes datos que no estén en la imagen.';
-    geminiVision(imgs,prompt).then(raw=>{
-      if(!raw)return json(200,{ok:false,reason:'No pude leer el documento. Cargá los datos a mano.'});
+    geminiVision(imgs,prompt).then(rv=>{
+      if(!rv||!rv.ok||!rv.text){
+        const reason=(rv&&rv.reason==='overload')
+          ? '⏳ La IA está con mucha demanda ahora. Esperá unos segundos y tocá Escanear otra vez.'
+          : 'No pude leer el documento. Probá con fotos más nítidas o cargá los datos a mano.';
+        return json(200,{ok:false,reason});
+      }
+      const raw=rv.text;
       let data=null;
       try{data=JSON.parse(raw);}catch(e){try{data=JSON.parse(String(raw).replace(/```json/gi,'').replace(/```/g,'').trim());}catch(e2){data=null;}}
       if(!data||typeof data!=='object')return json(200,{ok:false,reason:'No pude interpretar el documento. Cargá los datos a mano.'});
