@@ -315,24 +315,30 @@ function geminiCall(prompt){return new Promise((resolve)=>{
   const req=https.request('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+CFG.geminiKey,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{const j=JSON.parse(d);const txt=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts[0].text;resolve(txt||null);}catch(e){resolve(null)}})});
   req.on('error',()=>resolve(null));req.write(body);req.end();
 });}
-// Visión: una llamada. Devuelve {status, text}
+// Visión: una llamada a un modelo, con timeout. Devuelve {status, text}
 function _geminiVisionOnce(model,parts){return new Promise((resolve)=>{
   const body=JSON.stringify({contents:[{parts}],generationConfig:{temperature:0.1,responseMimeType:'application/json'}});
-  const req=https.request('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+CFG.geminiKey,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{let txt=null;try{const j=JSON.parse(d);txt=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts[0].text;}catch(e){}resolve({status:r.statusCode,text:txt||null});})});
-  req.on('error',()=>resolve({status:0,text:null}));req.write(body);req.end();
+  let done=false;const fin=v=>{if(!done){done=true;resolve(v);}};
+  const req=https.request('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+CFG.geminiKey,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{let txt=null;try{const j=JSON.parse(d);txt=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts[0].text;}catch(e){}fin({status:r.statusCode,text:txt||null});})});
+  req.setTimeout(9000,()=>{req.destroy();fin({status:0,text:null});}); // modelo lento → abandonar y probar el siguiente
+  req.on('error',()=>fin({status:0,text:null}));req.write(body);req.end();
 });}
-// Visión con reintentos ante saturación (503/429/500). Devuelve {ok,text} o {ok:false,reason}
+// Cadena de modelos de visión (ordenada por confiabilidad/velocidad). Si uno está saturado (503), salta al siguiente.
+// gemini-flash-latest (el alias genérico) se satura seguido; los específicos suelen estar más libres.
+const VISION_MODELS=(CFG.geminiVisionModels||'gemini-3-flash-preview,gemini-3.5-flash-lite,gemini-flash-latest,gemini-3.5-flash').split(',').map(s=>s.trim()).filter(Boolean);
+// Visión con cadena de respaldo + reintento. Devuelve {ok,text,model} o {ok:false,reason}
 async function geminiVision(images,prompt){
   if(!CFG.geminiKey||CFG.geminiKey.length<10)return {ok:false,reason:'noconfig'};
-  const model=CFG.geminiModel||'gemini-flash-latest';
   const parts=[{text:prompt}].concat((images||[]).map(im=>({inline_data:{mime_type:im.mime||'image/jpeg',data:im.data}})));
   let last=0;
-  for(let i=0;i<3;i++){
-    const r=await _geminiVisionOnce(model,parts);
-    if(r.text)return {ok:true,text:r.text};
-    last=r.status;
-    if(![429,500,503,0].includes(r.status))break; // errores no transitorios: no reintentar
-    if(i<2)await new Promise(res=>setTimeout(res,1200*(i+1)));
+  for(let pass=0;pass<2;pass++){
+    for(const m of VISION_MODELS){
+      const r=await _geminiVisionOnce(m,parts);
+      if(r.text)return {ok:true,text:r.text,model:m};
+      last=r.status;
+      // 404/400/403 en ESTE modelo → simplemente probar el siguiente (no abortar toda la cadena)
+    }
+    if(pass===0)await new Promise(res=>setTimeout(res,1000)); // segunda vuelta por si fue un pico transitorio
   }
   return {ok:false,reason:[429,500,503,0].includes(last)?'overload':'unreadable',status:last};
 }

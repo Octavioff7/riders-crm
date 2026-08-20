@@ -424,6 +424,7 @@
   /* Celular: campos con letra 16px para que iOS NO haga zoom al tocarlos (y no quede zoomeado). */
   @media(max-width:760px){input,select,textarea{font-size:16px!important}}
   @media(max-width:760px){.inbox.two{grid-template-columns:1fr}.col-crm{display:none}body.chat-open .col-conv{display:none}body.chat-open .col-crm{display:block}.backbtn{display:inline-block}.crm-b{padding-bottom:calc(64px + env(safe-area-inset-bottom))}}
+  @media(max-width:760px){.panel-head h1{display:none}.panel-sub{display:none}.panel-head{margin-bottom:14px}.panel-head .head-btns{flex:1;flex-wrap:nowrap;gap:8px}.panel-head .head-btns .btn{flex:1;white-space:nowrap;justify-content:center}}
 </style>
 </head>
 <body>
@@ -1651,7 +1652,7 @@ function renderPanel(){
     const lp=pts[pts.length-1];
     return '<div class="panelcard"><h3>'+titulo+'</h3><div class="vchart-top"><span class="'+(total>=obj?'done':'')+'">'+total+'</span><span class="obj"> / '+obj+' 🎯</span></div><svg viewBox="0 0 '+W+' '+H+'" class="vline"><line x1="'+x0+'" y1="'+yat(obj).toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yat(obj).toFixed(1)+'" class="tgt"/><line x1="'+x0+'" y1="'+pt+'" x2="'+x0+'" y2="'+y0+'" class="ax"/><line x1="'+x0+'" y1="'+y0+'" x2="'+(W-pr)+'" y2="'+y0+'" class="ax"/>'+yT+xT+'<polyline points="'+poly+'" class="ln"/><circle cx="'+lp[0].toFixed(1)+'" cy="'+lp[1].toFixed(1)+'" r="2.5" class="dot"/></svg></div>';
   };
-  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Panel</h1><div class="head-btns"><button class="btn ghost nuevo-cli-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub">Riders Miami · ${total} clientes en total</div>
+  main.innerHTML=`<div class="page"><div class="conv-head-row panel-head"><h1>Panel</h1><div class="head-btns"><button class="btn ghost nuevo-cli-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub panel-sub">Riders Miami · ${total} clientes en total</div>
     <div class="tiles">
       <div class="tile"><div class="n">${total}</div><div class="l">Clientes</div></div>
       <div class="tile hot"><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div>
