@@ -241,6 +241,12 @@
   .vr-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
   .vr-nm{font-size:14px;font-weight:600}
   .vr-ln{font-size:13px;color:var(--txt);line-height:1.5}
+  .vr-docs{display:flex;gap:8px;margin-top:7px;flex-wrap:wrap}
+  .vr-doc{width:96px;height:62px;object-fit:cover;border:1px solid var(--sep-strong);border-radius:8px;cursor:pointer;background:var(--bg)}
+  .vr-doc:hover{border-color:var(--accent)}
+  .doc-lb{position:fixed;inset:0;background:rgba(0,0,0,.82);display:grid;place-items:center;z-index:600;padding:20px;cursor:zoom-out}
+  .doc-lb img{max-width:96vw;max-height:92vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  .doc-lb-x{position:absolute;top:16px;right:18px;width:38px;height:38px;border:none;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;font-size:17px;cursor:pointer}
   .login-ov{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(135deg,#eef2f7,#e6ecf3);z-index:500;padding:16px}
   .login-card{background:var(--card);border:1px solid var(--sep);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.18);padding:26px;width:340px;max-width:100%;display:flex;flex-direction:column}
   .login-brand{display:flex;align-items:center;gap:11px;margin-bottom:16px}
@@ -717,6 +723,7 @@ function renderInbox(){
   </div>`;
   updateCounts();
   autoGrow(document.getElementById('edit-nota'));autoGrow(document.getElementById('nueva-nota'));
+  hydrateVentaDocs();
 }
 function chatHTML(c){
   const t=temperatura(c);let msgs='',ld='';
@@ -1194,19 +1201,34 @@ function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',precio:
 function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',precio:''});_ventaRender();}
 function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:''});_ventaRender();}
 function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:''});_ventaRender();}
-function guardarVenta(){
-  if(RO()||!_venta)return;
+async function _subirDocs(imgs){
+  const out=[];
+  for(const im of (imgs||[])){
+    if(im&&im.data){
+      try{const r=await api('/api/venta-doc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:im.data,mime:im.mime})});const j=await r.json();if(j&&j.id)out.push(j.id);}catch(e){}
+    }
+  }
+  return out;
+}
+async function guardarVenta(){
+  if(RO()||!_venta||_venta.guardando)return;
   const cmp=_venta.comprador;
   const nombre=((cmp.nombre||'')+' '+(cmp.apellido||'')).trim();
   if(!nombre){alert('Falta el nombre del cliente que compra.');return;}
   const prods=_venta.productos.filter(p=>(p.producto||'').trim()||parseFloat(p.precio));
   if(!prods.length){alert('Agregá al menos un producto.');return;}
+  _venta.guardando=true;
+  const foot=document.getElementById('venta-foot');if(foot)foot.innerHTML='<button class="btn" disabled>Guardando venta…</button>';
   const pagos=_venta.pagos.filter(p=>parseFloat(p.monto));
   const total=_ventaSum(prods,'precio'),cantidad=prods.length;
   const tel=(cmp.telefono&&cmp.telefono.replace(/\D/g,'').replace(/^1/,'').length>=7)?cmp.telefono:'';
   const rec=_venta.receptorModo==='ahora'?_venta.receptor:null;
   const recVacio=rec&&!Object.keys(rec).some(k=>(rec[k]||'').trim());
+  // Guardar las fotos de los documentos como archivos (para verlas desde dueño/supervisor/admin)
+  const compradorDocs=await _subirDocs(_venta.compradorImgs);
+  const receptorDocs=(_venta.receptorModo==='ahora')?await _subirDocs(_venta.receptorImgs):[];
   const venta={
+    compradorDocs,receptorDocs,
     comprador:{nombre:cmp.nombre,apellido:cmp.apellido,telefono:cmp.telefono,email:cmp.email,direccion:cmp.direccion,apt:cmp.apt,ciudad:cmp.ciudad,estado:cmp.estado},
     receptor:(rec&&!recVacio)?{nombre:rec.nombre,apellido:rec.apellido,telefono:rec.telefono,direccion:rec.direccion,apt:rec.apt,ciudad:rec.ciudad,estado:rec.estado}:null,
     receptorPendiente:_venta.receptorModo==='despues'||recVacio,
@@ -1230,17 +1252,23 @@ function ventaResumenHTML(c){
   const v=c.venta;if(!v)return '';
   const cmp=v.comprador||{},rec=v.receptor;
   const linea=o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.estado].filter(Boolean).join(', ');
+  const docsHTML=arr=>{
+    if(!arr||!arr.length)return '';
+    return '<div class="vr-docs">'+arr.map(id=>'<img class="vr-doc" data-doc="'+esc(id)+'" alt="documento" onclick="verDoc(\''+esc(id)+'\')">').join('')+'</div>';
+  };
   let h='<div class="vr-card">';
   h+='<div class="vr-t">🧾 Venta cargada</div>';
   h+='<div class="vr-blk"><div class="vr-lbl">👤 Compra</div><div class="vr-nm">'+esc(((cmp.nombre||'')+' '+(cmp.apellido||'')).trim()||'—')+'</div>';
   if(cmp.telefono&&cmp.telefono.trim())h+='<div class="vr-ln">📞 '+esc(cmp.telefono)+'</div>';
   if(cmp.email)h+='<div class="vr-ln">✉️ '+esc(cmp.email)+'</div>';
   if(linea(cmp))h+='<div class="vr-ln">📍 '+esc(linea(cmp))+'</div>';
+  h+=docsHTML(v.compradorDocs);
   h+='</div>';
   h+='<div class="vr-blk"><div class="vr-lbl">📦 Recibe</div>';
   if(rec){h+='<div class="vr-nm">'+esc(((rec.nombre||'')+' '+(rec.apellido||'')).trim()||'—')+'</div>';
     if(rec.telefono&&rec.telefono.trim())h+='<div class="vr-ln">📞 '+esc(rec.telefono)+'</div>';
     if(linea(rec))h+='<div class="vr-ln">📍 '+esc(linea(rec))+'</div>';
+    h+=docsHTML(v.receptorDocs);
   }else{h+='<div class="vr-ln" style="opacity:.7">Pendiente de cargar</div>';}
   h+='</div>';
   h+='<div class="vr-blk"><div class="vr-lbl">🛒 Productos</div>';
@@ -1249,6 +1277,26 @@ function ventaResumenHTML(c){
   h+='<div class="vr-ln" style="margin-top:5px">Total: <b>$'+_money(v.total||0)+'</b></div>';
   h+='</div></div>';
   return h;
+}
+// Cache de imágenes de documentos (blob) — se cargan con la sesión, no van dentro de clientes.json
+const _docBlobs={};
+function hydrateVentaDocs(){
+  document.querySelectorAll('img.vr-doc[data-doc]').forEach(img=>{
+    if(img.dataset.loaded)return;
+    const id=img.getAttribute('data-doc');
+    img.dataset.loaded='1';
+    if(_docBlobs[id]){img.src=_docBlobs[id];return;}
+    api('/api/vdoc?id='+encodeURIComponent(id)).then(r=>r.ok?r.blob():null).then(b=>{
+      if(!b)return;const url=URL.createObjectURL(b);_docBlobs[id]=url;
+      const el=document.querySelector('img.vr-doc[data-doc="'+id+'"]');if(el)el.src=url;
+    }).catch(()=>{});
+  });
+}
+function verDoc(id){
+  const src=_docBlobs[id];if(!src)return;
+  const ov=document.createElement('div');ov.className='doc-lb';ov.onclick=()=>ov.remove();
+  ov.innerHTML='<img src="'+src+'"><button class="doc-lb-x">✕</button>';
+  document.body.appendChild(ov);
 }
 /* ---- ELIMINAR / PAPELERA ---- */
 function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c||RO())return;

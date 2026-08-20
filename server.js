@@ -24,6 +24,9 @@ if(process.env.ADMIN_CHAT_ID)CFG.allowedChatId=Number(process.env.ADMIN_CHAT_ID)
 CFG.telegramBotUser=process.env.TELEGRAM_BOT_USER||CFG.telegramBotUser||'RidersCRM_bot';
 CFG.port=CFG.port||8790;
 const DATA=path.join(DATA_DIR,'clientes.json');
+// Documentos de ventas (fotos de licencias / carnets). Se guardan como archivos, no dentro de clientes.json.
+const VDOCS=path.join(DATA_DIR,'vdocs');
+try{if(!fs.existsSync(VDOCS))fs.mkdirSync(VDOCS,{recursive:true});}catch(e){}
 // WhatsApp Cloud API (Meta): token para verificar el webhook y mapeo número→vendedor.
 const WA_VERIFY=process.env.WHATSAPP_VERIFY_TOKEN||'riders-crm-verify';
 const WAMAPPATH=path.join(DATA_DIR,'wamap.json');
@@ -520,6 +523,26 @@ http.createServer((req,res)=>{
       json(200,{ok:true,data:{nombre:clean('nombre'),apellido:clean('apellido'),direccion:clean('direccion'),apt:clean('apt'),ciudad:clean('ciudad'),estado:clean('estado')}});
     }).catch(()=>json(200,{ok:false,reason:'Error escaneando el documento.'}));
   });
+
+  // Guardar la foto de un documento de venta (licencia / carnet) como archivo
+  if(u==='/api/venta-doc'&&req.method==='POST')return readBody(b=>{
+    if(!b||!b.data)return json(400,{error:'sin imagen'});
+    try{
+      const buf=Buffer.from(String(b.data),'base64');
+      if(!buf.length||buf.length>6*1024*1024)return json(413,{error:'tamaño inválido'});
+      const id=crypto.randomBytes(12).toString('hex')+'.jpg';
+      fs.writeFileSync(path.join(VDOCS,id),buf);
+      json(200,{ok:true,id});
+    }catch(e){json(500,{error:'no se pudo guardar'});}
+  });
+  // Servir la foto de un documento (requiere sesión — es info sensible)
+  if(u==='/api/vdoc'&&req.method==='GET'){
+    const qp=new URLSearchParams(req.url.split('?')[1]||'');
+    const id=String(qp.get('id')||'');
+    if(!/^[a-f0-9]{24}\.jpg$/.test(id))return json(400,{error:'id'});
+    try{const buf=fs.readFileSync(path.join(VDOCS,id));res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=86400'});return res.end(buf);}catch(e){res.writeHead(404);return res.end('no');}
+  }
+
   if(u==='/api/push/test'&&req.method==='POST'){
     if(!webpush)return json(200,{ok:false,reason:'El servidor no tiene el push habilitado.'});
     const uu=loadUsers().find(x=>x.id===me.id),subs=(uu&&uu.pushSubs)||[];
