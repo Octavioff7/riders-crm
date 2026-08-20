@@ -224,6 +224,7 @@
   .v-rows{display:flex;flex-direction:column;gap:9px}
   .v-card{background:var(--bg);border:1px solid var(--sep);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:7px}
   .v-full{width:100%}
+  .v-lbl-sm{font-size:11.5px;font-weight:600;color:var(--muted);margin-top:2px}
   .v-prow{display:flex;gap:7px;align-items:center}
   .v-prow select{flex:1;min-width:0}
   .v-prow input{flex:1;min-width:0}
@@ -1068,8 +1069,9 @@ async function guardarNuevoCliente(){
 }
 /* ===== CARGAR VENTA — wizard de 3 pasos con escaneo de documentos por IA ===== */
 let _venta=null;
-const _VMET=[['cash','Cash'],['zelle','Zelle'],['debito','Débito'],['credito','Crédito'],['financiado','Financiado']];
-const _VMETLBL={cash:'Cash',zelle:'Zelle',debito:'Débito',credito:'Crédito',financiado:'Financiado'};
+const _VMET=[['cash','Cash'],['zelle','Zelle'],['debito','Tarjeta de Débito'],['credito','Tarjeta de Crédito'],['financiado','Financiado']];
+const _VMETLBL={cash:'Cash',zelle:'Zelle',debito:'Tarjeta de Débito',credito:'Tarjeta de Crédito',financiado:'Financiado'};
+const _FINANCIERAS=['US BANK CARITAS','US BANK EVERLY','KIWIPAY (FL)','ÁCIMA','KAFENE (FL)','PROGRESSIVE','KOALAFI','SNAP','AFF','EASYPAY (FL)'];
 function abrirCargarVenta(){
   if(RO())return;
   cerrarModal();cerrarVenta();
@@ -1080,7 +1082,7 @@ function abrirCargarVenta(){
     receptor:{nombre:'',apellido:'',carnet:'',telefono:'',direccion:'',apt:'',ciudad:'',estado:''},
     receptorImgs:[],
     productos:[{producto:'Moto',color:'',detalle:'',precio:''}],
-    pagos:[{metodo:'cash',monto:'',comprobante:null}]};
+    pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null}]};
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-venta';
   wrap.innerHTML='<div class="modal venta-modal"><div class="modal-h"><b>Cargar venta</b><button class="mini" onclick="cerrarVenta()">✕</button></div><div class="venta-steps" id="venta-steps"></div><div class="modal-b" id="venta-body"></div><div class="modal-f" id="venta-foot"></div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarVenta();};
@@ -1191,10 +1193,16 @@ function _ventaStep3(){
   h+='<div class="v-sec-t" style="margin-top:15px">💳 Pagos <span>(se pueden dividir)</span></div><div class="v-rows">';
   _venta.pagos.forEach((p,i)=>{
     const adjuntable=['zelle','debito','credito'].indexOf(p.metodo)>=0;
+    const esFin=p.metodo==='financiado';
     h+='<div class="v-card">'
       +'<div class="v-prow"><select onchange="_venta.pagos['+i+'].metodo=this.value;_ventaRender()">'+_VMET.map(m=>'<option value="'+m[0]+'"'+(m[0]===p.metodo?' selected':'')+'>'+m[1]+'</option>').join('')+'</select>'
       +'<input class="v-price" placeholder="Monto $" inputmode="decimal" value="'+esc(p.monto)+'" oninput="_venta.pagos['+i+'].monto=this.value;_ventaTot()">'
       +(_venta.pagos.length>1?'<button class="v-del" onclick="_ventaDelPago('+i+')">✕</button>':'<span class="v-del-sp"></span>')+'</div>';
+    if(esFin){
+      h+='<select class="v-full" onchange="_venta.pagos['+i+'].financiera=this.value"><option value="">— Elegí la financiera —</option>'
+        +_FINANCIERAS.map(f=>'<option'+(f===p.financiera?' selected':'')+'>'+f+'</option>').join('')+'</select>';
+    }
+    h+='<label class="v-lbl-sm">📅 Fecha del pago</label><input type="date" class="v-full" value="'+esc(p.fecha||'')+'" oninput="_venta.pagos['+i+'].fecha=this.value">';
     if(adjuntable){
       if(p.comprobante){
         h+='<div class="v-comp has"><img src="data:'+p.comprobante.mime+';base64,'+p.comprobante.data+'"><span>✅ Comprobante adjunto</span><button class="v-comp-x" onclick="_pagoCompDel('+i+')">✕</button></div>';
@@ -1226,8 +1234,8 @@ function _ventaTotHTML(){
 function _ventaTot(){const el=document.getElementById('v-tot');if(el)el.innerHTML=_ventaTotHTML();}
 function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',precio:''});_ventaRender();}
 function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',precio:''});_ventaRender();}
-function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',comprobante:null});_ventaRender();}
-function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:'',comprobante:null});_ventaRender();}
+function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
+function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
 async function _subirDocs(imgs){
   const out=[];
   for(const im of (imgs||[])){
@@ -1259,7 +1267,7 @@ async function guardarVenta(){
   for(const p of pagos){
     let compId=null;
     if(p.comprobante&&p.comprobante.data){const ids=await _subirDocs([p.comprobante]);compId=ids[0]||null;}
-    pagosOut.push({metodo:p.metodo,monto:parseFloat(p.monto)||0,comprobante:compId});
+    pagosOut.push({metodo:p.metodo,monto:parseFloat(p.monto)||0,fecha:p.fecha||'',financiera:(p.metodo==='financiado'?(p.financiera||''):''),comprobante:compId});
   }
   const venta={
     compradorDocs,receptorDocs,
@@ -1309,7 +1317,8 @@ function ventaResumenHTML(c){
   h+='<div class="vr-blk"><div class="vr-lbl">🛒 Productos</div>';
   (v.productos||[]).forEach(p=>{h+='<div class="vr-ln">• '+esc(p.producto)+(p.color?' <span style="opacity:.7">('+esc(p.color)+')</span>':'')+' — <b>$'+_money(p.precio)+'</b>'+(p.detalle?'<div class="vr-sub">'+esc(p.detalle)+'</div>':'')+'</div>';});
   if(v.pagos&&v.pagos.length){
-    h+='<div class="vr-ln" style="margin-top:5px">💳 '+v.pagos.map(p=>esc(_VMETLBL[p.metodo]||p.metodo)+' $'+_money(p.monto)).join(' + ')+'</div>';
+    h+='<div class="vr-ln" style="margin-top:5px">💳 Pagos:</div>';
+    v.pagos.forEach(p=>{h+='<div class="vr-ln" style="margin-left:12px">• '+esc(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' <span style="opacity:.7">— '+esc(p.financiera)+'</span>':'')+' <b>$'+_money(p.monto)+'</b>'+(p.fecha?' <span style="opacity:.7">· '+(typeof fmtFecha==='function'?fmtFecha(p.fecha):esc(p.fecha))+'</span>':'')+'</div>';});
     const comps=v.pagos.filter(p=>p.comprobante);
     if(comps.length)h+='<div class="vr-lbl" style="margin-top:7px">Comprobantes</div>'+docsHTML(comps.map(p=>p.comprobante));
   }
