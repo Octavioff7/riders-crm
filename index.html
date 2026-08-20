@@ -190,7 +190,7 @@
   .modal-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--sep)}
   /* ---- Wizard Cargar venta ---- */
   .head-btns{display:flex;gap:8px;flex-wrap:wrap}
-  .venta-modal{width:480px;display:flex;flex-direction:column;max-height:92vh}
+  .venta-modal{width:min(480px,calc(100vw - 32px));display:flex;flex-direction:column;max-height:92vh}
   .venta-modal .modal-b{overflow-y:auto}
   .venta-steps{display:flex;align-items:center;gap:6px;padding:12px 18px;border-bottom:1px solid var(--sep)}
   .vstep{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12.5px;font-weight:600}
@@ -221,11 +221,20 @@
   .v-hint{background:var(--bg);border-radius:10px;padding:14px;font-size:13px;color:var(--muted);line-height:1.5}
   .v-sec-t{font-size:13px;font-weight:700;color:var(--txt);margin-bottom:8px}
   .v-sec-t span{font-weight:500;color:var(--muted);font-size:12px}
-  .v-rows{display:flex;flex-direction:column;gap:8px}
+  .v-rows{display:flex;flex-direction:column;gap:9px}
+  .v-card{background:var(--bg);border:1px solid var(--sep);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:7px}
+  .v-full{width:100%}
   .v-prow{display:flex;gap:7px;align-items:center}
   .v-prow select{flex:1;min-width:0}
   .v-prow input{flex:1;min-width:0}
   .v-prow input.v-price{flex:none;width:96px}
+  .v-comp{display:flex;align-items:center;gap:8px;justify-content:center;border:1px dashed var(--sep-strong);border-radius:8px;padding:9px;font-size:12.5px;font-weight:600;color:var(--accent);cursor:pointer}
+  .v-comp:hover{background:var(--card)}
+  .v-comp.has{color:var(--txt);border-style:solid;cursor:default;justify-content:flex-start}
+  .v-comp img{width:40px;height:30px;object-fit:cover;border-radius:5px;flex:none}
+  .v-comp span{flex:1}
+  .v-comp-x{flex:none;width:26px;height:26px;border:none;border-radius:6px;background:var(--sep);color:var(--muted);cursor:pointer;font-size:12px}
+  .v-comp-x:hover{color:#c0392b}
   .v-del{flex:none;width:30px;height:34px;border:1px solid var(--sep-strong);border-radius:8px;background:var(--card);color:var(--muted);cursor:pointer;font-size:13px}
   .v-del:hover{color:#c0392b;border-color:#c0392b}
   .v-del-sp{flex:none;width:30px}
@@ -241,6 +250,7 @@
   .vr-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
   .vr-nm{font-size:14px;font-weight:600}
   .vr-ln{font-size:13px;color:var(--txt);line-height:1.5}
+  .vr-sub{font-size:12px;color:var(--muted);margin-left:12px;line-height:1.4}
   .vr-docs{display:flex;gap:8px;margin-top:7px;flex-wrap:wrap}
   .vr-doc{width:96px;height:62px;object-fit:cover;border:1px solid var(--sep-strong);border-radius:8px;cursor:pointer;background:var(--bg)}
   .vr-doc:hover{border-color:var(--accent)}
@@ -1063,13 +1073,13 @@ function abrirCargarVenta(){
   if(RO())return;
   cerrarModal();cerrarVenta();
   _venta={step:1,
-    comprador:{nombre:'',apellido:'',telefono:'+1 ',email:'',direccion:'',apt:'',ciudad:'',estado:''},
+    comprador:{nombre:'',apellido:'',telefono:'+1 ',email:'',direccion:'',apt:'',ciudad:'',estado:'',codigoPostal:''},
     compradorImgs:[],
     receptorModo:'ahora',
-    receptor:{nombre:'',apellido:'',telefono:'',direccion:'',apt:'',ciudad:'',estado:''},
+    receptor:{nombre:'',apellido:'',carnet:'',telefono:'',direccion:'',apt:'',ciudad:'',estado:''},
     receptorImgs:[],
-    productos:[{producto:'Moto',color:'',precio:''}],
-    pagos:[{metodo:'cash',monto:''}]};
+    productos:[{producto:'Moto',color:'',detalle:'',precio:''}],
+    pagos:[{metodo:'cash',monto:'',comprobante:null}]};
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-venta';
   wrap.innerHTML='<div class="modal venta-modal"><div class="modal-h"><b>Cargar venta</b><button class="mini" onclick="cerrarVenta()">✕</button></div><div class="venta-steps" id="venta-steps"></div><div class="modal-b" id="venta-body"></div><div class="modal-f" id="venta-foot"></div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarVenta();};
@@ -1125,7 +1135,8 @@ async function _scan(who){
     const j=await r.json();
     if(j&&j.ok&&j.data){
       const tgt=who==='receptor'?_venta.receptor:_venta.comprador;
-      ['nombre','apellido','direccion','apt','ciudad','estado'].forEach(k=>{if(j.data[k])tgt[k]=j.data[k];});
+      const campos=who==='receptor'?['nombre','apellido','carnet','direccion','apt','ciudad','estado']:['nombre','apellido','direccion','apt','ciudad','estado','codigoPostal'];
+      campos.forEach(k=>{if(j.data[k])tgt[k]=j.data[k];});
       _ventaRender();
       const m2=document.getElementById('scan-msg-'+who);if(m2){m2.textContent='✅ Datos autocompletados — revisalos.';m2.className='scan-msg ok';}
     }else{
@@ -1147,7 +1158,7 @@ function _ventaStep1(){
    +'<div class="row2"><div><label>Teléfono</label><input value="'+esc(c.telefono)+'" inputmode="tel" oninput="this.value=fmtTel(this.value);_venta.comprador.telefono=this.value"></div><div><label>Correo electrónico</label><input value="'+esc(c.email)+'" inputmode="email" oninput="_venta.comprador.email=this.value"></div></div>'
    +'<label>Dirección</label><input value="'+esc(c.direccion)+'" oninput="_venta.comprador.direccion=this.value">'
    +'<div class="row2"><div><label>Apt / Unidad</label><input value="'+esc(c.apt)+'" oninput="_venta.comprador.apt=this.value"></div><div><label>Ciudad</label><input value="'+esc(c.ciudad)+'" oninput="_venta.comprador.ciudad=this.value"></div></div>'
-   +'<label>Estado</label><input value="'+esc(c.estado)+'" oninput="_venta.comprador.estado=this.value">';
+   +'<div class="row2"><div><label>Estado</label><input value="'+esc(c.estado)+'" oninput="_venta.comprador.estado=this.value"></div><div><label>Código postal</label><input value="'+esc(c.codigoPostal)+'" inputmode="numeric" oninput="_venta.comprador.codigoPostal=this.value"></div></div>';
 }
 function _ventaStep2(){
   const modo=_venta.receptorModo;
@@ -1159,7 +1170,7 @@ function _ventaStep2(){
    +'<button class="btn scan-btn" id="scan-receptor" onclick="_scan(\'receptor\')" '+(has?'':'disabled')+'>✨ Escanear y autocompletar</button>'
    +'<div class="scan-msg" id="scan-msg-receptor"></div></div>'
    +'<div class="row2"><div><label>Nombre</label><input value="'+esc(c.nombre)+'" oninput="_venta.receptor.nombre=this.value"></div><div><label>Apellido</label><input value="'+esc(c.apellido)+'" oninput="_venta.receptor.apellido=this.value"></div></div>'
-   +'<label>Teléfono</label><input value="'+esc(c.telefono)+'" inputmode="tel" oninput="_venta.receptor.telefono=this.value">'
+   +'<div class="row2"><div><label>N° de carnet</label><input value="'+esc(c.carnet)+'" oninput="_venta.receptor.carnet=this.value"></div><div><label>Teléfono</label><input value="'+esc(c.telefono)+'" inputmode="tel" oninput="_venta.receptor.telefono=this.value"></div></div>'
    +'<label>Dirección</label><input value="'+esc(c.direccion)+'" oninput="_venta.receptor.direccion=this.value">'
    +'<div class="row2"><div><label>Apt / Unidad</label><input value="'+esc(c.apt)+'" oninput="_venta.receptor.apt=this.value"></div><div><label>Ciudad</label><input value="'+esc(c.ciudad)+'" oninput="_venta.receptor.ciudad=this.value"></div></div>'
    +'<label>Estado</label><input value="'+esc(c.estado)+'" oninput="_venta.receptor.estado=this.value">';
@@ -1167,22 +1178,37 @@ function _ventaStep2(){
 function _ventaStep3(){
   let h='<div class="v-sec-t">🛒 Productos vendidos</div><div class="v-rows">';
   _venta.productos.forEach((p,i)=>{
-    h+='<div class="v-prow"><select onchange="_venta.productos['+i+'].producto=this.value">'+PRODUCTOS.map(x=>'<option'+(x===p.producto?' selected':'')+'>'+x+'</option>').join('')+'</select>'
-      +'<input placeholder="Color (opcional)" value="'+esc(p.color)+'" oninput="_venta.productos['+i+'].color=this.value">'
+    h+='<div class="v-card">'
+      +'<div class="v-prow"><select onchange="_venta.productos['+i+'].producto=this.value">'+PRODUCTOS.map(x=>'<option'+(x===p.producto?' selected':'')+'>'+x+'</option>').join('')+'</select>'
       +'<input class="v-price" placeholder="Precio $" inputmode="decimal" value="'+esc(p.precio)+'" oninput="_venta.productos['+i+'].precio=this.value;_ventaTot()">'
-      +(_venta.productos.length>1?'<button class="v-del" onclick="_ventaDelProd('+i+')">✕</button>':'<span class="v-del-sp"></span>')+'</div>';
+      +(_venta.productos.length>1?'<button class="v-del" onclick="_ventaDelProd('+i+')">✕</button>':'<span class="v-del-sp"></span>')+'</div>'
+      +'<input class="v-full" placeholder="Color (opcional)" value="'+esc(p.color)+'" oninput="_venta.productos['+i+'].color=this.value">'
+      +'<input class="v-full" placeholder="Detalle del producto (opcional)" value="'+esc(p.detalle)+'" oninput="_venta.productos['+i+'].detalle=this.value">'
+      +'</div>';
   });
   h+='</div><button class="v-add" onclick="_ventaAddProd()">＋ Agregar producto</button>';
   h+='<div class="v-sec-t" style="margin-top:15px">💳 Pagos <span>(se pueden dividir)</span></div><div class="v-rows">';
   _venta.pagos.forEach((p,i)=>{
-    h+='<div class="v-prow"><select onchange="_venta.pagos['+i+'].metodo=this.value">'+_VMET.map(m=>'<option value="'+m[0]+'"'+(m[0]===p.metodo?' selected':'')+'>'+m[1]+'</option>').join('')+'</select>'
+    const adjuntable=['zelle','debito','credito'].indexOf(p.metodo)>=0;
+    h+='<div class="v-card">'
+      +'<div class="v-prow"><select onchange="_venta.pagos['+i+'].metodo=this.value;_ventaRender()">'+_VMET.map(m=>'<option value="'+m[0]+'"'+(m[0]===p.metodo?' selected':'')+'>'+m[1]+'</option>').join('')+'</select>'
       +'<input class="v-price" placeholder="Monto $" inputmode="decimal" value="'+esc(p.monto)+'" oninput="_venta.pagos['+i+'].monto=this.value;_ventaTot()">'
       +(_venta.pagos.length>1?'<button class="v-del" onclick="_ventaDelPago('+i+')">✕</button>':'<span class="v-del-sp"></span>')+'</div>';
+    if(adjuntable){
+      if(p.comprobante){
+        h+='<div class="v-comp has"><img src="data:'+p.comprobante.mime+';base64,'+p.comprobante.data+'"><span>✅ Comprobante adjunto</span><button class="v-comp-x" onclick="_pagoCompDel('+i+')">✕</button></div>';
+      }else{
+        h+='<label class="v-comp"><input type="file" accept="image/*" style="display:none" onchange="_pagoCompPick('+i+',this)">📎 Adjuntar comprobante</label>';
+      }
+    }
+    h+='</div>';
   });
   h+='</div><button class="v-add" onclick="_ventaAddPago()">＋ Agregar pago</button>';
   h+='<div class="v-tot" id="v-tot">'+_ventaTotHTML()+'</div>';
   return h;
 }
+async function _pagoCompPick(i,input){const f=input.files&&input.files[0];if(!f)return;try{_venta.pagos[i].comprobante=await _fileToScaled(f);_ventaRender();}catch(e){alert('No pude leer la imagen.');}}
+function _pagoCompDel(i){_venta.pagos[i].comprobante=null;_ventaRender();}
 function _ventaSum(arr,key){return arr.reduce((s,x)=>s+(parseFloat(x[key])||0),0);}
 function _money(n){n=Math.round((n||0)*100)/100;return n.toLocaleString('en-US',{minimumFractionDigits:(n%1?2:0),maximumFractionDigits:2});}
 function _ventaTotHTML(){
@@ -1197,10 +1223,10 @@ function _ventaTotHTML(){
   return s;
 }
 function _ventaTot(){const el=document.getElementById('v-tot');if(el)el.innerHTML=_ventaTotHTML();}
-function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',precio:''});_ventaRender();}
-function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',precio:''});_ventaRender();}
-function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:''});_ventaRender();}
-function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:''});_ventaRender();}
+function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',precio:''});_ventaRender();}
+function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',precio:''});_ventaRender();}
+function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',comprobante:null});_ventaRender();}
+function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:'',comprobante:null});_ventaRender();}
 async function _subirDocs(imgs){
   const out=[];
   for(const im of (imgs||[])){
@@ -1227,13 +1253,20 @@ async function guardarVenta(){
   // Guardar las fotos de los documentos como archivos (para verlas desde dueño/supervisor/admin)
   const compradorDocs=await _subirDocs(_venta.compradorImgs);
   const receptorDocs=(_venta.receptorModo==='ahora')?await _subirDocs(_venta.receptorImgs):[];
+  // Subir comprobantes de pago (Zelle / tarjeta)
+  const pagosOut=[];
+  for(const p of pagos){
+    let compId=null;
+    if(p.comprobante&&p.comprobante.data){const ids=await _subirDocs([p.comprobante]);compId=ids[0]||null;}
+    pagosOut.push({metodo:p.metodo,monto:parseFloat(p.monto)||0,comprobante:compId});
+  }
   const venta={
     compradorDocs,receptorDocs,
-    comprador:{nombre:cmp.nombre,apellido:cmp.apellido,telefono:cmp.telefono,email:cmp.email,direccion:cmp.direccion,apt:cmp.apt,ciudad:cmp.ciudad,estado:cmp.estado},
-    receptor:(rec&&!recVacio)?{nombre:rec.nombre,apellido:rec.apellido,telefono:rec.telefono,direccion:rec.direccion,apt:rec.apt,ciudad:rec.ciudad,estado:rec.estado}:null,
+    comprador:{nombre:cmp.nombre,apellido:cmp.apellido,telefono:cmp.telefono,email:cmp.email,direccion:cmp.direccion,apt:cmp.apt,ciudad:cmp.ciudad,estado:cmp.estado,codigoPostal:cmp.codigoPostal},
+    receptor:(rec&&!recVacio)?{nombre:rec.nombre,apellido:rec.apellido,carnet:rec.carnet,telefono:rec.telefono,direccion:rec.direccion,apt:rec.apt,ciudad:rec.ciudad,estado:rec.estado}:null,
     receptorPendiente:_venta.receptorModo==='despues'||recVacio,
-    productos:prods.map(p=>({producto:p.producto,color:(p.color||'').trim(),precio:parseFloat(p.precio)||0})),
-    pagos:pagos.map(p=>({metodo:p.metodo,monto:parseFloat(p.monto)||0})),
+    productos:prods.map(p=>({producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),precio:parseFloat(p.precio)||0})),
+    pagos:pagosOut,
     total};
   const resumen=venta.productos.map(p=>'• '+p.producto+(p.color?' ('+p.color+')':'')+' — $'+_money(p.precio)).join('\n')
     +(venta.pagos.length?('\nPagos: '+venta.pagos.map(p=>_VMETLBL[p.metodo]+' $'+_money(p.monto)).join(' + ')):'');
@@ -1251,7 +1284,7 @@ async function guardarVenta(){
 function ventaResumenHTML(c){
   const v=c.venta;if(!v)return '';
   const cmp=v.comprador||{},rec=v.receptor;
-  const linea=o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.estado].filter(Boolean).join(', ');
+  const linea=o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.estado,o.codigoPostal].filter(Boolean).join(', ');
   const docsHTML=arr=>{
     if(!arr||!arr.length)return '';
     return '<div class="vr-docs">'+arr.map(id=>'<img class="vr-doc" data-doc="'+esc(id)+'" alt="documento" onclick="verDoc(\''+esc(id)+'\')">').join('')+'</div>';
@@ -1266,14 +1299,19 @@ function ventaResumenHTML(c){
   h+='</div>';
   h+='<div class="vr-blk"><div class="vr-lbl">📦 Recibe</div>';
   if(rec){h+='<div class="vr-nm">'+esc(((rec.nombre||'')+' '+(rec.apellido||'')).trim()||'—')+'</div>';
+    if(rec.carnet&&rec.carnet.trim())h+='<div class="vr-ln">🪪 Carnet: '+esc(rec.carnet)+'</div>';
     if(rec.telefono&&rec.telefono.trim())h+='<div class="vr-ln">📞 '+esc(rec.telefono)+'</div>';
     if(linea(rec))h+='<div class="vr-ln">📍 '+esc(linea(rec))+'</div>';
     h+=docsHTML(v.receptorDocs);
   }else{h+='<div class="vr-ln" style="opacity:.7">Pendiente de cargar</div>';}
   h+='</div>';
   h+='<div class="vr-blk"><div class="vr-lbl">🛒 Productos</div>';
-  (v.productos||[]).forEach(p=>{h+='<div class="vr-ln">• '+esc(p.producto)+(p.color?' <span style="opacity:.7">('+esc(p.color)+')</span>':'')+' — <b>$'+_money(p.precio)+'</b></div>';});
-  if(v.pagos&&v.pagos.length){h+='<div class="vr-ln" style="margin-top:5px">💳 '+v.pagos.map(p=>esc(_VMETLBL[p.metodo]||p.metodo)+' $'+_money(p.monto)).join(' + ')+'</div>';}
+  (v.productos||[]).forEach(p=>{h+='<div class="vr-ln">• '+esc(p.producto)+(p.color?' <span style="opacity:.7">('+esc(p.color)+')</span>':'')+' — <b>$'+_money(p.precio)+'</b>'+(p.detalle?'<div class="vr-sub">'+esc(p.detalle)+'</div>':'')+'</div>';});
+  if(v.pagos&&v.pagos.length){
+    h+='<div class="vr-ln" style="margin-top:5px">💳 '+v.pagos.map(p=>esc(_VMETLBL[p.metodo]||p.metodo)+' $'+_money(p.monto)).join(' + ')+'</div>';
+    const comps=v.pagos.filter(p=>p.comprobante);
+    if(comps.length)h+='<div class="vr-lbl" style="margin-top:7px">Comprobantes</div>'+docsHTML(comps.map(p=>p.comprobante));
+  }
   h+='<div class="vr-ln" style="margin-top:5px">Total: <b>$'+_money(v.total||0)+'</b></div>';
   h+='</div></div>';
   return h;
