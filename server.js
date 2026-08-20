@@ -130,6 +130,7 @@ function procesarWebhook(body){
       const contacts=v.contacts||[];
       for(const m of (v.messages||[])){
         if(!m||m.type==='reaction'||m.type==='system')continue;
+        if(!m.referral)continue; // SOLO leads que vienen de un anuncio (Click-to-WhatsApp). Ignora chats normales, grupos, etc.
         const from=m.from||'';const dig=String(from).replace(/\D/g,'');if(dig.length<6)continue;
         const ct=contacts.find(x=>x.wa_id===from)||{};const nombre=(ct.profile&&ct.profile.name)||('+'+dig);
         const texto=m.text?m.text.body:(m.button?m.button.text:(m.interactive&&m.interactive.button_reply?m.interactive.button_reply.title:('['+(m.type||'mensaje')+']')));
