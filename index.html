@@ -256,6 +256,13 @@
   .v-tot{margin-top:14px;padding:11px 14px;background:var(--bg);border-radius:10px;font-size:14px;text-align:right}
   .v-tot .v-warn{color:#e67e22;font-size:12.5px;font-weight:600}
   .v-tot .v-ok{color:#248a3d}
+  .v-calc{margin-top:10px;padding:12px 14px;background:#34c7591a;border:1px solid #34c75940;border-radius:10px}
+  .v-calc-t{font-size:12.5px;font-weight:700;color:var(--txt);margin-bottom:8px}
+  .v-calc-ln{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--txt);padding:3px 0;line-height:1.4}
+  .v-calc-ln .v-calc-x{color:var(--muted);font-size:11.5px}
+  .v-calc-tot{display:flex;justify-content:space-between;gap:10px;margin-top:7px;padding-top:8px;border-top:1px solid #34c75955;font-size:15px}
+  .v-calc-tot b{color:#248a3d}
+  .v-calc-note{font-size:11.5px;color:#e67e22;margin-top:6px}
   .vr-card{background:var(--card);border:1px solid var(--sep);border-radius:11px;padding:12px 13px;margin-bottom:12px}
   .vr-t{font-size:13px;font-weight:700;margin-bottom:9px}
   .vr-blk{padding:8px 0;border-top:1px solid var(--sep)}
@@ -1083,7 +1090,22 @@ async function guardarNuevoCliente(){
 let _venta=null;
 const _VMET=[['cash','Cash'],['zelle','Zelle'],['debito','Tarjeta de Débito'],['credito','Tarjeta de Crédito'],['financiado','Financiado']];
 const _VMETLBL={cash:'Cash',zelle:'Zelle',debito:'Tarjeta de Débito',credito:'Tarjeta de Crédito',financiado:'Financiado'};
-const _FINANCIERAS=['US BANK CARITAS','US BANK EVERLY','KIWIPAY (FL)','ÁCIMA','KAFENE (FL)','PROGRESSIVE','KOALAFI','SNAP','AFF','EASYPAY (FL)'];
+// Financieras: fee (%) y si la venta lleva 7% de taxes (CARITAS/ÁCIMA/EVERLY sí; las demás no)
+const _FIN=[
+  {n:'US BANK CARITAS',fee:0.04,tax:true},
+  {n:'US BANK EVERLY',fee:0.08,tax:true},
+  {n:'KIWIPAY (FL)',fee:0.18,tax:false},
+  {n:'ÁCIMA',fee:0,tax:true},
+  {n:'KAFENE (FL)',fee:0.10,tax:false},
+  {n:'PROGRESSIVE',fee:0.10,tax:false},
+  {n:'KOALAFI',fee:0.10,tax:false},
+  {n:'SNAP',fee:0.10,tax:false},
+  {n:'AFF',fee:0.15,tax:false},
+  {n:'EASYPAY (FL)',fee:0.10,tax:false}
+];
+const _FINANCIERAS=_FIN.map(f=>f.n);
+const _FINBY={};_FIN.forEach(f=>{_FINBY[f.n]=f;});
+const _pctLabel=f=>Math.round(f*100)+'%';
 function abrirCargarVenta(){
   if(RO())return;
   cerrarModal();cerrarVenta();
@@ -1225,6 +1247,7 @@ function _ventaStep3(){
   });
   h+='</div><button class="v-add" onclick="_ventaAddPago()">＋ Agregar pago</button>';
   h+='<div class="v-tot" id="v-tot">'+_ventaTotHTML()+'</div>';
+  h+='<div class="v-calc" id="v-calc">'+_ventaCalcHTML()+'</div>';
   return h;
 }
 async function _pagoCompPick(i,input){const f=input.files&&input.files[0];if(!f)return;try{_venta.pagos[i].comprobante=await _fileToScaled(f);_ventaRender();}catch(e){alert('No pude leer la imagen.');}}
@@ -1258,7 +1281,31 @@ function _ventaTotHTML(){
   }
   return s;
 }
-function _ventaTot(){const el=document.getElementById('v-tot');if(el)el.innerHTML=_ventaTotHTML();}
+function _ventaTot(){const el=document.getElementById('v-tot');if(el)el.innerHTML=_ventaTotHTML();const c=document.getElementById('v-calc');if(c)c.innerHTML=_ventaCalcHTML();}
+// Calcula lo que paga el cliente: por cada pago, base + (7% tax si la financiera lo lleva) + fee de la financiera
+function _ventaCalc(){
+  let base=0,tax=0,fee=0;const lineas=[];
+  _venta.pagos.forEach(p=>{
+    const m=parseFloat(p.monto)||0;let t=0,f=0,fin=null;
+    if(p.metodo==='financiado'&&p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?m*0.07:0;f=m*fin.fee;}
+    base+=m;tax+=t;fee+=f;lineas.push({p,m,t,f,fin,total:m+t+f});
+  });
+  return {base,tax,fee,total:base+tax+fee,lineas};
+}
+function _ventaCalcHTML(){
+  const c=_ventaCalc();
+  let h='<div class="v-calc-t">🧮 Total a cobrar al cliente</div>';
+  c.lineas.forEach(L=>{
+    if(!L.m)return;
+    const label=_VMETLBL[L.p.metodo]||L.p.metodo;
+    const fin=(L.p.metodo==='financiado'&&L.p.financiera)?' · '+L.p.financiera:'';
+    const extra=[];if(L.t)extra.push('+7% tax');if(L.f)extra.push('+'+_pctLabel(L.fin.fee)+' fee');
+    h+='<div class="v-calc-ln"><span>'+esc(label+fin)+' · $'+_money(L.m)+(extra.length?' <span class="v-calc-x">('+extra.join(' ')+')</span>':'')+'</span><b>$'+_money(L.total)+'</b></div>';
+  });
+  h+='<div class="v-calc-tot"><span>Total a cobrar</span><b>$'+_money(c.total)+'</b></div>';
+  if(_venta.pagos.some(p=>p.metodo==='financiado'&&!p.financiera))h+='<div class="v-calc-note">⚠️ Elegí la financiera para calcular su fee.</div>';
+  return h;
+}
 function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',precio:''});_ventaRender();}
 function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',precio:''});_ventaRender();}
 function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
@@ -1304,6 +1351,8 @@ async function guardarVenta(){
     productos:prods.map(p=>({producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),precio:parseFloat(p.precio)||0})),
     pagos:pagosOut,
     total};
+  const _calc=_ventaCalc();
+  venta.cobro={base:_calc.base,tax:_calc.tax,fee:_calc.fee,total:_calc.total};
   const resumen=venta.productos.map(p=>'• '+p.producto+(p.color?' ('+p.color+')':'')+' — $'+_money(p.precio)).join('\n')
     +(venta.pagos.length?('\nPagos: '+venta.pagos.map(p=>_VMETLBL[p.metodo]+' $'+_money(p.monto)).join(' + ')):'');
   const c={id:uid(),nombre,whatsapp:tel,email:cmp.email||'',
@@ -1349,7 +1398,11 @@ function ventaResumenHTML(c){
     const comps=v.pagos.filter(p=>p.comprobante);
     if(comps.length)h+='<div class="vr-lbl" style="margin-top:7px">Comprobantes</div>'+docsHTML(comps.map(p=>p.comprobante));
   }
-  h+='<div class="vr-ln" style="margin-top:5px">Total: <b>$'+_money(v.total||0)+'</b></div>';
+  h+='<div class="vr-ln" style="margin-top:5px">Total productos: <b>$'+_money(v.total||0)+'</b></div>';
+  if(v.cobro&&(v.cobro.tax||v.cobro.fee)){
+    h+='<div class="vr-ln" style="opacity:.8">Taxes: $'+_money(v.cobro.tax)+' · Fees: $'+_money(v.cobro.fee)+'</div>';
+    h+='<div class="vr-ln" style="margin-top:3px;font-size:14.5px">🧮 <b>Total a cobrar: $'+_money(v.cobro.total)+'</b></div>';
+  }
   h+='</div></div>';
   return h;
 }
