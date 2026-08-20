@@ -236,6 +236,9 @@
   .pick-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:none;border:none;border-radius:9px;padding:12px 13px;font-size:14.5px;color:var(--txt);cursor:pointer;font-family:inherit;text-align:left}
   .pick-row:hover{background:var(--bg)}
   .pick-row.on{background:rgba(0,122,255,.12);color:var(--accent);font-weight:600}
+  .pick-lbl{min-width:0}
+  .pick-right{display:flex;align-items:center;gap:8px;flex:none}
+  .pick-nota{color:var(--muted);font-size:12px;font-weight:400;white-space:nowrap}
   .pick-ck{color:var(--accent);flex:none}
   .v-prow{display:flex;gap:7px;align-items:center}
   .v-prow select{flex:1;min-width:0}
@@ -1092,16 +1095,16 @@ const _VMET=[['cash','Cash'],['zelle','Zelle'],['debito','Tarjeta de Débito'],[
 const _VMETLBL={cash:'Cash',zelle:'Zelle',debito:'Tarjeta de Débito',credito:'Tarjeta de Crédito',financiado:'Financiado'};
 // Financieras: fee (%) y si la venta lleva 7% de taxes (CARITAS/ÁCIMA/EVERLY sí; las demás no)
 const _FIN=[
-  {n:'US BANK CARITAS',fee:0.04,tax:true},
-  {n:'US BANK EVERLY',fee:0.08,tax:true},
-  {n:'KIWIPAY (FL)',fee:0.18,tax:false},
-  {n:'ÁCIMA',fee:0,tax:true},
-  {n:'KAFENE (FL)',fee:0.10,tax:false},
-  {n:'PROGRESSIVE',fee:0.10,tax:false},
-  {n:'KOALAFI',fee:0.10,tax:false},
-  {n:'SNAP',fee:0.10,tax:false},
-  {n:'AFF',fee:0.15,tax:false},
-  {n:'EASYPAY (FL)',fee:0.10,tax:false}
+  {n:'US BANK CARITAS',fee:0.04,tax:true,dias:'Todos los días'},
+  {n:'US BANK EVERLY',fee:0.08,tax:true,dias:'Todos los días'},
+  {n:'KIWIPAY (FL)',fee:0.18,tax:false,dias:'Todos los días'},
+  {n:'ÁCIMA',fee:0,tax:true,dias:'Lun a Mié'},
+  {n:'KAFENE (FL)',fee:0.10,tax:false,dias:'Mié a Vie'},
+  {n:'PROGRESSIVE',fee:0.10,tax:false,dias:'Lun a Mié'},
+  {n:'KOALAFI',fee:0.10,tax:false,dias:'Mié a Vie'},
+  {n:'SNAP',fee:0.10,tax:false,dias:'Lun a Mié'},
+  {n:'AFF',fee:0.15,tax:false,dias:'Mié a Vie'},
+  {n:'EASYPAY (FL)',fee:0.10,tax:false,dias:'Lun a Mié'}
 ];
 const _FINANCIERAS=_FIN.map(f=>f.n);
 const _FINBY={};_FIN.forEach(f=>{_FINBY[f.n]=f;});
@@ -1258,7 +1261,7 @@ function appPick(o){
   cerrarPick();
   const wrap=document.createElement('div');wrap.className='modal-back pick-back';wrap.id='modal-pick';
   wrap.innerHTML='<div class="modal pick-modal"><div class="modal-h"><b>'+esc(o.titulo||'Elegí')+'</b><button class="mini" onclick="cerrarPick()">✕</button></div><div class="pick-list">'
-    +(o.opciones||[]).map(op=>'<button type="button" class="pick-row'+(String(op.value)===String(o.actual)?' on':'')+'" data-v="'+esc(op.value)+'"><span>'+esc(op.label)+'</span>'+(String(op.value)===String(o.actual)?'<span class="pick-ck">✓</span>':'')+'</button>').join('')
+    +(o.opciones||[]).map(op=>'<button type="button" class="pick-row'+(String(op.value)===String(o.actual)?' on':'')+'" data-v="'+esc(op.value)+'"><span class="pick-lbl">'+esc(op.label)+'</span><span class="pick-right">'+(op.nota?'<span class="pick-nota">'+esc(op.nota)+'</span>':'')+(String(op.value)===String(o.actual)?'<span class="pick-ck">✓</span>':'')+'</span></button>').join('')
     +'</div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarPick();};
   document.body.appendChild(wrap);
@@ -1267,7 +1270,7 @@ function appPick(o){
 function cerrarPick(){const m=document.getElementById('modal-pick');if(m)m.remove();}
 function _pickProducto(i){appPick({titulo:'Producto',actual:_venta.productos[i].producto,opciones:PRODUCTOS.map(p=>({value:p,label:p})),onPick:v=>{_venta.productos[i].producto=v;_ventaRender();}});}
 function _pickMetodo(i){appPick({titulo:'Medio de pago',actual:_venta.pagos[i].metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_venta.pagos[i].metodo=v;_ventaRender();}});}
-function _pickFinanciera(i){appPick({titulo:'Elegí la financiera',actual:_venta.pagos[i].financiera||'',opciones:[{value:'',label:'— Sin especificar —'}].concat(_FINANCIERAS.map(f=>({value:f,label:f}))),onPick:v=>{_venta.pagos[i].financiera=v;_ventaRender();}});}
+function _pickFinanciera(i){appPick({titulo:'Elegí la financiera',actual:_venta.pagos[i].financiera||'',opciones:[{value:'',label:'— Sin especificar —'}].concat(_FIN.map(f=>({value:f.n,label:f.n,nota:f.dias}))),onPick:v=>{_venta.pagos[i].financiera=v;_ventaRender();}});}
 function _ventaSum(arr,key){return arr.reduce((s,x)=>s+(parseFloat(x[key])||0),0);}
 function _money(n){n=Math.round((n||0)*100)/100;return n.toLocaleString('en-US',{minimumFractionDigits:(n%1?2:0),maximumFractionDigits:2});}
 function _ventaTotHTML(){
@@ -1287,14 +1290,18 @@ function _ventaCalc(){
   let base=0,tax=0,fee=0;const lineas=[];
   _venta.pagos.forEach(p=>{
     const m=parseFloat(p.monto)||0;let t=0,f=0,fin=null;
-    if(p.metodo==='financiado'&&p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?m*0.07:0;f=m*fin.fee;}
+    if(p.metodo==='financiado'){
+      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?m*0.07:0;f=m*fin.fee;}
+    }else if(p.metodo==='zelle'||p.metodo==='debito'||p.metodo==='credito'){
+      t=m*0.07; // tarjeta/zelle: 7% de taxes (el cash no lleva)
+    }
     base+=m;tax+=t;fee+=f;lineas.push({p,m,t,f,fin,total:m+t+f});
   });
   return {base,tax,fee,total:base+tax+fee,lineas};
 }
 function _ventaCalcHTML(){
   const c=_ventaCalc();
-  let h='<div class="v-calc-t">🧮 Total a cobrar al cliente</div>';
+  let h='<div class="v-calc-t">Total a cobrar al cliente</div>';
   c.lineas.forEach(L=>{
     if(!L.m)return;
     const label=_VMETLBL[L.p.metodo]||L.p.metodo;
@@ -1401,7 +1408,7 @@ function ventaResumenHTML(c){
   h+='<div class="vr-ln" style="margin-top:5px">Total productos: <b>$'+_money(v.total||0)+'</b></div>';
   if(v.cobro&&(v.cobro.tax||v.cobro.fee)){
     h+='<div class="vr-ln" style="opacity:.8">Taxes: $'+_money(v.cobro.tax)+' · Fees: $'+_money(v.cobro.fee)+'</div>';
-    h+='<div class="vr-ln" style="margin-top:3px;font-size:14.5px">🧮 <b>Total a cobrar: $'+_money(v.cobro.total)+'</b></div>';
+    h+='<div class="vr-ln" style="margin-top:3px;font-size:14.5px"><b>Total a cobrar: $'+_money(v.cobro.total)+'</b></div>';
   }
   h+='</div></div>';
   return h;
