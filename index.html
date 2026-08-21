@@ -282,6 +282,10 @@
   .vf-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
   .vf-search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt)}
   .vf-selbtn{width:auto;min-width:190px;flex:none;background:var(--card);padding:10px 14px}
+  .dia-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .dia-chip{padding:8px 12px;border:1px solid var(--sep-strong);border-radius:20px;background:var(--bg);font-size:13px;cursor:pointer;font-family:inherit;color:var(--txt);min-width:46px}
+  .dia-chip:hover{border-color:var(--accent)}
+  .dia-chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .vf-chips{display:flex;gap:6px;flex-wrap:wrap}
   .vf-chip{padding:7px 13px;border:1px solid var(--sep-strong);border-radius:20px;background:var(--card);font-size:12.5px;cursor:pointer;font-family:inherit;color:var(--txt)}
   .vf-chip:hover{border-color:var(--accent)}
@@ -1869,17 +1873,31 @@ function renderFinancieras(){
   if(!_FIN.length)h+='<div class="faint" style="padding:8px 0">No hay financieras. Agregá una.</div>';
   main.innerHTML=h+'</div></div>';
 }
+const _DIAS_SEM=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+let _finDiasSel=[];
+function _parseDias(str){
+  str=(str||'').trim();
+  if(!str||/todos/i.test(str))return _DIAS_SEM.slice();
+  const norm=x=>({mie:'Mié',sab:'Sáb'}[x.toLowerCase()]||(x[0].toUpperCase()+x.slice(1).toLowerCase()));
+  const m=str.match(/(Lun|Mar|Mié|Mie|Jue|Vie|Sáb|Sab|Dom)\s+a\s+(Lun|Mar|Mié|Mie|Jue|Vie|Sáb|Sab|Dom)/i);
+  if(m){const a=_DIAS_SEM.indexOf(norm(m[1])),b=_DIAS_SEM.indexOf(norm(m[2]));if(a>=0&&b>=0&&a<=b)return _DIAS_SEM.slice(a,b+1);}
+  const found=_DIAS_SEM.filter(d=>str.indexOf(d)>=0);
+  return found.length?found:_DIAS_SEM.slice();
+}
+function _diasLabel(arr){return (arr&&arr.length===7)?'Todos los días':((arr&&arr.length)?_DIAS_SEM.filter(d=>arr.indexOf(d)>=0).join(', '):'—');}
+function _finDiaToggle(d){const i=_finDiasSel.indexOf(d);if(i>=0)_finDiasSel.splice(i,1);else _finDiasSel.push(d);document.querySelectorAll('.dia-chip').forEach(b=>b.classList.toggle('on',_finDiasSel.indexOf(b.dataset.d)>=0));}
+function _finDiaTodos(on){_finDiasSel=on?_DIAS_SEM.slice():[];document.querySelectorAll('.dia-chip').forEach(b=>b.classList.toggle('on',_finDiasSel.indexOf(b.dataset.d)>=0));}
 function _finModal(idx){
   const nw=idx<0;const f=nw?{n:'',fee:0,tax:false,dias:'Todos los días'}:_FIN[idx];
+  _finDiasSel=(f.diasSel&&f.diasSel.length)?f.diasSel.slice():_parseDias(f.dias);
   cerrarModal();
-  const DIAS=['Todos los días','Lun a Mié','Mié a Vie'];
-  const opts=DIAS.slice();if(f.dias&&DIAS.indexOf(f.dias)<0)opts.push(f.dias);
+  const chips=_DIAS_SEM.map(d=>'<button type="button" class="dia-chip'+(_finDiasSel.indexOf(d)>=0?' on':'')+'" data-d="'+d+'" onclick="_finDiaToggle(\''+d+'\')">'+d+'</button>').join('');
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
   wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(nw?'Agregar financiera':'Editar financiera')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
     +'<label>Nombre</label><input id="fin-n" value="'+esc(f.n)+'">'
     +'<label>Fee (%)</label><input id="fin-fee" type="number" inputmode="decimal" value="'+(Math.round((f.fee||0)*10000)/100)+'">'
     +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="fin-tax" style="width:auto;margin:0"'+(f.tax?' checked':'')+'> Lleva 7% de taxes</label>'
-    +'<label>Días que se puede usar</label><select id="fin-dias">'+opts.map(d=>'<option'+(f.dias===d?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select>'
+    +'<label>Días que se puede usar <button type="button" class="mini" style="float:right" onclick="_finDiaTodos('+(_finDiasSel.length===7?'false':'true')+')">'+(_finDiasSel.length===7?'Ninguno':'Todos')+'</button></label><div class="dia-chips">'+chips+'</div>'
     +'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="_finSave('+idx+')">Guardar</button></div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
   const n=document.getElementById('fin-n');if(n)n.focus();
@@ -1887,7 +1905,8 @@ function _finModal(idx){
 function _finSave(idx){
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const n=g('fin-n');if(!n){alert('Poné un nombre.');return;}
-  const item={n,fee:(parseFloat(g('fin-fee'))||0)/100,tax:document.getElementById('fin-tax').checked,dias:g('fin-dias')||'Todos los días'};
+  const sel=_DIAS_SEM.filter(d=>_finDiasSel.indexOf(d)>=0);
+  const item={n,fee:(parseFloat(g('fin-fee'))||0)/100,tax:document.getElementById('fin-tax').checked,dias:_diasLabel(sel),diasSel:sel};
   if(idx<0)_FIN.push(item);else _FIN[idx]=item;
   _finPersist();cerrarModal();render();
 }
