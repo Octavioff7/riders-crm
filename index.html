@@ -484,6 +484,7 @@
         <button data-view="anotar"><span class="ic" aria-hidden="true">📝</span><span class="lbl">Por anotar</span><span class="count" id="cnt-anotar"></span></button>
         <button data-view="vendidos"><span class="ic" aria-hidden="true">✅</span><span class="lbl">Vendidos</span><span class="count" id="cnt-vendidos"></span></button>
         <button data-view="papelera"><span class="ic" aria-hidden="true">🗑️</span><span class="lbl">Papelera</span><span class="count" id="cnt-papelera"></span></button>
+        <button class="owner-only" data-view="inicioAdmin"><span class="ic" aria-hidden="true">🏠</span><span class="lbl">Inicio</span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
         <button class="admin-only" data-view="ventas"><span class="ic" aria-hidden="true">🧾</span><span class="lbl">Ventas</span></button>
         <button class="admin-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
@@ -648,7 +649,7 @@ function render(){
   const navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
@@ -670,6 +671,7 @@ function render(){
   else if(view==='cuentas')renderCuentas();
   else if(view==='vendidos')renderVendidos();
   else if(view==='ventas')renderVentasAdmin();
+  else if(view==='inicioAdmin')renderInicioAdmin();
   else renderSeg();
   if(view!==_lastView){const el=main.firstElementChild;if(el)el.classList.add('anim-in');_lastView=view;}
 }
@@ -1633,6 +1635,53 @@ async function renderEquipo(){
   h+='</div></div>';
   main.innerHTML=h;
 }
+/* ---- INICIO ADMINISTRATIVO (landing de supervisor/dueño/admin) ---- */
+async function renderInicioAdmin(){
+  main.innerHTML='<div class="page"><h1>🏠 Inicio</h1><div class="sub">Cargando…</div></div>';
+  let data=[];try{data=await (await api('/api/metrics')).json();}catch(e){main.innerHTML='<div class="page"><h1>🏠 Inicio</h1><div class="sub">No pude cargar los datos.</div></div>';return;}
+  try{usuarios=await (await api('/api/users')).json();}catch(e){}
+  const money=v=>'$'+Number(v||0).toLocaleString('es-AR');
+  const T={vend:data.length,clientes:0,ventasTot:0,facturado:0,comision:0,ventasMes:0,nuevosMes:0,nuevosSem:0,plata:0,calientes:0,atrasados:0};
+  data.forEach(d=>{const m=d.metrics;T.clientes+=m.total;T.ventasTot+=(m.ventas||0);T.facturado+=(m.facturadoMes||0);T.comision+=(m.comisionMes||0);T.ventasMes+=(m.ventasMes||0);T.nuevosMes+=(m.nuevosMes||0);T.nuevosSem+=(m.nuevosSemana||0);T.plata+=(m.plata||0);T.calientes+=(m.calientes||0);T.atrasados+=(m.atrasados||0);});
+  const conv=T.clientes?Math.round(T.ventasTot/T.clientes*100):0;
+  const nombreMes=new Date().toLocaleDateString('es-AR',{month:'long'});
+  const kpi=(l,v,s,col)=>`<div class="okpi"><div class="ok-l">${l}</div><div class="ok-v"${col?' style="color:'+col+'"':''}>${v}</div><div class="ok-s">${s}</div></div>`;
+  const mini=(ic,n,l)=>`<div class="omini"><span class="om-ic">${ic}</span><span class="om-n">${n}</span><span class="om-l">${l}</span></div>`;
+  let h='<div class="page">';
+  h+='<div class="conv-head-row"><h1>🏠 Inicio</h1><div class="faint" style="font-size:12.5px">'+(me&&me.rol==='supervisor'?'Supervisor':me&&me.rol==='admin'?'Administrador':'Dueño')+' · '+fmtFecha(hoy())+'</div></div>';
+  h+='<div class="sub">Resumen del equipo · '+nombreMes+'</div>';
+  // KPIs administrativos: cuántos entran, cuántos cierran, plata
+  h+='<div class="owner-kpis">'+
+    kpi('📥 Leads nuevos',T.nuevosMes,'este mes · '+T.nuevosSem+' esta semana')+
+    kpi('✅ Ventas cerradas',T.ventasMes,'este mes','#248a3d')+
+    kpi('💵 Facturado',money(T.facturado),'este mes','#248a3d')+
+    kpi('📈 Conversión',conv+'%','ventas sobre total de clientes')+
+  '</div>';
+  h+='<div class="owner-mini">'+
+    mini('👥',T.clientes,'Clientes activos')+
+    mini('🧲',money(T.plata),'En pipeline')+
+    mini('💰',money(T.comision),'Comisiones del mes')+
+    mini('👨‍💼',T.vend,'Vendedores')+
+  '</div>';
+  // Resumen por vendedor (liviano, sin notas ni alertas): cuántos clientes, cuántos cierran
+  const rank=data.slice().sort((a,b)=>b.metrics.ventasMes-a.metrics.ventasMes||b.metrics.facturadoMes-a.metrics.facturadoMes);
+  h+='<div class="panelcard"><h3>Por vendedor <span class="muted" style="font-weight:500">· clientes y cierres del mes</span></h3>';
+  if(!rank.length)h+='<div class="faint" style="padding:6px 0 10px">Todavía no hay vendedores. Creá cuentas desde Equipo.</div>';
+  rank.forEach(d=>{const m=d.metrics;
+    h+=`<div class="frow" style="cursor:pointer" onclick="verVendedor('${d.user.id}')"><span class="av" style="width:34px;height:34px;background:${avColor(d.user.id)};font-size:12px">${iniciales(d.user.nombre)}</span>
+      <div style="flex:1;min-width:0"><b>${esc(d.user.nombre)}</b> <span class="faint" style="font-size:11px">${roleLabel(d.user.rol)}</span><div class="faint" style="font-size:12px">${m.total} cliente(s) · ${m.nuevosMes} nuevo(s) este mes</div></div>
+      <div style="text-align:right;flex:none"><b style="color:#248a3d">${m.ventasMes} venta(s)</b><div class="faint" style="font-size:12px">${money(m.facturadoMes)}</div></div></div>`;
+  });
+  h+='</div>';
+  // Necesitan atención (resumen chico, sin el detalle de notas)
+  h+='<div class="owner-mini" style="margin-top:4px">'+
+    mini('🔥',T.calientes,'Calientes sin atender')+
+    mini('⏰',T.atrasados,'Seguimientos atrasados')+
+  '</div>';
+  h+='<div class="faint" style="font-size:12px;margin-top:10px">Para ver el ranking detallado y las alertas por vendedor, entrá a <b>Panel del equipo</b>.</div>';
+  h+='</div>';
+  main.innerHTML=h;
+}
 /* ---- PANEL DEL DUEÑO (solo rol dueño / admin) ---- */
 async function renderDueno(){
   main.innerHTML='<div class="page"><h1>📊 Panel del equipo</h1><div class="sub">Cargando métricas…</div></div>';
@@ -2005,8 +2054,8 @@ function applyRoleUI(){
   // Menú por rol. Supervisión (dueño/supervisor) = menú acotado a herramientas de equipo, sin las
   // secciones de tarea diaria de vendedor (Hoy/Calientes/Atrasados/etc.) que aparecían como listas sueltas.
   const nav=document.querySelectorAll('#nav button');
-  if(owner){const allow=new Set(['dueno','ventas','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
-  else if(sup){const allow=new Set(['dueno','ventas','list','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
+  if(owner){const allow=new Set(['inicioAdmin','dueno','ventas','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
+  else if(sup){const allow=new Set(['inicioAdmin','dueno','ventas','list','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
   else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});}
   const av=document.getElementById('nav-avisos');if(av)av.style.display=''; // "Avisos por Telegram" siempre visible, para todos los roles
 }
@@ -2015,7 +2064,7 @@ function startApp(){
   const ov=document.getElementById('login-ov');if(ov)ov.style.display='none';
   const acct=document.querySelector('.side-foot .acct');
   renderAcct();
-  if(me&&(me.rol==='dueno'||me.rol==='supervisor'))view='dueno'; // dueño y supervisor entran al Panel del equipo, no al Inicio personal
+  if(me&&(me.rol==='dueno'||me.rol==='supervisor'))view='inicioAdmin'; // dueño y supervisor entran a su Inicio administrativo
   applyRoleUI();
   try{history.replaceState(snapState(),'');}catch(e){} // estado base para el botón atrás
   if(SERVER){api('/api/users').then(r=>r.json()).then(us=>{usuarios=us;render();}).catch(()=>{});}
