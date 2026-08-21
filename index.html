@@ -303,6 +303,7 @@
   .doc-lb{position:fixed;inset:0;background:rgba(0,0,0,.82);display:grid;place-items:center;z-index:600;padding:20px;cursor:zoom-out}
   .doc-lb img{max-width:96vw;max-height:92vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
   .doc-lb-x{position:absolute;top:16px;right:18px;width:38px;height:38px;border:none;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;font-size:17px;cursor:pointer}
+  .doc-lb-dl{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);border:none;border-radius:22px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;padding:11px 22px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4)}
   .login-ov{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(135deg,#eef2f7,#e6ecf3);z-index:500;padding:16px}
   .login-card{background:var(--card);border:1px solid var(--sep);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.18);padding:26px;width:340px;max-width:100%;display:flex;flex-direction:column}
   .login-brand{display:flex;align-items:center;gap:11px;margin-bottom:16px}
@@ -1531,8 +1532,9 @@ function hydrateVentaDocs(){
 function verDoc(id){
   const src=_docBlobs[id];if(!src)return;
   const ov=document.createElement('div');ov.className='doc-lb';ov.onclick=()=>ov.remove();
-  ov.innerHTML='<img src="'+src+'"><button class="doc-lb-x">✕</button>';
+  ov.innerHTML='<img src="'+src+'"><button class="doc-lb-x">✕</button><button class="doc-lb-dl">⬇ Descargar</button>';
   document.body.appendChild(ov);
+  const dl=ov.querySelector('.doc-lb-dl');if(dl)dl.onclick=e=>{e.stopPropagation();_descargarImg(id,'documento-riders');};
 }
 /* ---- ELIMINAR / PAPELERA ---- */
 function eliminarCliente(id){const c=clientes.find(x=>x.id===id);if(!c||RO())return;
