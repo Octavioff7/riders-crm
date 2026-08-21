@@ -1228,7 +1228,7 @@ function abrirCargarVenta(){
     receptores:[_nuevoReceptor()],
     productos:[{producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0}],
     pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null,compradorIdx:0}],
-    meta:{fecha:hoy(),vendedorId:(filtroVend||(me&&me.id)||''),colaboradorId:'',comision:'',obs:''}};
+    meta:{fecha:hoy(),vendedorId:(filtroVend||(me&&me.id)||''),colaborador:'',comision:'',obs:''}};
   _ventaModalOpen('Cargar venta');
 }
 function _ventaModalOpen(titulo){
@@ -1389,14 +1389,21 @@ function _ventaStep3(){
   h+='<div class="v-sec-t" style="margin-top:15px">🧾 Datos de la venta</div><div class="v-card">'
     +'<label class="v-lbl-sm">📅 Fecha de la venta</label><input type="date" class="v-full" value="'+esc(M.fecha||'')+'" oninput="_venta.meta.fecha=this.value">'
     +(showVend?'<label class="v-lbl-sm">👤 Vendedor asignado</label>'+_vSelBtn('v-full',(M.vendedorId?nombreVend(M.vendedorId):'—'),!M.vendedorId,'_pickVentaVend()'):'')
-    +(showVend?'<label class="v-lbl-sm">🤝 Colaborador (opcional)</label>'+_vSelBtn('v-full',(M.colaboradorId?nombreVend(M.colaboradorId):'— Ninguno —'),!M.colaboradorId,'_pickVentaColab()'):'')
+    +(showVend?'<label class="v-lbl-sm">🤝 Colaborador (opcional)</label>'+_vSelBtn('v-full',(M.colaborador||'— Ninguno —'),!M.colaborador,'_pickVentaColab()'):'')
     +'<label class="v-lbl-sm">💰 Comisión ($)</label><input type="number" inputmode="numeric" class="v-full" value="'+esc(M.comision||'')+'" oninput="_venta.meta.comision=this.value">'
     +'<label class="v-lbl-sm">📝 Observaciones</label><textarea class="v-full" style="min-height:56px;box-sizing:border-box" oninput="_venta.meta.obs=this.value" placeholder="Notas de la venta (opcional)">'+esc(M.obs||'')+'</textarea>'
     +'</div>';
   return h;
 }
 function _pickVentaVend(){const opts=(usuarios||[]).map(u=>({value:u.id,label:u.nombre+(u.rol?' ('+(typeof roleLabel==='function'?roleLabel(u.rol):u.rol)+')':'')}));appPick({titulo:'Vendedor asignado',search:true,actual:_venta.meta.vendedorId||'',opciones:opts,onPick:v=>{_venta.meta.vendedorId=v;_ventaRender();}});}
-function _pickVentaColab(){const opts=[{value:'',label:'— Ninguno —'}].concat((usuarios||[]).map(u=>({value:u.id,label:u.nombre+(u.rol?' ('+(typeof roleLabel==='function'?roleLabel(u.rol):u.rol)+')':'')})));appPick({titulo:'Colaborador',search:true,actual:_venta.meta.colaboradorId||'',opciones:opts,onPick:v=>{_venta.meta.colaboradorId=v;_ventaRender();}});}
+function _colabNom(c){return (c&&c.colaborador)||(c&&c.colaboradorId?nombreVend(c.colaboradorId):'')||'';}
+function _pickVentaColab(){
+  const opts=[{value:'',label:'— Ninguno —'},{value:'__otro__',label:'✎ Otro (escribir nombre)'}].concat((usuarios||[]).map(u=>({value:u.nombre,label:u.nombre+(u.rol?' ('+(typeof roleLabel==='function'?roleLabel(u.rol):u.rol)+')':'')})));
+  appPick({titulo:'Colaborador',search:true,actual:_venta.meta.colaborador||'',opciones:opts,onPick:v=>{
+    if(v==='__otro__'){appModal({titulo:'Colaborador',texto:'Escribí el nombre del colaborador:',conInput:true,inputValue:'',inputPlaceholder:'Nombre y apellido',okLabel:'Guardar',onOk:txt=>{_venta.meta.colaborador=(txt||'').trim();_ventaRender();}});return;}
+    _venta.meta.colaborador=v;_ventaRender();
+  }});
+}
 async function _pagoCompPick(i,input){const f=input.files&&input.files[0];if(!f)return;try{_venta.pagos[i].comprobante=await _fileToScaled(f);_ventaRender();}catch(e){alert('No pude leer la imagen.');}}
 function _pagoCompDel(i){_venta.pagos[i].comprobante=null;_ventaRender();}
 // Selector estilo-CRM (reemplaza el desplegable feo del navegador): botón + lista propia
@@ -1568,7 +1575,7 @@ async function guardarVenta(){
     if(c){
       c.nombre=nombre;c.whatsapp=tel;c.email=cmp.email||'';c.venta=venta;c.valor=total;c.cantidad=cantidad;
       c.producto=venta.productos[0].producto;c.ubicacion=ubic;c.ventaDetalle=ventaDetalle;
-      c.vendidoFecha=M.fecha||c.vendidoFecha;if(M.vendedorId)c.vendedorId=M.vendedorId;c.colaboradorId=M.colaboradorId||'';c.comision=Number(M.comision)||0;
+      c.vendidoFecha=M.fecha||c.vendidoFecha;if(M.vendedorId)c.vendedorId=M.vendedorId;c.colaborador=M.colaborador||'';c.colaboradorId='';c.comision=Number(M.comision)||0;
       c.fondeada=(_pagoEstado(c).estado==='PAGADO');
       c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:'✏️ Venta editada'});
       _savCliente(c);
@@ -1577,7 +1584,7 @@ async function guardarVenta(){
     return;
   }
   const ventaNum=clientes.reduce((m,x)=>Math.max(m,x.ventaNum||0),0)+1;
-  const c={id:uid(),nombre,whatsapp:tel,email:cmp.email||'',ventaNum,comision:Number(M.comision)||0,colaboradorId:M.colaboradorId||'',
+  const c={id:uid(),nombre,whatsapp:tel,email:cmp.email||'',ventaNum,comision:Number(M.comision)||0,colaborador:M.colaborador||'',
     producto:venta.productos[0].producto,operacion:'',ubicacion:ubic,
     etapa:'vendido',valor:total,cantidad,venta,ventaDetalle,
     vendidoFecha:M.fecha||hoy(),vendedorId:M.vendedorId||filtroVend||(me&&me.id)||'',
@@ -1842,7 +1849,7 @@ function _ventasTablaHTML(list){
       +'<td><span class="vt-seg"><button class="vt-ic" style="background:#8e44ad" title="Seguimiento" onclick="abrirSeguimiento(\''+c.id+'\')">🔔</button>'+(_segPend(c)?'<span class="vt-seg-n">'+_segPend(c)+'</span>':'')+'</span></td>'
       +'<td>'+(c.vendidoFecha?fmtFecha(c.vendidoFecha):'')+'</td>'
       +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
-      +'<td>'+esc(c.colaboradorId?nombreVend(c.colaboradorId):'-')+'</td>'
+      +'<td>'+esc(_colabNom(c)||'-')+'</td>'
       +'<td>'+esc(nom(c,'comprador'))+'</td>'
       +'<td class="vt-prod">'+esc(_ventaProdStr(c))+'</td>'
       +'<td>'+esc(nom(c,'receptor')||'—')+'</td>'
@@ -1880,7 +1887,7 @@ function editarVenta(id){
     receptores:(recs.length?recs:[{}]).map(r=>({nombre:r.nombre||'',apellido:r.apellido||'',carnet:r.carnet||'',telefono:r.telefono||'+53 ',direccion:r.direccion||'',municipio:r.municipio||'',provincia:r.provincia||'',pais:r.pais||'Cuba',imgs:[],docsKeep:(r.docs||[]).slice()})),
     productos:(v.productos&&v.productos.length?v.productos:[{producto:'Moto'}]).map(p=>({producto:p.producto||'Moto',color:p.color||'',detalle:p.detalle||'',listaPrecio:p.listaPrecio||null,precio:String(p.precio||''),receptorIdx:_recIdxByName(v,p.receptor)})),
     pagos:(v.pagos&&v.pagos.length?v.pagos:[{metodo:'cash'}]).map(p=>({metodo:p.metodo||'cash',monto:String(p.monto||''),fecha:p.fecha||hoy(),financiera:p.financiera||'',comprobante:null,comprobanteKeep:p.comprobante||null,compradorIdx:_compIdxByName(v,p.comprador),acreditado:!!p.acreditado,acredFecha:p.acredFecha||''})),
-    meta:{fecha:c.vendidoFecha||hoy(),vendedorId:c.vendedorId||'',colaboradorId:c.colaboradorId||'',comision:String(c.comision||''),obs:v.obs||''}};
+    meta:{fecha:c.vendidoFecha||hoy(),vendedorId:c.vendedorId||'',colaborador:_colabNom(c),comision:String(c.comision||''),obs:v.obs||''}};
   _ventaModalOpen('Editar venta N° '+_padNum(c.ventaNum));
 }
 function _docsKeepHTML(who,ei){
@@ -1916,7 +1923,7 @@ function _pdfVenta(id){
     +'<table class="info">'
     +'<tr>'+cell('N° Venta',num)+cell('Fecha',c.vendidoFecha?fmtFecha(c.vendidoFecha):'-')+'</tr>'
     +'<tr>'+cell('Cliente compra',esc(compras))+cell('Estado pago',ep.estado)+'</tr>'
-    +'<tr>'+cell('Vendedor',esc(nombreVend(c.vendedorId)))+cell('Colaborador',esc(c.colaboradorId?nombreVend(c.colaboradorId):'-'))+'</tr>'
+    +'<tr>'+cell('Vendedor',esc(nombreVend(c.vendedorId)))+cell('Colaborador',esc(_colabNom(c)||'-'))+'</tr>'
     +'<tr>'+cell('Total productos',m(totalProd))+cell('Total venta',m(ep.total))+'</tr>'
     +'<tr>'+cell('Taxes',m((v.cobro&&v.cobro.tax)||0))+cell('Fees',m((v.cobro&&v.cobro.fee)||0))+'</tr>'
     +'<tr>'+cell('Comisión',m(c.comision))+cell('Observaciones',esc(v.obs||'-'))+'</tr>'
@@ -2050,7 +2057,7 @@ function _exportarVentas(){
   const cols=[
     {h:'Fecha',g:c=>c.vendidoFecha?fmtFecha(c.vendidoFecha):'',t:1},
     {h:'Vendedor',g:c=>nombreVend(c.vendedorId)},
-    {h:'Colaborador',g:c=>c.colaboradorId?nombreVend(c.colaboradorId):''},
+    {h:'Colaborador',g:c=>_colabNom(c)},
     {h:'Cliente (compra)',g:c=>{const l=_entList(c.venta,'comprador');return l.length?l.map(_entNom).filter(Boolean).join(' ; '):c.nombre;}},
     {h:'Teléfono',g:c=>_gv(c,'comprador','telefono')||c.whatsapp||'',t:1},
     {h:'Email',g:c=>_gv(c,'comprador','email')},
@@ -2087,7 +2094,7 @@ function verVentaDetalle(id){
   wrap.innerHTML='<div class="modal" style="width:min(480px,calc(100vw - 32px));max-height:92vh;display:flex;flex-direction:column">'
     +'<div class="modal-h"><b>🧾 Ficha de venta'+(c.ventaNum?' · N° '+_padNum(c.ventaNum):'')+'</b><button class="mini" onclick="cerrarVentaDet()">✕</button></div>'
     +'<div class="modal-b" style="overflow-y:auto">'
-    +'<div class="vdet-head"><div class="av" style="width:40px;height:40px;background:'+avColor(c.id)+'">'+iniciales(c.nombre)+'</div><div style="flex:1"><div class="nm">'+esc(c.nombre)+'</div><div style="font-size:12.5px;color:var(--muted)">'+esc(c.whatsapp||'sin número')+' · 👤 '+esc(vend)+(c.colaboradorId?' · 🤝 '+esc(nombreVend(c.colaboradorId)):'')+'</div></div>'+fondBadge+'</div>'
+    +'<div class="vdet-head"><div class="av" style="width:40px;height:40px;background:'+avColor(c.id)+'">'+iniciales(c.nombre)+'</div><div style="flex:1"><div class="nm">'+esc(c.nombre)+'</div><div style="font-size:12.5px;color:var(--muted)">'+esc(c.whatsapp||'sin número')+' · 👤 '+esc(vend)+(_colabNom(c)?' · 🤝 '+esc(_colabNom(c)):'')+'</div></div>'+fondBadge+'</div>'
     +body
     +fondBtn
     +(c.whatsapp?'<a class="btn ghost" style="width:100%;margin-top:6px;text-align:center;text-decoration:none;display:block" href="'+waHref(c)+'" target="_blank" rel="noopener">Abrir WhatsApp</a>':'')
