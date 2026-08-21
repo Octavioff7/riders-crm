@@ -330,12 +330,15 @@
   @media(max-width:1100px){.fz-kpis{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:560px){.fz-kpis{grid-template-columns:1fr}}
   .fz-ksub{font-size:10.5px;color:var(--muted);margin-top:1px}
-  .fz-bottom{display:grid;grid-template-columns:0.9fr 1.25fr 1.25fr;gap:12px;align-items:stretch}
-  @media(max-width:1000px){.fz-bottom{grid-template-columns:1fr}}
-  .fz-bottom .pv-card{display:flex;flex-direction:column}
-  .fz-bottom .vtbl-wrap{max-height:360px;overflow:auto;flex:1}
-  .fz-donut-card{justify-content:flex-start}
-  .fz-donut-card .pv-svg{flex:1 1 auto;min-height:170px;max-height:none!important;margin:6px 0}
+  .fz-bottom{display:grid;grid-template-columns:0.75fr 1.25fr;gap:12px;align-items:stretch;margin-bottom:12px}
+  @media(max-width:900px){.fz-bottom{grid-template-columns:1fr}}
+  .fz-bottom .pv-card{display:flex;flex-direction:column;min-width:0}
+  .fz-bottom .vtbl-wrap{max-height:340px;overflow:auto;flex:1}
+  .fz-donut-card{justify-content:center;align-items:center}
+  .fz-donut-card>h3{align-self:flex-start}
+  .fz-donut-card .pv-svg{flex:none;width:auto;height:180px;max-height:180px;margin:10px auto 2px}
+  .fz-donut-card .fz-legend{flex:none}
+  .fz-movs .vtbl-wrap{overflow-x:auto;max-height:420px;overflow-y:auto}
   .fz-legend{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;font-size:11.5px;color:var(--muted);margin-top:8px}
   .fz-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
   .fz-tbl th,.fz-tbl td{padding:7px 9px;font-size:11.5px}
@@ -3084,7 +3087,7 @@ function _fzBuild(){
       nPagos++;cargado+=m;const pf=_pagoFee(p);fee+=pf;D.fee+=pf;
       if(p.metodo==='financiado'){montoFin+=(m-pf);const fn=p.financiera||'(sin financiera)';const gg=finAgg[fn]||(finAgg[fn]={cargado:0,fee:0,mov:0});gg.cargado+=m;gg.fee+=pf;gg.mov++;}
       if(p.acreditado){acredPagos+=m;D.cob+=m;}else pendAcred+=m;
-      movs.push({fecha:p.fecha||c.vendidoFecha||'',cliente,fin:p.metodo==='financiado'?(p.financiera||'-'):'-',monto:m,fee:pf,neto:m-pf});
+      movs.push({fecha:p.fecha||c.vendidoFecha||'',cliente,fin:p.metodo==='financiado'?(p.financiera||'-'):'-',medio:_VMETLBL[p.metodo]||p.metodo||'-',monto:m,fee:pf,neto:m-pf,acred:!!p.acreditado});
     });
   });
   const ventaTotal=ventaSinTax+tax;
@@ -3124,11 +3127,12 @@ function _fzBuild(){
   if(!finArr.length)h+='<tr><td colspan="7" class="faint" style="text-align:center;padding:18px">Sin pagos por financiera.</td></tr>';
   finArr.forEach((f,i)=>{h+='<tr><td class="faint">'+(i+1)+'</td><td><b>'+esc(f.n)+'</b></td><td class="num">'+_pvMoney(f.cargado)+'</td><td class="num">'+_pvMoney(f.fee)+'</td><td class="num">'+_pvMoney(f.neto)+'</td><td class="num">'+f.pct.toFixed(1)+'%</td><td class="num">'+f.mov+'</td></tr>';});
   h+='</tbody></table></div></div>';
-  h+='<div class="pv-card"><h3>Últimos movimientos</h3><div class="vtbl-wrap"><table class="vtbl fz-tbl"><thead><tr><th>Fecha</th><th>Cliente</th><th>Financiera</th><th>Monto</th><th>Fee</th><th>Neto</th></tr></thead><tbody>';
-  if(!movs.length)h+='<tr><td colspan="6" class="faint" style="text-align:center;padding:18px">Sin movimientos.</td></tr>';
-  movs.slice(0,14).forEach(mv=>{h+='<tr><td>'+esc(fmtFecha(mv.fecha))+'</td><td>'+esc(mv.cliente)+'</td><td>'+esc(mv.fin)+'</td><td class="num">'+_pvMoney(mv.monto)+'</td><td class="num">'+(mv.fee?_pvMoney(mv.fee):'-')+'</td><td class="num">'+_pvMoney(mv.neto)+'</td></tr>';});
+  h+='</div>';
+  h+='<div class="pv-card fz-movs"><h3>Últimos movimientos</h3><div class="vtbl-wrap"><table class="vtbl fz-tbl"><thead><tr><th>Fecha</th><th>Cliente</th><th>Financiera</th><th>Medio</th><th>Monto</th><th>Fee</th><th>Neto</th><th>Estado</th></tr></thead><tbody>';
+  if(!movs.length)h+='<tr><td colspan="8" class="faint" style="text-align:center;padding:18px">Sin movimientos.</td></tr>';
+  movs.slice(0,20).forEach(mv=>{h+='<tr><td>'+esc(fmtFecha(mv.fecha))+'</td><td>'+esc(mv.cliente)+'</td><td>'+esc(mv.fin)+'</td><td>'+esc(mv.medio||'-')+'</td><td class="num">'+_pvMoney(mv.monto)+'</td><td class="num">'+(mv.fee?_pvMoney(mv.fee):'-')+'</td><td class="num">'+_pvMoney(mv.neto)+'</td><td>'+(mv.acred?'<span class="vt-badge ok">Acreditado</span>':'<span class="vt-badge warn">Pendiente</span>')+'</td></tr>';});
   h+='</tbody></table></div></div>';
-  h+='</div></div>';
+  h+='</div>';
   main.innerHTML=h;
 }
 async function renderCuentas(){
