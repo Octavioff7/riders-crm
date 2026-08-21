@@ -361,21 +361,24 @@ function _geminiVisionOnce(model,parts){return new Promise((resolve)=>{
 // Cadena de modelos de visión (ordenada por confiabilidad/velocidad). Si uno está saturado (503), salta al siguiente.
 // gemini-flash-latest (el alias genérico) se satura seguido; los específicos suelen estar más libres.
 const VISION_MODELS=(CFG.geminiVisionModels||'gemini-3-flash-preview,gemini-3.5-flash-lite,gemini-flash-latest,gemini-3.5-flash').split(',').map(s=>s.trim()).filter(Boolean);
-// Visión con cadena de respaldo + reintento. Devuelve {ok,text,model} o {ok:false,reason}
-async function geminiVision(images,prompt){
+// Cadena de modelos sobre 'parts' ya armadas (texto + inline_data). Devuelve {ok,text,model} o {ok:false,reason}
+async function geminiChain(parts){
   if(!CFG.geminiKey||CFG.geminiKey.length<10)return {ok:false,reason:'noconfig'};
-  const parts=[{text:prompt}].concat((images||[]).map(im=>({inline_data:{mime_type:im.mime||'image/jpeg',data:im.data}})));
   let last=0;
   for(let pass=0;pass<2;pass++){
     for(const m of VISION_MODELS){
       const r=await _geminiVisionOnce(m,parts);
       if(r.text)return {ok:true,text:r.text,model:m};
       last=r.status;
-      // 404/400/403 en ESTE modelo → simplemente probar el siguiente (no abortar toda la cadena)
     }
-    if(pass===0)await new Promise(res=>setTimeout(res,1000)); // segunda vuelta por si fue un pico transitorio
+    if(pass===0)await new Promise(res=>setTimeout(res,1000));
   }
   return {ok:false,reason:[429,500,503,0].includes(last)?'overload':'unreadable',status:last};
+}
+// Visión: arma parts a partir de imágenes/archivos + prompt
+async function geminiVision(images,prompt){
+  const parts=[{text:prompt}].concat((images||[]).map(im=>({inline_data:{mime_type:im.mime||'image/jpeg',data:im.data}})));
+  return geminiChain(parts);
 }
 
 async function geminiBrain(clientes,text){
@@ -564,6 +567,26 @@ http.createServer((req,res)=>{
   if(u==='/api/inventario'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveInventario(b);json(200,{ok:true});});}
   if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
+
+  // Importar inventario desde un archivo (PDF / Excel / CSV / foto) usando IA
+  if(u==='/api/import-inventario'&&req.method==='POST'){
+    if(!esAdminRol)return json(403,{error:'Sin permiso'});
+    if(!CFG.geminiKey||CFG.geminiKey.length<10)return json(200,{ok:false,reason:'La IA no está configurada.'});
+    return readBody(b=>{
+      const prompt='Este archivo es una LISTA DE PRECIOS de una concesionaria (vende motos, triciclos y kits solares/ecoflows). Extraé TODOS los productos con su precio de venta. Respondé SOLO un JSON array; cada item {"nombre":"","cat":"","precio":0,"color":""}. "cat" debe ser exactamente "moto" (cualquier moto: 250cc, 200cc, 150/125/100, eléctricas), "triciclo", o "kit" (kits solares, ecoflows, baterías, inversores, paneles). "precio"=número entero (precio de venta, sin símbolos). "color"="" si no se especifica. No inventes productos que no estén en el archivo.';
+      let parts;
+      if(b.text){parts=[{text:prompt+'\n\nContenido del archivo:\n'+String(b.text).slice(0,60000)}];}
+      else if(b.data){parts=[{text:prompt},{inline_data:{mime_type:b.mime||'application/pdf',data:b.data}}];}
+      else return json(400,{error:'sin archivo'});
+      geminiChain(parts).then(rv=>{
+        if(!rv||!rv.ok||!rv.text){return json(200,{ok:false,reason:rv&&rv.reason==='overload'?'⏳ La IA está saturada, probá de nuevo en unos segundos.':'No pude leer el archivo. Probá con un PDF, Excel/CSV o una foto nítida.'});}
+        let arr=null;try{arr=JSON.parse(rv.text);}catch(e){try{arr=JSON.parse(String(rv.text).replace(/```json/gi,'').replace(/```/g,'').trim());}catch(e2){}}
+        if(!Array.isArray(arr))return json(200,{ok:false,reason:'No pude interpretar la lista de productos.'});
+        const clean=arr.map(p=>({nombre:String(p.nombre||'').trim(),cat:['moto','triciclo','kit'].indexOf(p.cat)>=0?p.cat:'moto',precio:Math.round(Number(p.precio)||0),color:String(p.color||'').trim()})).filter(p=>p.nombre).slice(0,500);
+        json(200,{ok:true,productos:clean});
+      }).catch(()=>json(200,{ok:false,reason:'Error procesando el archivo.'}));
+    });
+  }
 
   // Escaneo de documento (licencia / carnet cubano) con Gemini Vision → autocompleta datos
   if(u==='/api/scan-doc'&&req.method==='POST')return readBody(b=>{

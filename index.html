@@ -327,6 +327,9 @@
   body.readonly .col-crm input,body.readonly .col-crm textarea,body.readonly .col-crm select,body.readonly .col-crm button:not(.backbtn):not(.ficha-toggle){pointer-events:none;opacity:.5}
   .ro-badge{display:none;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#fff;background:#8e8e93;padding:2px 8px;border-radius:999px;margin-left:8px}
   body.readonly .ro-badge{display:inline-flex}
+  .imp-spin{width:34px;height:34px;border:3px solid var(--sep);border-top-color:var(--accent);border-radius:50%;margin:0 auto;animation:impspin .8s linear infinite}
+  @keyframes impspin{to{transform:rotate(360deg)}}
+  .imp-list{max-height:44vh;overflow-y:auto;border:1px solid var(--sep);border-radius:8px;padding:6px 10px}
   .owner-kpis-3{grid-template-columns:repeat(3,1fr)}
   @media(max-width:820px){.owner-kpis,.owner-kpis-3,.owner-mini{grid-template-columns:repeat(2,1fr)}}
   .actrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--sep)}
@@ -1636,7 +1639,7 @@ function cerrarVentaDet(){const m=document.getElementById('modal-vdet');if(m)m.r
 function _invPersist(){if(SERVER)api('/api/inventario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(INVENTARIO)}).catch(()=>{});}
 function _invRenum(){const order={moto:0,triciclo:1,kit:2};INVENTARIO.sort((a,b)=>(order[a.cat]||0)-(order[b.cat]||0));INVENTARIO.forEach((p,i)=>p.n=i+1);}
 function renderInventario(){
-  let h='<div class="page"><div class="conv-head-row"><h1>📦 Inventario</h1><button class="btn" onclick="_invModal(-1)">＋ Agregar producto</button></div>';
+  let h='<div class="page"><div class="conv-head-row"><h1>📦 Inventario</h1><div class="head-btns"><button class="btn ghost" onclick="_invImport()">📄 Cargar desde archivo</button><button class="btn" onclick="_invModal(-1)">＋ Agregar producto</button></div></div>';
   h+='<div class="sub">'+INVENTARIO.length+' productos · estos precios se usan al cargar una venta.</div>';
   ['moto','triciclo','kit'].forEach(cat=>{
     const items=INVENTARIO.filter(p=>p.cat===cat);if(!items.length)return;
@@ -1669,6 +1672,48 @@ function _invSave(idx){
   _invRenum();_invPersist();cerrarModal();render();
 }
 function _invDel(idx){const p=INVENTARIO[idx];if(!p)return;appModal({titulo:'Eliminar producto',texto:'¿Eliminar "'+p.nombre+'" del inventario?',okLabel:'Eliminar',okDanger:true,onOk:()=>{INVENTARIO.splice(idx,1);_invRenum();_invPersist();render();}});}
+/* ---- IMPORTAR INVENTARIO DESDE ARCHIVO (PDF/Excel/CSV/foto) con IA ---- */
+let _importProds=null;
+function _fileToB64(f){return new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=rej;fr.onload=()=>res(String(fr.result).split(',')[1]);fr.readAsDataURL(f);});}
+function _importModal(bodyHtml,loading,footHtml){
+  cerrarImport();
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-import';
+  wrap.innerHTML='<div class="modal" style="width:min(460px,calc(100vw - 32px));max-height:88vh;display:flex;flex-direction:column"><div class="modal-h"><b>Importar inventario</b>'+(loading?'':'<button class="mini" onclick="cerrarImport()">✕</button>')+'</div><div class="modal-b" style="overflow-y:auto">'+bodyHtml+'</div>'+(footHtml?'<div class="modal-f" style="flex-wrap:wrap">'+footHtml+'</div>':'')+'</div>';
+  if(!loading)wrap.onclick=e=>{if(e.target===wrap)cerrarImport();};
+  document.body.appendChild(wrap);
+}
+function cerrarImport(){const m=document.getElementById('modal-import');if(m)m.remove();}
+function _invImport(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,.xlsx,.xls,.csv,image/*,application/pdf';
+  inp.onchange=()=>{const f=inp.files&&inp.files[0];if(f)_invImportGo(f);};
+  inp.click();
+}
+async function _invImportGo(f){
+  _importModal('<div style="text-align:center;padding:24px 10px"><div class="imp-spin"></div><div style="margin-top:10px;color:var(--muted);font-size:13.5px">Leyendo el archivo con IA…<br>Puede tardar unos segundos.</div></div>',true);
+  try{
+    const name=(f.name||'').toLowerCase();let body;
+    if(name.endsWith('.csv')||f.type==='text/csv'){body={text:await f.text()};}
+    else{body={data:await _fileToB64(f),mime:f.type||''};}
+    const r=await api('/api/import-inventario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!j||!j.ok||!j.productos||!j.productos.length){_importModal('<div style="padding:14px 4px;font-size:13.5px">⚠️ '+esc((j&&j.reason)||'No pude leer productos del archivo.')+'</div>',false,'<button class="btn ghost" onclick="cerrarImport()">Cerrar</button><button class="btn" onclick="_invImport()">Probar otro archivo</button>');return;}
+    _importPreview(j.productos);
+  }catch(e){_importModal('<div style="padding:14px 4px">⚠️ Error al procesar el archivo.</div>',false,'<button class="btn ghost" onclick="cerrarImport()">Cerrar</button>');}
+}
+function _importPreview(prods){
+  _importProds=prods;
+  const byCat={moto:0,triciclo:0,kit:0};prods.forEach(p=>{byCat[p.cat]=(byCat[p.cat]||0)+1;});
+  const list=prods.slice(0,300).map(p=>'<div class="frow" style="padding:5px 0"><span class="faint" style="font-size:11px;width:56px;flex:none">'+_CATLBL[p.cat].slice(0,4)+'</span><div style="flex:1;min-width:0"><b>'+esc(p.nombre)+'</b>'+(p.color?' <span class="faint" style="font-size:11px">· '+esc(p.color)+'</span>':'')+'</div><b style="flex:none">$'+Number(p.precio).toLocaleString('es-AR')+'</b></div>').join('');
+  const html='<div style="font-size:13.5px;margin-bottom:10px">Encontré <b>'+prods.length+'</b> producto(s) <span class="faint">('+byCat.moto+' motos · '+byCat.triciclo+' triciclos · '+byCat.kit+' kits)</span>.<br>Tenés <b>'+INVENTARIO.length+'</b> cargados. ¿Qué hago?</div><div class="imp-list">'+list+'</div>';
+  const foot='<button class="btn ghost" onclick="cerrarImport()">Cancelar</button><button class="btn ghost" onclick="_invImportApply(\'merge\')" title="Actualiza precios de los que coinciden y agrega los nuevos">Modificar / sumar</button><button class="btn danger" onclick="_invImportApply(\'replace\')" title="Borra todo el inventario actual y deja solo lo del archivo">Reemplazar todo</button>';
+  _importModal(html,false,foot);
+}
+function _invImportApply(modo){
+  if(!_importProds)return;
+  if(modo==='replace'){INVENTARIO=_importProds.map(p=>({nombre:p.nombre,cat:p.cat,precio:p.precio,color:p.color||''}));}
+  else{_importProds.forEach(np=>{const ex=INVENTARIO.find(p=>(p.nombre||'').toLowerCase()===np.nombre.toLowerCase()&&p.cat===np.cat);if(ex){ex.precio=np.precio;if(np.color)ex.color=np.color;}else INVENTARIO.push({nombre:np.nombre,cat:np.cat,precio:np.precio,color:np.color||''});});}
+  _invRenum();_invPersist();_importProds=null;cerrarImport();render();
+}
 /* ---- GESTIÓN DE FINANCIERAS (admin) ---- */
 function _finPersist(){_rebuildFin();if(SERVER)api('/api/financieras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_FIN)}).catch(()=>{});}
 function renderFinancieras(){
