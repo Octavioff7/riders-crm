@@ -327,7 +327,8 @@
   body.readonly .col-crm input,body.readonly .col-crm textarea,body.readonly .col-crm select,body.readonly .col-crm button:not(.backbtn):not(.ficha-toggle){pointer-events:none;opacity:.5}
   .ro-badge{display:none;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#fff;background:#8e8e93;padding:2px 8px;border-radius:999px;margin-left:8px}
   body.readonly .ro-badge{display:inline-flex}
-  @media(max-width:820px){.owner-kpis,.owner-mini{grid-template-columns:repeat(2,1fr)}}
+  .owner-kpis-3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.owner-kpis,.owner-kpis-3,.owner-mini{grid-template-columns:repeat(2,1fr)}}
   .actrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--sep)}
   .vend-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--brand-soft,rgba(0,122,255,.08));border:1px solid rgba(0,122,255,.2);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:13.5px}
   .tagrow{display:flex;flex-wrap:wrap;gap:6px}
@@ -487,6 +488,8 @@
         <button class="owner-only" data-view="inicioAdmin"><span class="ic" aria-hidden="true">🏠</span><span class="lbl">Inicio</span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
         <button class="admin-only" data-view="ventas"><span class="ic" aria-hidden="true">🧾</span><span class="lbl">Ventas</span></button>
+        <button class="admin-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
+        <button class="admin-only" data-view="financieras"><span class="ic" aria-hidden="true">🏦</span><span class="lbl">Financieras</span></button>
         <button class="admin-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
         <button class="sv-only" data-view="cuentas"><span class="ic" aria-hidden="true">⚙️</span><span class="lbl">Cuentas</span></button>
         <button id="nav-avisos" onclick="conectarTelegram()"><span class="ic" aria-hidden="true" style="background:#ff9500">🔔</span><span class="lbl">Notificaciones</span></button>
@@ -649,7 +652,7 @@ function render(){
   const navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
@@ -672,6 +675,8 @@ function render(){
   else if(view==='vendidos')renderVendidos();
   else if(view==='ventas')renderVentasAdmin();
   else if(view==='inicioAdmin')renderInicioAdmin();
+  else if(view==='inventario')renderInventario();
+  else if(view==='financieras')renderFinancieras();
   else renderSeg();
   if(view!==_lastView){const el=main.firstElementChild;if(el)el.classList.add('anim-in');_lastView=view;}
 }
@@ -1108,7 +1113,7 @@ let _venta=null;
 const _VMET=[['cash','Cash'],['zelle','Zelle'],['debito','Tarjeta de Débito'],['credito','Tarjeta de Crédito'],['financiado','Financiado']];
 const _VMETLBL={cash:'Cash',zelle:'Zelle',debito:'Tarjeta de Débito',credito:'Tarjeta de Crédito',financiado:'Financiado'};
 // Financieras: fee (%) y si la venta lleva 7% de taxes (CARITAS/ÁCIMA/EVERLY sí; las demás no)
-const _FIN=[
+let _FIN=[
   {n:'US BANK CARITAS',fee:0.04,tax:true,dias:'Todos los días'},
   {n:'US BANK EVERLY',fee:0.08,tax:true,dias:'Todos los días'},
   {n:'KIWIPAY (FL)',fee:0.18,tax:false,dias:'Todos los días'},
@@ -1120,11 +1125,12 @@ const _FIN=[
   {n:'AFF',fee:0.15,tax:false,dias:'Mié a Vie'},
   {n:'EASYPAY (FL)',fee:0.10,tax:false,dias:'Lun a Mié'}
 ];
-const _FINANCIERAS=_FIN.map(f=>f.n);
-const _FINBY={};_FIN.forEach(f=>{_FINBY[f.n]=f;});
-const _pctLabel=f=>Math.round(f*100)+'%';
+let _FINANCIERAS=_FIN.map(f=>f.n);
+let _FINBY={};_FIN.forEach(f=>{_FINBY[f.n]=f;});
+function _rebuildFin(){_FINANCIERAS=_FIN.map(f=>f.n);_FINBY={};_FIN.forEach(f=>{_FINBY[f.n]=f;});}
+const _pctLabel=f=>Math.round((f||0)*100)+'%';
 // Inventario (Precios agosto 2026). cat: moto / triciclo / kit. Numerado de corrido 1..47.
-const INVENTARIO=[
+let INVENTARIO=[
   {n:1,nombre:'MATIAS',precio:4600,cat:'moto'},{n:2,nombre:'TITAN',precio:4500,cat:'moto'},{n:3,nombre:'GTX',precio:4500,cat:'moto'},
   {n:4,nombre:'XMT',precio:4400,cat:'moto'},{n:5,nombre:'GP 250cc',precio:4300,cat:'moto'},{n:6,nombre:'KRATHOS',precio:4000,cat:'moto'},
   {n:7,nombre:'RAVEN',precio:3800,cat:'moto'},{n:8,nombre:'XMOX RR',precio:4700,cat:'moto'},{n:9,nombre:'MAJESTIC',precio:3900,cat:'moto'},
@@ -1143,6 +1149,12 @@ const INVENTARIO=[
   {n:45,nombre:'DELTA 3 PLUS',precio:1500,cat:'kit'},{n:46,nombre:'DELTA 2 MAX',precio:1950,cat:'kit'},{n:47,nombre:'DELTA PRO',precio:2900,cat:'kit'}
 ];
 const _PRODCAT={'Moto':'moto','Triciclo':'triciclo','Kit solar':'kit','Otro':null};
+const _CATLBL={moto:'Motos',triciclo:'Triciclos',kit:'Kits y Ecoflows'};
+async function cargarCatalogos(){
+  if(!SERVER)return;
+  try{const inv=await (await api('/api/inventario')).json();if(Array.isArray(inv)&&inv.length)INVENTARIO=inv;}catch(e){}
+  try{const fin=await (await api('/api/financieras')).json();if(Array.isArray(fin)&&fin.length){_FIN=fin;_rebuildFin();}}catch(e){}
+}
 function abrirCargarVenta(){
   if(RO())return;
   cerrarModal();cerrarVenta();
@@ -1620,6 +1632,77 @@ function verVentaDetalle(id){
   hydrateVentaDocs();
 }
 function cerrarVentaDet(){const m=document.getElementById('modal-vdet');if(m)m.remove();}
+/* ---- GESTIÓN DE INVENTARIO (admin) ---- */
+function _invPersist(){if(SERVER)api('/api/inventario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(INVENTARIO)}).catch(()=>{});}
+function _invRenum(){const order={moto:0,triciclo:1,kit:2};INVENTARIO.sort((a,b)=>(order[a.cat]||0)-(order[b.cat]||0));INVENTARIO.forEach((p,i)=>p.n=i+1);}
+function renderInventario(){
+  let h='<div class="page"><div class="conv-head-row"><h1>📦 Inventario</h1><button class="btn" onclick="_invModal(-1)">＋ Agregar producto</button></div>';
+  h+='<div class="sub">'+INVENTARIO.length+' productos · estos precios se usan al cargar una venta.</div>';
+  ['moto','triciclo','kit'].forEach(cat=>{
+    const items=INVENTARIO.filter(p=>p.cat===cat);if(!items.length)return;
+    h+='<div class="panelcard"><h3>'+_CATLBL[cat]+' <span class="muted" style="font-weight:500">· '+items.length+'</span></h3>';
+    items.forEach(p=>{const idx=INVENTARIO.indexOf(p);
+      h+='<div class="frow"><span class="faint" style="width:26px;flex:none;font-size:12px">'+(p.n||'')+'</span><div style="flex:1;min-width:0"><b>'+esc(p.nombre)+'</b>'+(p.color?' <span class="faint" style="font-size:12px">· '+esc(p.color)+'</span>':'')+'</div><b style="flex:none">$'+Number(p.precio||0).toLocaleString('es-AR')+'</b><button class="mini" onclick="_invModal('+idx+')" title="Editar">✏️</button><button class="mini" onclick="_invDel('+idx+')" title="Eliminar">🗑️</button></div>';
+    });
+    h+='</div>';
+  });
+  main.innerHTML=h+'</div>';
+}
+function _invModal(idx){
+  const nw=idx<0;const p=nw?{nombre:'',cat:'moto',color:'',precio:''}:INVENTARIO[idx];
+  cerrarModal();
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
+  wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(nw?'Agregar producto':'Editar producto')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
+    +'<label>Nombre</label><input id="inv-nombre" value="'+esc(p.nombre)+'">'
+    +'<label>Categoría</label><select id="inv-cat">'+['moto','triciclo','kit'].map(c=>'<option value="'+c+'"'+(p.cat===c?' selected':'')+'>'+_CATLBL[c]+'</option>').join('')+'</select>'
+    +'<label>Color (opcional)</label><input id="inv-color" value="'+esc(p.color||'')+'">'
+    +'<label>Precio de venta ($)</label><input id="inv-precio" type="number" inputmode="numeric" value="'+esc(p.precio)+'">'
+    +'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="_invSave('+idx+')">Guardar</button></div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
+  const n=document.getElementById('inv-nombre');if(n)n.focus();
+}
+function _invSave(idx){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const nombre=g('inv-nombre');if(!nombre){alert('Poné un nombre.');return;}
+  const item={nombre,cat:g('inv-cat')||'moto',color:g('inv-color'),precio:Number(g('inv-precio'))||0};
+  if(idx<0)INVENTARIO.push(item);else INVENTARIO[idx]=Object.assign({},INVENTARIO[idx],item);
+  _invRenum();_invPersist();cerrarModal();render();
+}
+function _invDel(idx){const p=INVENTARIO[idx];if(!p)return;appModal({titulo:'Eliminar producto',texto:'¿Eliminar "'+p.nombre+'" del inventario?',okLabel:'Eliminar',okDanger:true,onOk:()=>{INVENTARIO.splice(idx,1);_invRenum();_invPersist();render();}});}
+/* ---- GESTIÓN DE FINANCIERAS (admin) ---- */
+function _finPersist(){_rebuildFin();if(SERVER)api('/api/financieras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_FIN)}).catch(()=>{});}
+function renderFinancieras(){
+  let h='<div class="page"><div class="conv-head-row"><h1>🏦 Financieras</h1><button class="btn" onclick="_finModal(-1)">＋ Agregar financiera</button></div>';
+  h+='<div class="sub">'+_FIN.length+' financieras · la calculadora de ventas usa estos fees, taxes y días.</div><div class="panelcard">';
+  _FIN.forEach((f,idx)=>{
+    h+='<div class="frow"><div style="flex:1;min-width:0"><b>'+esc(f.n)+'</b><div class="faint" style="font-size:12px">Fee '+_pctLabel(f.fee)+' · '+(f.tax?'con 7% tax':'sin tax')+' · '+esc(f.dias||'')+'</div></div><button class="mini" onclick="_finModal('+idx+')" title="Editar">✏️</button><button class="mini" onclick="_finDel('+idx+')" title="Eliminar">🗑️</button></div>';
+  });
+  if(!_FIN.length)h+='<div class="faint" style="padding:8px 0">No hay financieras. Agregá una.</div>';
+  main.innerHTML=h+'</div></div>';
+}
+function _finModal(idx){
+  const nw=idx<0;const f=nw?{n:'',fee:0,tax:false,dias:'Todos los días'}:_FIN[idx];
+  cerrarModal();
+  const DIAS=['Todos los días','Lun a Mié','Mié a Vie'];
+  const opts=DIAS.slice();if(f.dias&&DIAS.indexOf(f.dias)<0)opts.push(f.dias);
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
+  wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(nw?'Agregar financiera':'Editar financiera')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
+    +'<label>Nombre</label><input id="fin-n" value="'+esc(f.n)+'">'
+    +'<label>Fee (%)</label><input id="fin-fee" type="number" inputmode="decimal" value="'+(Math.round((f.fee||0)*10000)/100)+'">'
+    +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="fin-tax" style="width:auto;margin:0"'+(f.tax?' checked':'')+'> Lleva 7% de taxes</label>'
+    +'<label>Días que se puede usar</label><select id="fin-dias">'+opts.map(d=>'<option'+(f.dias===d?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select>'
+    +'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="_finSave('+idx+')">Guardar</button></div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
+  const n=document.getElementById('fin-n');if(n)n.focus();
+}
+function _finSave(idx){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const n=g('fin-n');if(!n){alert('Poné un nombre.');return;}
+  const item={n,fee:(parseFloat(g('fin-fee'))||0)/100,tax:document.getElementById('fin-tax').checked,dias:g('fin-dias')||'Todos los días'};
+  if(idx<0)_FIN.push(item);else _FIN[idx]=item;
+  _finPersist();cerrarModal();render();
+}
+function _finDel(idx){const f=_FIN[idx];if(!f)return;appModal({titulo:'Eliminar financiera',texto:'¿Eliminar "'+f.n+'"?',okLabel:'Eliminar',okDanger:true,onOk:()=>{_FIN.splice(idx,1);_finPersist();render();}});}
 async function renderEquipo(){
   main.innerHTML='<div class="page"><h1>📈 Equipo</h1><div class="sub">Cargando métricas…</div></div>';
   let data=[];try{data=await (await api('/api/metrics')).json();}catch(e){return;}
@@ -1648,18 +1731,15 @@ async function renderInicioAdmin(){
   const kpi=(l,v,s,col)=>`<div class="okpi"><div class="ok-l">${l}</div><div class="ok-v"${col?' style="color:'+col+'"':''}>${v}</div><div class="ok-s">${s}</div></div>`;
   const mini=(ic,n,l)=>`<div class="omini"><span class="om-ic">${ic}</span><span class="om-n">${n}</span><span class="om-l">${l}</span></div>`;
   let h='<div class="page">';
-  h+='<div class="conv-head-row"><h1>🏠 Inicio</h1><div class="faint" style="font-size:12.5px">'+(me&&me.rol==='supervisor'?'Supervisor':me&&me.rol==='admin'?'Administrador':'Dueño')+' · '+fmtFecha(hoy())+'</div></div>';
+  h+='<h1>🏠 Inicio</h1>';
   h+='<div class="sub">Resumen del equipo · '+nombreMes+'</div>';
-  // KPIs administrativos: cuántos entran, cuántos cierran, plata
-  h+='<div class="owner-kpis">'+
-    kpi('📥 Leads nuevos',T.nuevosMes,'este mes · '+T.nuevosSem+' esta semana')+
+  // KPIs administrativos: cuántos cierran, facturación, conversión
+  h+='<div class="owner-kpis owner-kpis-3">'+
     kpi('✅ Ventas cerradas',T.ventasMes,'este mes','#248a3d')+
     kpi('💵 Facturado',money(T.facturado),'este mes','#248a3d')+
     kpi('📈 Conversión',conv+'%','ventas sobre total de clientes')+
   '</div>';
   h+='<div class="owner-mini">'+
-    mini('👥',T.clientes,'Clientes activos')+
-    mini('🧲',money(T.plata),'En pipeline')+
     mini('💰',money(T.comision),'Comisiones del mes')+
     mini('👨‍💼',T.vend,'Vendedores')+
   '</div>';
@@ -2054,8 +2134,8 @@ function applyRoleUI(){
   // Menú por rol. Supervisión (dueño/supervisor) = menú acotado a herramientas de equipo, sin las
   // secciones de tarea diaria de vendedor (Hoy/Calientes/Atrasados/etc.) que aparecían como listas sueltas.
   const nav=document.querySelectorAll('#nav button');
-  if(owner){const allow=new Set(['inicioAdmin','dueno','ventas','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
-  else if(sup){const allow=new Set(['inicioAdmin','dueno','ventas','list','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
+  if(owner){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
+  else if(sup){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
   else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});}
   const av=document.getElementById('nav-avisos');if(av)av.style.display=''; // "Avisos por Telegram" siempre visible, para todos los roles
 }
@@ -2068,6 +2148,7 @@ function startApp(){
   applyRoleUI();
   try{history.replaceState(snapState(),'');}catch(e){} // estado base para el botón atrás
   if(SERVER){api('/api/users').then(r=>r.json()).then(us=>{usuarios=us;render();}).catch(()=>{});}
+  cargarCatalogos();
   loadData();
   ensurePushSubscribed(); // mantiene el push activo solo (si ya se dio permiso una vez)
 }

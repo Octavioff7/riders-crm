@@ -32,6 +32,41 @@ const WA_VERIFY=process.env.WHATSAPP_VERIFY_TOKEN||'riders-crm-verify';
 const WAMAPPATH=path.join(DATA_DIR,'wamap.json');
 function loadWaMap(){try{return JSON.parse(fs.readFileSync(WAMAPPATH,'utf8'))}catch(e){return {}}}
 
+// ---- Inventario y Financieras: editables por admin, guardados en disco ----
+const INVPATH=path.join(DATA_DIR,'inventario.json');
+const FINPATH=path.join(DATA_DIR,'financieras.json');
+const DEFAULT_INVENTARIO=[
+  {n:1,nombre:'MATIAS',precio:4600,cat:'moto',color:''},{n:2,nombre:'TITAN',precio:4500,cat:'moto',color:''},{n:3,nombre:'GTX',precio:4500,cat:'moto',color:''},
+  {n:4,nombre:'XMT',precio:4400,cat:'moto',color:''},{n:5,nombre:'GP 250cc',precio:4300,cat:'moto',color:''},{n:6,nombre:'KRATHOS',precio:4000,cat:'moto',color:''},
+  {n:7,nombre:'RAVEN',precio:3800,cat:'moto',color:''},{n:8,nombre:'XMOX RR',precio:4700,cat:'moto',color:''},{n:9,nombre:'MAJESTIC',precio:3900,cat:'moto',color:''},
+  {n:10,nombre:'VHAGAR',precio:5000,cat:'moto',color:''},{n:11,nombre:'DUCASU',precio:4000,cat:'moto',color:''},{n:12,nombre:'KRESTON',precio:3600,cat:'moto',color:''},
+  {n:13,nombre:'FALCON',precio:4300,cat:'moto',color:''},{n:14,nombre:'TANK',precio:3300,cat:'moto',color:''},{n:15,nombre:'TANK SPORT',precio:3500,cat:'moto',color:''},
+  {n:16,nombre:'INTREPID',precio:3600,cat:'moto',color:''},{n:17,nombre:'SUPRA',precio:4400,cat:'moto',color:''},{n:18,nombre:'EAGLE',precio:3500,cat:'moto',color:''},
+  {n:19,nombre:'SUZUKI 200cc',precio:4100,cat:'moto',color:''},{n:20,nombre:'CHP',precio:3500,cat:'moto',color:''},{n:21,nombre:'MISAKI',precio:2900,cat:'moto',color:''},
+  {n:22,nombre:'FOCUS',precio:3200,cat:'moto',color:''},{n:23,nombre:'SUZUKI GN 125',precio:3600,cat:'moto',color:''},{n:24,nombre:'UNISON AX100',precio:2700,cat:'moto',color:''},
+  {n:25,nombre:'TANK ELECTRICA',precio:3200,cat:'moto',color:''},{n:26,nombre:'TANK SPORT ELECTRICA',precio:3200,cat:'moto',color:''},{n:27,nombre:'FOCUS ELECTRICA',precio:3200,cat:'moto',color:''},
+  {n:28,nombre:'GRILLO',precio:2300,cat:'moto',color:''},{n:29,nombre:'MASTERSONIC',precio:1600,cat:'moto',color:''},{n:30,nombre:'MASTERSONIC 2.0',precio:2300,cat:'moto',color:''},
+  {n:31,nombre:'TRICICLO ROOFHYBRID',precio:5700,cat:'triciclo',color:''},{n:32,nombre:'TRICICLO HIBRIDO SOLAR',precio:5350,cat:'triciclo',color:''},{n:33,nombre:'TRICICLO HIBRIDO LITIO',precio:5250,cat:'triciclo',color:''},
+  {n:34,nombre:'TRICICLO HIBRIDO GEL',precio:5000,cat:'triciclo',color:''},{n:35,nombre:'TRICICLO ELECTRICO',precio:4500,cat:'triciclo',color:''},
+  {n:36,nombre:'KIT 2',precio:7200,cat:'kit',color:''},{n:37,nombre:'KIT 1',precio:6350,cat:'kit',color:''},{n:38,nombre:'KIT RESIDENCIAL',precio:5600,cat:'kit',color:''},
+  {n:39,nombre:'KIT MUST',precio:4600,cat:'kit',color:''},{n:40,nombre:'BATERIA 15K',precio:2500,cat:'kit',color:''},{n:41,nombre:'INVERSOR 10K',precio:2000,cat:'kit',color:''},
+  {n:42,nombre:'PANEL SOLAR',precio:230,cat:'kit',color:''},{n:43,nombre:'RIVER 2',precio:1000,cat:'kit',color:''},{n:44,nombre:'DELTA 3 CLASSIC',precio:1250,cat:'kit',color:''},
+  {n:45,nombre:'DELTA 3 PLUS',precio:1500,cat:'kit',color:''},{n:46,nombre:'DELTA 2 MAX',precio:1950,cat:'kit',color:''},{n:47,nombre:'DELTA PRO',precio:2900,cat:'kit',color:''}
+];
+const DEFAULT_FINANCIERAS=[
+  {n:'US BANK CARITAS',fee:0.04,tax:true,dias:'Todos los días'},{n:'US BANK EVERLY',fee:0.08,tax:true,dias:'Todos los días'},
+  {n:'KIWIPAY (FL)',fee:0.18,tax:false,dias:'Todos los días'},{n:'ÁCIMA',fee:0,tax:true,dias:'Lun a Mié'},
+  {n:'KAFENE (FL)',fee:0.10,tax:false,dias:'Mié a Vie'},{n:'PROGRESSIVE',fee:0.10,tax:false,dias:'Lun a Mié'},
+  {n:'KOALAFI',fee:0.10,tax:false,dias:'Mié a Vie'},{n:'SNAP',fee:0.10,tax:false,dias:'Lun a Mié'},
+  {n:'AFF',fee:0.15,tax:false,dias:'Mié a Vie'},{n:'EASYPAY (FL)',fee:0.10,tax:false,dias:'Lun a Mié'}
+];
+function loadInventario(){try{return JSON.parse(fs.readFileSync(INVPATH,'utf8'))}catch(e){return null}}
+function saveInventario(a){fs.writeFileSync(INVPATH,JSON.stringify(a,null,1))}
+function loadFinancieras(){try{return JSON.parse(fs.readFileSync(FINPATH,'utf8'))}catch(e){return null}}
+function saveFinancieras(a){fs.writeFileSync(FINPATH,JSON.stringify(a,null,1))}
+try{if(!loadInventario())saveInventario(DEFAULT_INVENTARIO);}catch(e){}
+try{if(!loadFinancieras())saveFinancieras(DEFAULT_FINANCIERAS);}catch(e){}
+
 function loadClientes(){try{return JSON.parse(fs.readFileSync(DATA,'utf8'))}catch(e){return []}}
 function saveClientes(arr){fs.writeFileSync(DATA,JSON.stringify(arr,null,1));try{autoBackup();}catch(e){}}
 function saveCfg(){fs.writeFileSync(CFGPATH,JSON.stringify(CFG,null,2))}
@@ -522,6 +557,13 @@ http.createServer((req,res)=>{
   if(u==='/api/push/pubkey'&&req.method==='GET')return json(200,{key:pushPubKey(),enabled:!!webpush});
   if(u==='/api/push/subscribe'&&req.method==='POST')return readBody(b=>{const ok=addPushSub(me.id,b.subscription);json(ok?200:400,{ok});});
   if(u==='/api/push/unsubscribe'&&req.method==='POST')return readBody(b=>{removePushSub(me.id,b.endpoint||'');json(200,{ok:true});});
+
+  // Inventario y Financieras (lectura para todos; escritura solo admin/supervisor/dueño)
+  const esAdminRol=!!me&&(me.rol==='admin'||me.rol==='supervisor'||me.rol==='dueno');
+  if(u==='/api/inventario'&&req.method==='GET')return json(200,loadInventario()||DEFAULT_INVENTARIO);
+  if(u==='/api/inventario'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveInventario(b);json(200,{ok:true});});}
+  if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
+  if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
 
   // Escaneo de documento (licencia / carnet cubano) con Gemini Vision → autocompleta datos
   if(u==='/api/scan-doc'&&req.method==='POST')return readBody(b=>{
