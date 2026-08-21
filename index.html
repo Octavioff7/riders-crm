@@ -331,6 +331,15 @@
   @keyframes impspin{to{transform:rotate(360deg)}}
   .imp-list{max-height:44vh;overflow-y:auto;border:1px solid var(--sep);border-radius:8px;padding:6px 10px}
   .inv-chk{width:18px;height:18px;flex:none;margin:0 2px 0 0;cursor:pointer;accent-color:var(--accent)}
+  .prod-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--sep)}
+  .prod-sect-t{font-size:12.5px;font-weight:700;color:var(--txt);margin-bottom:8px}
+  .prod-imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+  .prod-img{position:relative;border:1px solid var(--sep-strong);border-radius:9px;overflow:hidden;aspect-ratio:1.3;background:var(--bg)}
+  .prod-img img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+  .prod-dl,.prod-imgx{position:absolute;top:5px;width:26px;height:26px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:13px;display:grid;place-items:center}
+  .prod-dl{right:5px}
+  .prod-imgx{left:5px;font-size:12px}
+  .prod-info{font-size:13.5px;line-height:1.6;color:var(--txt);white-space:pre-line;background:var(--bg);border-radius:9px;padding:12px 14px}
   .inv-bulk{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:9px 14px;margin-bottom:14px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
   .invselall{float:right;font-size:11px}
   .owner-kpis-3{grid-template-columns:repeat(3,1fr)}
@@ -490,6 +499,7 @@
         <button data-view="semana"><span class="ic" aria-hidden="true">🗓️</span><span class="lbl">Próxima semana</span><span class="count" id="cnt-sem"></span></button>
         <button data-view="anotar"><span class="ic" aria-hidden="true">📝</span><span class="lbl">Por anotar</span><span class="count" id="cnt-anotar"></span></button>
         <button data-view="vendidos"><span class="ic" aria-hidden="true">✅</span><span class="lbl">Vendidos</span><span class="count" id="cnt-vendidos"></span></button>
+        <button class="vend-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
         <button data-view="papelera"><span class="ic" aria-hidden="true">🗑️</span><span class="lbl">Papelera</span><span class="count" id="cnt-papelera"></span></button>
         <button class="owner-only" data-view="inicioAdmin"><span class="ic" aria-hidden="true">🏠</span><span class="lbl">Inicio</span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
@@ -1642,23 +1652,78 @@ function cerrarVentaDet(){const m=document.getElementById('modal-vdet');if(m)m.r
 function _invPersist(){if(SERVER)api('/api/inventario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(INVENTARIO)}).catch(()=>{});}
 function _invRenum(){const order={moto:0,triciclo:1,kit:2};INVENTARIO.sort((a,b)=>(order[a.cat]||0)-(order[b.cat]||0));INVENTARIO.forEach((p,i)=>p.n=i+1);}
 let _invSel=new Set();
+let _invSelMode=false;
 let _aj={subir:true,tipo:'pct'};
+function _canEditInv(){return !!(me&&(me.rol==='admin'||me.rol==='supervisor'||me.rol==='dueno'));}
+function _invSelModeToggle(){_invSelMode=!_invSelMode;if(!_invSelMode)_invSel=new Set();render();}
+function _invSelAll(){const all=_invSel.size===INVENTARIO.length;INVENTARIO.forEach((p,i)=>{if(all)_invSel.delete(i);else _invSel.add(i);});render();}
 function renderInventario(){
-  if(_lastView!=='inventario')_invSel=new Set(); // limpiar selección al entrar fresco a la sección
-  let h='<div class="page"><div class="conv-head-row"><h1>📦 Inventario</h1><div class="head-btns"><button class="btn ghost" onclick="_invImport()">📄 Cargar desde archivo</button><button class="btn" onclick="_invModal(-1)">＋ Agregar producto</button></div></div>';
-  h+='<div class="sub">'+INVENTARIO.length+' productos · tildá varios para subir/bajar el precio en % o en monto.</div>';
-  h+='<div class="inv-bulk" id="inv-bulk" style="display:none"></div>';
+  const ed=_canEditInv(),sel=ed&&_invSelMode;
+  if(_lastView!=='inventario'){_invSel=new Set();_invSelMode=false;}
+  let head='';
+  if(ed)head='<div class="head-btns">'+(_invSelMode
+    ?'<button class="btn ghost" onclick="_invSelAll()">Seleccionar todos</button><button class="btn ghost" onclick="_invSelModeToggle()">Cancelar</button>'
+    :'<button class="btn ghost" onclick="_invImport()">📄 Cargar desde archivo</button><button class="btn ghost" onclick="_invSelModeToggle()">☑️ Seleccionar</button><button class="btn" onclick="_invModal(-1)">＋ Agregar producto</button>')+'</div>';
+  let h='<div class="page"><div class="conv-head-row"><h1>📦 Inventario</h1>'+head+'</div>';
+  h+='<div class="sub">'+INVENTARIO.length+' productos · tocá uno para ver fotos e información'+(ed&&!_invSelMode?'. Tocá "Seleccionar" para ajustar precios de varios.':'.')+'</div>';
+  if(sel)h+='<div class="inv-bulk" id="inv-bulk" style="display:none"></div>';
   ['moto','triciclo','kit'].forEach(cat=>{
     const items=INVENTARIO.filter(p=>p.cat===cat);if(!items.length)return;
-    h+='<div class="panelcard"><h3>'+_CATLBL[cat]+' <span class="muted" style="font-weight:500">· '+items.length+'</span><button class="mini invselall" onclick="_invSelCat(\''+cat+'\')">Seleccionar todos</button></h3>';
-    items.forEach(p=>{const idx=INVENTARIO.indexOf(p);
-      h+='<div class="frow"><input type="checkbox" class="inv-chk" '+(_invSel.has(idx)?'checked':'')+' onchange="_invToggleSel('+idx+',this.checked)"><span class="faint" style="width:24px;flex:none;font-size:12px">'+(p.n||'')+'</span><div style="flex:1;min-width:0"><b>'+esc(p.nombre)+'</b>'+(p.color?' <span class="faint" style="font-size:12px">· '+esc(p.color)+'</span>':'')+'</div><b style="flex:none">$'+Number(p.precio||0).toLocaleString('es-AR')+'</b><button class="mini" onclick="_invModal('+idx+')" title="Editar">✏️</button><button class="mini" onclick="_invDel('+idx+')" title="Eliminar">🗑️</button></div>';
+    h+='<div class="panelcard"><h3>'+_CATLBL[cat]+' <span class="muted" style="font-weight:500">· '+items.length+'</span></h3>';
+    items.forEach(p=>{const idx=INVENTARIO.indexOf(p);const nImg=(p.imagenes||[]).length;
+      h+='<div class="frow">'+(sel?'<input type="checkbox" class="inv-chk" '+(_invSel.has(idx)?'checked':'')+' onchange="_invToggleSel('+idx+',this.checked)">':'')
+        +'<span class="faint" style="width:24px;flex:none;font-size:12px">'+(p.n||'')+'</span>'
+        +'<div style="flex:1;min-width:0;cursor:pointer" onclick="verProducto('+idx+')"><b>'+esc(p.nombre)+'</b>'+(p.color?' <span class="faint" style="font-size:12px">· '+esc(p.color)+'</span>':'')+(nImg?' <span class="faint" style="font-size:11px">📷'+nImg+'</span>':'')+'</div>'
+        +'<b style="flex:none">$'+Number(p.precio||0).toLocaleString('es-AR')+'</b>'
+        +(sel?'':(ed?'<button class="mini" onclick="_invModal('+idx+')" title="Editar">✏️</button><button class="mini" onclick="_invDel('+idx+')" title="Eliminar">🗑️</button>':'<button class="mini" onclick="verProducto('+idx+')" title="Ver">👁️</button>'))
+        +'</div>';
     });
     h+='</div>';
   });
   main.innerHTML=h+'</div>';
-  _invUpdateBulk();
+  if(sel)_invUpdateBulk();
 }
+/* ---- FICHA DE PRODUCTO (imágenes + info; ver todos, editar solo admin) ---- */
+function verProducto(idx){
+  const p=INVENTARIO[idx];if(!p)return;const ed=_canEditInv();
+  cerrarProd();
+  const imgs=(p.imagenes||[]);
+  const imgHtml=imgs.length?('<div class="prod-imgs">'+imgs.map(id=>'<div class="prod-img"><img class="vr-doc" data-doc="'+esc(id)+'" onclick="verDoc(\''+esc(id)+'\')"><button class="prod-dl" onclick="event.stopPropagation();_descargarImg(\''+esc(id)+'\',\''+esc(p.nombre)+'\')" title="Descargar">⬇</button>'+(ed?'<button class="prod-imgx" onclick="event.stopPropagation();_prodImgDel('+idx+',\''+esc(id)+'\')" title="Quitar">✕</button>':'')+'</div>').join('')+'</div>'):'<div class="faint" style="font-size:12.5px;padding:4px 0">Sin imágenes todavía.</div>';
+  const info=(p.info||'').trim();
+  const infoHtml=info?'<div class="prod-info">'+esc(info).replace(/\n/g,'<br>')+'</div>':'<div class="faint" style="font-size:12.5px">Sin información cargada'+(ed?' — agregala con el botón.':'.')+'</div>';
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-prod';wrap.style.zIndex=300;
+  wrap.innerHTML='<div class="modal" style="width:min(500px,calc(100vw - 32px));max-height:92vh;display:flex;flex-direction:column">'
+    +'<div class="modal-h"><b>'+esc(p.nombre)+'</b><button class="mini" onclick="cerrarProd()">✕</button></div>'
+    +'<div class="modal-b" style="overflow-y:auto">'
+    +'<div class="prod-head"><span class="tag" style="background:var(--hover);color:var(--muted)">'+_CATLBL[p.cat]+'</span><b style="font-size:17px">$'+Number(p.precio||0).toLocaleString('es-AR')+'</b>'+(p.color?'<span class="faint">· '+esc(p.color)+'</span>':'')+'</div>'
+    +'<div class="prod-sect-t">📷 Imágenes</div>'+imgHtml
+    +(ed?'<label class="v-comp" style="margin-top:8px"><input type="file" accept="image/*" multiple style="display:none" onchange="_prodImgAdd('+idx+',this)">➕ Agregar imágenes</label>':'')
+    +'<div class="prod-sect-t" style="margin-top:14px">📋 Información'+(ed?' <button class="mini" style="float:right" onclick="_prodInfoEdit('+idx+')">✏️ Editar</button>':'')+'</div>'+infoHtml
+    +'</div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarProd();};document.body.appendChild(wrap);
+  hydrateVentaDocs();
+}
+function cerrarProd(){const m=document.getElementById('modal-prod');if(m)m.remove();}
+function _descargarImg(id,nombre){const src=_docBlobs[id];if(!src){alert('Esperá a que cargue la imagen.');return;}const a=document.createElement('a');a.href=src;a.download=((nombre||'imagen').replace(/[^a-z0-9]+/gi,'_'))+'.jpg';document.body.appendChild(a);a.click();a.remove();}
+async function _prodImgAdd(idx,input){
+  const p=INVENTARIO[idx];if(!p)return;const files=[...(input.files||[])];if(!files.length)return;
+  cerrarProd();_importModal('<div style="text-align:center;padding:20px"><div class="imp-spin"></div><div style="margin-top:8px;color:var(--muted);font-size:13px">Subiendo imágenes…</div></div>',true);
+  p.imagenes=p.imagenes||[];
+  for(const f of files){try{const sc=await _fileToScaled(f);const ids=await _subirDocs([sc]);if(ids[0])p.imagenes.push(ids[0]);}catch(e){}}
+  _invPersist();cerrarImport();verProducto(idx);
+}
+function _prodImgDel(idx,id){const p=INVENTARIO[idx];if(!p)return;appModal({titulo:'Quitar imagen',texto:'¿Quitar esta imagen del producto?',okLabel:'Quitar',okDanger:true,onOk:()=>{p.imagenes=(p.imagenes||[]).filter(x=>x!==id);_invPersist();verProducto(idx);}});}
+function _prodInfoEdit(idx){
+  const p=INVENTARIO[idx];if(!p)return;
+  cerrarProd();
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-prod';wrap.style.zIndex=300;
+  wrap.innerHTML='<div class="modal"><div class="modal-h"><b>Información — '+esc(p.nombre)+'</b><button class="mini" onclick="verProducto('+idx+')">✕</button></div><div class="modal-b">'
+    +'<label>Información y características</label><textarea id="prod-info" style="min-height:180px" placeholder="Ej para motos: Autonomía, tiempo de carga, velocidad máxima, peso...\nEj para kits/ecoflows: componentes que incluye, marcas, capacidad, potencia...">'+esc(p.info||'')+'</textarea>'
+    +'</div><div class="modal-f"><button class="btn ghost" onclick="verProducto('+idx+')">Cancelar</button><button class="btn" onclick="_prodInfoSave('+idx+')">Guardar</button></div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarProd();};document.body.appendChild(wrap);
+  const t=document.getElementById('prod-info');if(t)t.focus();
+}
+function _prodInfoSave(idx){const p=INVENTARIO[idx];if(!p)return;const el=document.getElementById('prod-info');p.info=el?el.value.trim():'';_invPersist();verProducto(idx);}
 function _invToggleSel(idx,on){if(on)_invSel.add(idx);else _invSel.delete(idx);_invUpdateBulk();}
 function _invSelClear(){_invSel=new Set();render();}
 function _invSelCat(cat){const idxs=INVENTARIO.map((p,i)=>p.cat===cat?i:-1).filter(i=>i>=0);const allSel=idxs.every(i=>_invSel.has(i));idxs.forEach(i=>{if(allSel)_invSel.delete(i);else _invSel.add(i);});render();}
@@ -2206,6 +2271,7 @@ function applyRoleUI(){
   document.querySelectorAll('.sv-only').forEach(el=>{el.style.display=(adm||sup)?'':'none';});   // Cuentas: admin y supervisor
   document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=team?'':'none';});        // Equipo: admin, dueño y supervisor
   document.querySelectorAll('.owner-only').forEach(el=>{el.style.display=team?'':'none';});         // Panel del equipo: admin, dueño y supervisor
+  document.querySelectorAll('.vend-only').forEach(el=>{el.style.display=(r==='vendedor')?'':'none';}); // Inventario (catálogo) para vendedores; los admin lo tienen en su sección
   // Menú por rol. Supervisión (dueño/supervisor) = menú acotado a herramientas de equipo, sin las
   // secciones de tarea diaria de vendedor (Hoy/Calientes/Atrasados/etc.) que aparecían como listas sueltas.
   const nav=document.querySelectorAll('#nav button');
