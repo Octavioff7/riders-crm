@@ -311,6 +311,13 @@
   .fin-tab{border:none;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:inherit}
   .fin-tab.on{background:var(--card);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.1)}
   .fin-logo{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:8px;color:#fff;font-size:11px;font-weight:700}
+  .inv-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .inv-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .prod-specs{margin:10px 0;border:1px solid var(--sep);border-radius:10px;overflow:hidden}
+  .prod-specs .ps-row{display:flex;justify-content:space-between;padding:7px 12px;font-size:13px;border-top:1px solid var(--sep)}
+  .prod-specs .ps-row:first-child{border-top:none}
+  .prod-specs .ps-k{color:var(--muted)}
+  .prod-specs .ps-v{font-weight:600;color:var(--txt)}
   .dia-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
   .dia-chip{padding:8px 12px;border:1px solid var(--sep-strong);border-radius:20px;background:var(--bg);font-size:13px;cursor:pointer;font-family:inherit;color:var(--txt);min-width:46px}
   .dia-chip:hover{border-color:var(--accent)}
@@ -2268,31 +2275,71 @@ let _aj={subir:true,tipo:'pct'};
 function _canEditInv(){return !!(me&&(me.rol==='admin'||me.rol==='supervisor'||me.rol==='dueno'));}
 function _invSelModeToggle(){_invSelMode=!_invSelMode;if(!_invSelMode)_invSel=new Set();render();}
 function _invSelAll(){const all=_invSel.size===INVENTARIO.length;INVENTARIO.forEach((p,i)=>{if(all)_invSel.delete(i);else _invSel.add(i);});render();}
+let _invQ='';let _invFiltro='todos';
+function _invActivo(p){return p.activo!==false;}
+function _invMoney(n){return '$'+Number(n||0).toLocaleString('es-AR');}
+function _invFiltrada(){
+  return INVENTARIO.map((p,idx)=>({p,idx})).filter(({p})=>{
+    if(['moto','triciclo','kit'].indexOf(_invFiltro)>=0&&p.cat!==_invFiltro)return false;
+    if(_invFiltro==='activos'&&!_invActivo(p))return false;
+    if(_invFiltro==='inactivos'&&_invActivo(p))return false;
+    if(_invQ){const s=[p.n,p.nombre,p.modelo,p.marca,p.motor,p.color].map(x=>String(x||'')).join(' ').toLowerCase();if(s.indexOf(_invQ)<0)return false;}
+    return true;
+  });
+}
 function renderInventario(){
   const ed=_canEditInv(),sel=ed&&_invSelMode;
-  if(_lastView!=='inventario'){_invSel=new Set();_invSelMode=false;}
+  if(_lastView!=='inventario'){_invSel=new Set();_invSelMode=false;_invQ='';_invFiltro='todos';}
+  const total=INVENTARIO.length,act=INVENTARIO.filter(_invActivo).length,inact=total-act,conMin=INVENTARIO.filter(p=>Number(p.precioMin)>0).length;
   let head='';
   if(ed)head='<div class="head-btns">'+(_invSelMode
     ?'<button class="btn ghost" onclick="_invSelAll()">Seleccionar todos</button><button class="btn ghost" onclick="_invSelModeToggle()">Cancelar</button>'
-    :'<button class="btn ghost" onclick="_invImport()">📄 Cargar desde archivo</button><button class="btn ghost" onclick="_invSelModeToggle()">☑️ Seleccionar</button><button class="btn" onclick="_invModal(-1)">＋ Agregar producto</button>')+'</div>';
+    :'<button class="xbtn" style="background:var(--accent);color:#fff" onclick="_invImport()">📤 Subir inventario</button><button class="xbtn excel" onclick="_invExport(\'excel\')">⬇ Excel</button><button class="xbtn pdf" onclick="_invExport(\'pdf\')">⬇ PDF</button><button class="btn ghost" onclick="_invSelModeToggle()">☑️ Seleccionar</button><button class="btn" onclick="_invModal(-1)">＋ Agregar</button>')+'</div>';
+  const card=(l,v,s)=>'<div class="fin-card"><div class="fc-l">'+l+'</div><div class="fc-v">'+v+'</div><div class="fc-s">'+s+'</div></div>';
   let h='<div class="page"><div class="conv-head-row"><h1>📦 Inventario</h1>'+head+'</div>';
-  h+='<div class="sub">'+INVENTARIO.length+' productos · tocá uno para ver fotos e información'+(ed&&!_invSelMode?'. Tocá "Seleccionar" para ajustar precios de varios.':'.')+'</div>';
+  h+='<div class="fin-cards">'+card('Total',total,'Productos cargados')+card('Activos',act,'Disponibles para vender')+card('Inactivos',inact,'No visibles en ventas')+card('Con mínimo',conMin,'Con precio mínimo')+'</div>';
   if(sel)h+='<div class="inv-bulk" id="inv-bulk" style="display:none"></div>';
-  ['moto','triciclo','kit'].forEach(cat=>{
-    const items=INVENTARIO.filter(p=>p.cat===cat);if(!items.length)return;
-    h+='<div class="panelcard"><h3>'+_CATLBL[cat]+' <span class="muted" style="font-weight:500">· '+items.length+'</span></h3>';
-    items.forEach(p=>{const idx=INVENTARIO.indexOf(p);const nImg=(p.imagenes||[]).length;
-      h+='<div class="frow">'+(sel?'<input type="checkbox" class="inv-chk" '+(_invSel.has(idx)?'checked':'')+' onchange="_invToggleSel('+idx+',this.checked)">':'')
-        +'<span class="faint" style="width:24px;flex:none;font-size:12px">'+(p.n||'')+'</span>'
-        +'<div style="flex:1;min-width:0;cursor:pointer" onclick="verProducto('+idx+')"><b>'+esc(p.nombre)+'</b>'+(p.color?' <span class="faint" style="font-size:12px">· '+esc(p.color)+'</span>':'')+(nImg?' <span class="faint" style="font-size:11px">📷'+nImg+'</span>':'')+'</div>'
-        +'<b style="flex:none">$'+Number(p.precio||0).toLocaleString('es-AR')+'</b>'
-        +(sel?'':(ed?'<button class="mini" onclick="_invModal('+idx+')" title="Editar">✏️</button><button class="mini" onclick="_invDel('+idx+')" title="Eliminar">🗑️</button>':'<button class="mini" onclick="verProducto('+idx+')" title="Ver">👁️</button>'))
-        +'</div>';
-    });
-    h+='</div>';
-  });
+  h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, modelo, marca o color…" value="'+esc(_invQ)+'" oninput="_invQ=this.value.toLowerCase();_invRenderRows()">';
+  h+='<div class="fin-tabs">'+[['todos','Todos'],['moto','Motos'],['triciclo','Triciclos'],['kit','Kits'],['inactivos','Inactivos']].map(t=>'<button class="fin-tab'+(_invFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_invSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
+  const cols=(sel?['✓']:[]).concat(['N°','Producto','Modelo','Categoría','Marca','Motor','Cil. CC','Watts','Kw','Colores','Precio','Mínimo','Comisión','Envío','Estado','']);
+  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody id="inv-tbody"></tbody></table></div>';
+  h+='<div class="sub" id="inv-foot" style="margin-top:8px"></div>';
   main.innerHTML=h+'</div>';
+  _invRenderRows();
   if(sel)_invUpdateBulk();
+}
+function _invSetFiltro(k){_invFiltro=k;document.querySelectorAll('.fin-tab').forEach(b=>b.classList.toggle('on',b.dataset.k===k));_invRenderRows();}
+function _invRenderRows(){
+  const tb=document.getElementById('inv-tbody');if(!tb)return;
+  const ed=_canEditInv(),sel=ed&&_invSelMode;
+  const rows=_invFiltrada();
+  const num=v=>(v==null||v===''||Number(v)===0)?'—':Number(v).toLocaleString('es-AR');
+  const dash=v=>String(v||'').trim()||'—';
+  const estBadge=p=>_invActivo(p)?'<span class="vt-badge ok">Activo</span>':'<span class="vt-badge">Inactivo</span>';
+  if(!rows.length){tb.innerHTML='<tr><td colspan="17" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron productos.</td></tr>';}
+  else tb.innerHTML=rows.map(({p,idx})=>{const nImg=(p.imagenes||[]).length;return '<tr>'
+    +(sel?'<td><input type="checkbox" class="inv-chk" '+(_invSel.has(idx)?'checked':'')+' onchange="_invToggleSel('+idx+',this.checked)"></td>':'')
+    +'<td class="faint">'+(p.n||'')+'</td>'
+    +'<td style="cursor:pointer" onclick="verProducto('+idx+')"><b>'+esc(p.nombre)+'</b>'+(nImg?' <span class="faint" style="font-size:11px">📷'+nImg+'</span>':'')+'</td>'
+    +'<td>'+esc(dash(p.modelo))+'</td>'
+    +'<td>'+esc(_CATLBL[p.cat]||p.cat||'—')+'</td>'
+    +'<td>'+esc(dash(p.marca))+'</td>'
+    +'<td>'+esc(dash(p.motor))+'</td>'
+    +'<td class="num">'+num(p.cc)+'</td>'
+    +'<td class="num">'+num(p.watts)+'</td>'
+    +'<td class="num">'+num(p.kw)+'</td>'
+    +'<td>'+esc(dash(p.color))+'</td>'
+    +'<td class="num"><b>'+_invMoney(p.precio)+'</b></td>'
+    +'<td class="num">'+(Number(p.precioMin)>0?_invMoney(p.precioMin):'—')+'</td>'
+    +'<td class="num">'+(Number(p.comision)>0?_invMoney(p.comision):'—')+'</td>'
+    +'<td class="num">'+(Number(p.envio)>0?_invMoney(p.envio):'—')+'</td>'
+    +'<td>'+estBadge(p)+'</td>'
+    +'<td style="white-space:nowrap">'+(ed
+        ?'<button class="vt-ic" style="background:#007aff" title="Ver / fotos" onclick="verProducto('+idx+')">👁</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_invModal('+idx+')">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_invDel('+idx+')">🗑️</button>'
+        :'<button class="vt-ic" style="background:#007aff" title="Ver / fotos" onclick="verProducto('+idx+')">👁</button>')
+    +'</td>'
+    +'</tr>';}).join('');
+  const foot=document.getElementById('inv-foot');if(foot)foot.textContent=rows.length?(rows.length+' producto(s)'):'Sin resultados';
 }
 /* ---- FICHA DE PRODUCTO (imágenes + info; ver todos, editar solo admin) ---- */
 function verProducto(idx){
@@ -2306,7 +2353,8 @@ function verProducto(idx){
   wrap.innerHTML='<div class="modal" style="width:min(500px,calc(100vw - 32px));max-height:92vh;display:flex;flex-direction:column">'
     +'<div class="modal-h"><b>'+esc(p.nombre)+'</b><button class="mini" onclick="cerrarProd()">✕</button></div>'
     +'<div class="modal-b" style="overflow-y:auto">'
-    +'<div class="prod-head"><span class="tag" style="background:var(--hover);color:var(--muted)">'+_CATLBL[p.cat]+'</span><b style="font-size:17px">$'+Number(p.precio||0).toLocaleString('es-AR')+'</b>'+(p.color?'<span class="faint">· '+esc(p.color)+'</span>':'')+'</div>'
+    +'<div class="prod-head"><span class="tag" style="background:var(--hover);color:var(--muted)">'+(_CATLBL[p.cat]||p.cat||'')+'</span><b style="font-size:17px">$'+Number(p.precio||0).toLocaleString('es-AR')+'</b>'+(p.color?'<span class="faint">· '+esc(p.color)+'</span>':'')+(_invActivo(p)?'':'<span class="vt-badge" style="margin-left:auto">Inactivo</span>')+'</div>'
+    +(function(){const specs=[];if(p.modelo)specs.push(['Modelo',p.modelo]);if(p.marca)specs.push(['Marca',p.marca]);if(p.motor)specs.push(['Motor',p.motor]);if(Number(p.cc)>0)specs.push(['Cil. CC',Number(p.cc).toLocaleString('es-AR')]);if(Number(p.watts)>0)specs.push(['Watts',Number(p.watts).toLocaleString('es-AR')]);if(Number(p.kw)>0)specs.push(['Kw',Number(p.kw).toLocaleString('es-AR')]);if(Number(p.precioMin)>0)specs.push(['Precio mínimo','$'+Number(p.precioMin).toLocaleString('es-AR')]);if(Number(p.comision)>0)specs.push(['Comisión','$'+Number(p.comision).toLocaleString('es-AR')]);if(Number(p.envio)>0)specs.push(['Envío','$'+Number(p.envio).toLocaleString('es-AR')]);return specs.length?'<div class="prod-specs">'+specs.map(s=>'<div class="ps-row"><span class="ps-k">'+esc(s[0])+'</span><span class="ps-v">'+esc(String(s[1]))+'</span></div>').join('')+'</div>':'';})()
     +'<div class="prod-sect-t">📷 Imágenes</div>'+imgHtml
     +(ed?'<label class="v-comp" style="margin-top:8px"><input type="file" accept="image/*" multiple style="display:none" onchange="_prodImgAdd('+idx+',this)">➕ Agregar imágenes</label>':'')
     +'<div class="prod-sect-t" style="margin-top:14px">📋 Información'+(ed?' <button class="mini" style="float:right" onclick="_prodInfoEdit('+idx+')">✏️ Editar</button>':'')+'</div>'+infoHtml
@@ -2364,27 +2412,74 @@ function _invAjustarApply(){
   _invPersist();cerrarModal();_invSel=new Set();render();
 }
 function _invModal(idx){
-  const nw=idx<0;const p=nw?{nombre:'',cat:'moto',color:'',precio:''}:INVENTARIO[idx];
+  const nw=idx<0;const p=nw?{nombre:'',cat:'moto',color:'',precio:'',activo:true}:INVENTARIO[idx];
   cerrarModal();
+  const num=v=>(v==null||v==='')?'':v;
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
   wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(nw?'Agregar producto':'Editar producto')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
-    +'<label>Nombre</label><input id="inv-nombre" value="'+esc(p.nombre)+'">'
+    +'<label>Nombre / Producto</label><input id="inv-nombre" value="'+esc(p.nombre)+'">'
+    +'<label>Modelo (opcional)</label><input id="inv-modelo" value="'+esc(p.modelo||'')+'">'
     +'<label>Categoría</label><select id="inv-cat">'+['moto','triciclo','kit'].map(c=>'<option value="'+c+'"'+(p.cat===c?' selected':'')+'>'+_CATLBL[c]+'</option>').join('')+'</select>'
-    +'<label>Color (opcional)</label><input id="inv-color" value="'+esc(p.color||'')+'">'
-    +'<label>Precio de venta ($)</label><input id="inv-precio" type="number" inputmode="numeric" value="'+esc(p.precio)+'">'
-    +'<label>Precio mínimo permitido ($) <span style="color:var(--muted);font-weight:400">— opcional, para avisar "bajo mínimo"</span></label><input id="inv-min" type="number" inputmode="numeric" value="'+esc(p.precioMin||'')+'" placeholder="sin mínimo">'
+    +'<div class="inv-grid2"><div><label>Marca</label><input id="inv-marca" value="'+esc(p.marca||'')+'"></div><div><label>Motor</label><input id="inv-motor" value="'+esc(p.motor||'')+'" placeholder="Eléctrica / Combustión"></div></div>'
+    +'<div class="inv-grid3"><div><label>Cil. CC</label><input id="inv-cc" type="number" inputmode="numeric" value="'+esc(num(p.cc))+'"></div><div><label>Watts</label><input id="inv-watts" type="number" inputmode="numeric" value="'+esc(num(p.watts))+'"></div><div><label>Kw</label><input id="inv-kw" type="number" inputmode="decimal" value="'+esc(num(p.kw))+'"></div></div>'
+    +'<label>Colores</label><input id="inv-color" value="'+esc(p.color||'')+'" placeholder="Ej: ROJO, NEGRO, AZUL">'
+    +'<div class="inv-grid2"><div><label>Precio de venta ($)</label><input id="inv-precio" type="number" inputmode="numeric" value="'+esc(num(p.precio))+'"></div><div><label>Precio mínimo ($)</label><input id="inv-min" type="number" inputmode="numeric" value="'+esc(num(p.precioMin))+'" placeholder="sin mínimo"></div></div>'
+    +'<div class="inv-grid2"><div><label>Comisión ($)</label><input id="inv-comision" type="number" inputmode="numeric" value="'+esc(num(p.comision))+'"></div><div><label>Envío ($)</label><input id="inv-envio" type="number" inputmode="numeric" value="'+esc(num(p.envio))+'"></div></div>'
+    +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="inv-activo" style="width:auto;margin:0"'+(_invActivo(p)?' checked':'')+'> Activo (visible en el cargador de ventas)</label>'
     +'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="_invSave('+idx+')">Guardar</button></div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
   const n=document.getElementById('inv-nombre');if(n)n.focus();
 }
 function _invSave(idx){
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const nn=id=>{const v=g(id);return v===''?0:(Number(v)||0);};
   const nombre=g('inv-nombre');if(!nombre){alert('Poné un nombre.');return;}
-  const item={nombre,cat:g('inv-cat')||'moto',color:g('inv-color'),precio:Number(g('inv-precio'))||0,precioMin:Number(g('inv-min'))||0};
+  const item={nombre,modelo:g('inv-modelo'),cat:g('inv-cat')||'moto',marca:g('inv-marca'),motor:g('inv-motor'),cc:nn('inv-cc'),watts:nn('inv-watts'),kw:nn('inv-kw'),color:g('inv-color'),precio:nn('inv-precio'),precioMin:nn('inv-min'),comision:nn('inv-comision'),envio:nn('inv-envio'),activo:document.getElementById('inv-activo').checked};
   if(idx<0)INVENTARIO.push(item);else INVENTARIO[idx]=Object.assign({},INVENTARIO[idx],item);
   _invRenum();_invPersist();cerrarModal();render();
 }
 function _invDel(idx){const p=INVENTARIO[idx];if(!p)return;appModal({titulo:'Eliminar producto',texto:'¿Eliminar "'+p.nombre+'" del inventario?',okLabel:'Eliminar',okDanger:true,onOk:()=>{INVENTARIO.splice(idx,1);_invRenum();_invPersist();render();}});}
+/* ---- EXPORTAR INVENTARIO (Excel / PDF) ---- */
+function _invExportCols(){
+  return [
+    {h:'N°',g:p=>p.n||'',t:1},
+    {h:'Producto',g:p=>p.nombre||''},
+    {h:'Modelo',g:p=>p.modelo||''},
+    {h:'Categoría',g:p=>_CATLBL[p.cat]||p.cat||''},
+    {h:'Marca',g:p=>p.marca||''},
+    {h:'Motor',g:p=>p.motor||''},
+    {h:'Cil. CC',g:p=>Number(p.cc)||0,n:1},
+    {h:'Watts',g:p=>Number(p.watts)||0,n:1},
+    {h:'Kw',g:p=>Number(p.kw)||0,n:1},
+    {h:'Colores',g:p=>p.color||''},
+    {h:'Precio Venta USD',g:p=>Number(p.precio)||0,n:1},
+    {h:'Precio Mínimo USD',g:p=>Number(p.precioMin)||0,n:1},
+    {h:'Comisión USD',g:p=>Number(p.comision)||0,n:1},
+    {h:'Envío USD',g:p=>Number(p.envio)||0,n:1},
+    {h:'Estado',g:p=>_invActivo(p)?'Activo':'Inactivo'}
+  ];
+}
+function _invExport(tipo){
+  const list=_invFiltrada().map(x=>x.p);
+  if(!list.length){alert('No hay productos para exportar.');return;}
+  const cols=_invExportCols();
+  if(tipo==='excel'){
+    const TXT=' style="mso-number-format:\'\\@\'"';
+    let html='<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #b0b0b0;padding:5px 9px;font-family:Arial;font-size:11px}th{background:#262a63;color:#fff;text-align:left}</style></head><body><table><tr>'+cols.map(c=>'<th>'+esc(c.h)+'</th>').join('')+'</tr>';
+    list.forEach(p=>{html+='<tr>'+cols.map(col=>{const v=col.g(p);if(col.n)return '<td style="mso-number-format:\'0\'">'+(Math.round(Number(v)||0))+'</td>';return '<td'+(col.t?TXT:'')+'>'+esc(String(v==null?'':v))+'</td>';}).join('')+'</tr>';});
+    html+='</table></body></html>';
+    const blob=new Blob(['\ufeff'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='inventario-riders-'+hoy()+'.xls';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+    return;
+  }
+  // PDF
+  const m=n=>Number(n||0).toLocaleString('es-AR');
+  const th=cols.map(c=>'<th'+(c.n?' class="n"':'')+'>'+esc(c.h)+'</th>').join('');
+  const rows=list.map(p=>'<tr>'+cols.map(col=>{const v=col.g(p);return '<td'+(col.n?' class="n"':'')+'>'+esc(col.n?m(v):String(v==null?'':v))+'</td>';}).join('')+'</tr>').join('');
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>Inventario Riders</title><style>@page{size:landscape;margin:9mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:12px}h1{font-size:17px;margin:0 0 2px}.sub{color:#555;font-size:11px;margin-bottom:10px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #c8c8c8;padding:4px 6px;font-size:9px;text-align:left}th{background:#1f2450;color:#fff}td.n,th.n{text-align:right;white-space:nowrap}tr:nth-child(even) td{background:#f5f6fa}</style></head><body><h1>📦 Inventario Riders Miami</h1><div class="sub">'+list.length+' producto(s) · generado '+fmtFecha(hoy())+'</div><table><thead><tr>'+th+'</tr></thead><tbody>'+rows+'</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>';
+  const w=window.open('','_blank');if(!w){alert('Permití las ventanas emergentes para generar el PDF.');return;}
+  w.document.open();w.document.write(html);w.document.close();
+}
 /* ---- IMPORTAR INVENTARIO DESDE ARCHIVO (PDF/Excel/CSV/foto) con IA ---- */
 let _importProds=null;
 function _fileToB64(f){return new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=rej;fr.onload=()=>res(String(fr.result).split(',')[1]);fr.readAsDataURL(f);});}
@@ -2401,7 +2496,68 @@ function _invImport(){
   inp.onchange=()=>{const f=inp.files&&inp.files[0];if(f)_invImportGo(f);};
   inp.click();
 }
+// Números en formato europeo o común: "3.000,00" → 3000 ; "37,00" → 37 ; "2500" → 2500
+function _numEU(s){s=String(s==null?'':s).trim();if(!s)return 0;if(/,/.test(s)&&/\./.test(s))s=s.replace(/\./g,'').replace(',','.');else if(/,/.test(s))s=s.replace(',','.');const n=parseFloat(s.replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;}
+function _catFrom(s){s=String(s||'').toLowerCase();if(/tric/.test(s))return 'triciclo';if(/kit|ecoflow|solar|panel|bater/.test(s))return 'kit';return 'moto';}
+function _parseCsv(text){
+  const rows=[];let row=[],cur='',q=false;text=String(text||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}
+    else{if(c==='"')q=true;else if(c===','||c===';'){row.push(cur);cur='';}else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur='';}else cur+=c;}
+  }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows.filter(r=>r.some(x=>String(x).trim()));
+}
+async function _inflateRaw(u8){const ds=new DecompressionStream('deflate-raw');const buf=await new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer();return new Uint8Array(buf);}
+async function _unzip(u8){const dv=new DataView(u8.buffer);const files={};let i=0;const td=new TextDecoder();
+  while(i<u8.length-4){const sig=dv.getUint32(i,true);
+    if(sig===0x04034b50){const method=dv.getUint16(i+8,true),compSize=dv.getUint32(i+18,true),nameLen=dv.getUint16(i+26,true),extraLen=dv.getUint16(i+28,true);
+      const name=td.decode(u8.slice(i+30,i+30+nameLen));const start=i+30+nameLen+extraLen;const comp=u8.slice(start,start+compSize);
+      files[name]=method===8?await _inflateRaw(comp):comp;i=start+compSize;}
+    else if(sig===0x02014b50)break;else i++;}
+  return files;}
+function _colIdx(ref){const s=ref.replace(/[0-9]/g,'');let n=0;for(let k=0;k<s.length;k++)n=n*26+(s.charCodeAt(k)-64);return n-1;}
+function _xmlTxt(x){return x.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#10;/g,' ').replace(/&quot;/g,'"').replace(/&#0?39;/g,"'");}
+async function _readXlsxRows(file){
+  const u8=new Uint8Array(await file.arrayBuffer());const files=await _unzip(u8);const dec=new TextDecoder();
+  let shared=[];if(files['xl/sharedStrings.xml']){const ss=dec.decode(files['xl/sharedStrings.xml']);shared=ss.split('<si>').slice(1).map(si=>_xmlTxt(si.split('</si>')[0]));}
+  const key=Object.keys(files).find(k=>/xl\/worksheets\/sheet1\.xml$/.test(k))||Object.keys(files).find(k=>/xl\/worksheets\/.*\.xml$/.test(k));
+  const xml=dec.decode(files[key]);const rowsXml=xml.split(/<row[ >]/).slice(1);
+  return rowsXml.map(rx=>{const body=rx.split('</row>')[0];const cells=[];const parts=body.split(/<c[ >]/).slice(1);
+    parts.forEach(p=>{const rM=p.match(/r="([A-Z]+)\d+"/);const ci=rM?_colIdx(rM[1]):cells.length;const tM=p.match(/\st="([^"]+)"/);const t=tM?tM[1]:'';
+      const isM=p.match(/<is>([\s\S]*?)<\/is>/),vM=p.match(/<v>([\s\S]*?)<\/v>/),tX=p.match(/<t[^>]*>([\s\S]*?)<\/t>/);let val='';
+      if(t==='inlineStr'&&isM)val=_xmlTxt(isM[1]);else if(t==='s'&&vM)val=shared[parseInt(vM[1],10)]||'';else if(vM)val=_xmlTxt(vM[1]);else if(isM)val=_xmlTxt(isM[1]);else if(tX)val=_xmlTxt(tX[1]);
+      cells[ci]=val;});
+    return cells;});
+}
+function _mapInvRows(rows){
+  if(!rows||rows.length<2)return [];
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+  const head=rows[0].map(norm);
+  const find=(...keys)=>{for(const k of keys){const i=head.indexOf(k);if(i>=0)return i;}return -1;};
+  const C={nombre:find('producto','nombre'),modelo:find('modelo'),cat:find('categoria','cat'),marca:find('marca'),motor:find('motor'),cc:find('cilcc','cc','cilindrada'),watts:find('watts'),kw:find('kw'),color:find('colores','color'),precio:find('precioventausd','precioventa','precio'),precioMin:find('preciominimousd','preciominimo','minimo'),comision:find('comisionusd','comision'),envio:find('enviousd','envio'),activo:find('activo','estado')};
+  const out=[];
+  for(let r=1;r<rows.length;r++){const row=rows[r]||[];const g=i=>i>=0?String(row[i]||'').trim():'';
+    const nombre=g(C.nombre);if(!nombre)continue;const av=g(C.activo).toLowerCase();
+    out.push({nombre,modelo:g(C.modelo),cat:_catFrom(g(C.cat)),marca:g(C.marca),motor:g(C.motor),cc:_numEU(g(C.cc)),watts:_numEU(g(C.watts)),kw:_numEU(g(C.kw)),color:g(C.color),precio:_numEU(g(C.precio)),precioMin:_numEU(g(C.precioMin)),comision:_numEU(g(C.comision)),envio:_numEU(g(C.envio)),activo:C.activo<0?true:!/^(false|0|no|inactivo)$/.test(av)});
+  }
+  return out;
+}
 async function _invImportGo(f){
+  const name=(f.name||'').toLowerCase();
+  const esTabla=name.endsWith('.xlsx')||name.endsWith('.xls')||name.endsWith('.csv')||f.type==='text/csv';
+  if(esTabla){
+    _importModal('<div style="text-align:center;padding:24px 10px"><div class="imp-spin"></div><div style="margin-top:10px;color:var(--muted);font-size:13.5px">Leyendo la planilla…</div></div>',true);
+    try{
+      const rows=(name.endsWith('.csv')||f.type==='text/csv')?_parseCsv(await f.text()):await _readXlsxRows(f);
+      const prods=_mapInvRows(rows);
+      if(!prods.length)throw new Error('sin productos');
+      _importPreview(prods);return;
+    }catch(e){/* si falla el parseo directo, probamos con IA */}
+  }
+  _invImportAI(f);
+}
+async function _invImportAI(f){
   _importModal('<div style="text-align:center;padding:24px 10px"><div class="imp-spin"></div><div style="margin-top:10px;color:var(--muted);font-size:13.5px">Leyendo el archivo con IA…<br>Puede tardar unos segundos.</div></div>',true);
   try{
     const name=(f.name||'').toLowerCase();let body;
@@ -2423,8 +2579,9 @@ function _importPreview(prods){
 }
 function _invImportApply(modo){
   if(!_importProds)return;
-  if(modo==='replace'){INVENTARIO=_importProds.map(p=>({nombre:p.nombre,cat:p.cat,precio:p.precio,color:p.color||''}));}
-  else{_importProds.forEach(np=>{const ex=INVENTARIO.find(p=>(p.nombre||'').toLowerCase()===np.nombre.toLowerCase()&&p.cat===np.cat);if(ex){ex.precio=np.precio;if(np.color)ex.color=np.color;}else INVENTARIO.push({nombre:np.nombre,cat:np.cat,precio:np.precio,color:np.color||''});});}
+  const clean=p=>({nombre:p.nombre,cat:p.cat||'moto',modelo:p.modelo||'',marca:p.marca||'',motor:p.motor||'',cc:Number(p.cc)||0,watts:Number(p.watts)||0,kw:Number(p.kw)||0,color:p.color||'',precio:Number(p.precio)||0,precioMin:Number(p.precioMin)||0,comision:Number(p.comision)||0,envio:Number(p.envio)||0,activo:p.activo!==false});
+  if(modo==='replace'){INVENTARIO=_importProds.map(clean);}
+  else{_importProds.forEach(np=>{const ex=INVENTARIO.find(p=>(p.nombre||'').toLowerCase()===String(np.nombre).toLowerCase()&&p.cat===np.cat);if(ex){Object.assign(ex,clean(np),{imagenes:ex.imagenes,info:ex.info});}else INVENTARIO.push(clean(np));});}
   _invRenum();_invPersist();_importProds=null;cerrarImport();render();
 }
 /* ---- GESTIÓN DE FINANCIERAS (admin) ---- */
