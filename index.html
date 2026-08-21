@@ -311,12 +311,10 @@
   .pv-kico{width:40px;height:40px;flex:none;border-radius:11px;display:grid;place-items:center;font-size:15px;font-weight:700}
   .pv-klabel{font-size:12px;color:var(--muted);font-weight:600}
   .pv-kval{font-size:20px;font-weight:800;color:var(--txt);line-height:1.15;margin-top:2px}
-  .pv-charts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+  .pv-charts{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-bottom:12px;align-items:start}
   @media(max-width:900px){.pv-charts{grid-template-columns:1fr}}
   .pv-card{background:var(--card);border:1px solid var(--sep);border-radius:14px;padding:14px 16px}
   .pv-card>h3{margin:0 0 8px;font-size:14px}
-  .pv-wide{grid-column:span 1}
-  @media(min-width:901px){.pv-wide{grid-column:span 1}}
   .pv-svg{width:100%;height:auto;display:block}
   .pv-legend{display:flex;gap:16px;justify-content:center;font-size:11.5px;color:var(--muted);margin-top:4px}
   .pv-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
@@ -2872,17 +2870,35 @@ function _niceMax(v){if(v<=5)return 5;const p=Math.pow(10,String(Math.floor(v)).
 function _pvTip(ev,html){let t=document.getElementById('pv-tip');if(!t){t=document.createElement('div');t.id='pv-tip';t.className='pv-tip';document.body.appendChild(t);}t.innerHTML=html;t.style.display='block';let x=ev.clientX+14,y=ev.clientY+14;const w=t.offsetWidth||140;if(x+w>window.innerWidth-8)x=ev.clientX-w-14;t.style.left=x+'px';t.style.top=y+'px';}
 function _pvTipHide(){const t=document.getElementById('pv-tip');if(t)t.style.display='none';}
 function _pvKpi(ic,label,val,bg,col){return '<div class="pv-kpi"><span class="pv-kico" style="background:'+bg+';color:'+col+'">'+ic+'</span><div class="pv-kbody"><div class="pv-klabel">'+esc(label)+'</div><div class="pv-kval">'+esc(String(val))+'</div></div></div>';}
+let _pvLineGeom=null;
 function _pvLineSVG(days,dV,dP){
-  if(!days.length)return '<div class="faint" style="padding:26px;text-align:center">Elegí un rango de fechas.</div>';
-  const W=680,H=240,pL=32,pR=14,pT=14,pB=30,pw=W-pL-pR,ph=H-pT-pB,n=days.length;
+  if(!days.length){_pvLineGeom=null;return '<div class="faint" style="padding:40px;text-align:center">Elegí un rango de fechas.</div>';}
+  const W=680,H=300,pL=34,pR=16,pT=16,pB=34,pw=W-pL-pR,ph=H-pT-pB,n=days.length;
   let maxY=1;days.forEach(d=>{maxY=Math.max(maxY,dV[d]||0,dP[d]||0);});maxY=_niceMax(maxY);
+  _pvLineGeom={days,dV,dP,pL,pw,pT,ph,n,W,H,maxY};
   const X=i=>pL+(n===1?pw/2:i*pw/(n-1)),Y=v=>pT+ph-(v/maxY)*ph;
-  let g='';for(let k=0;k<=4;k++){const val=maxY*k/4,yy=Y(val);g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--sep)" stroke-dasharray="3 3"/><text x="'+(pL-5)+'" y="'+(yy+3)+'" text-anchor="end" font-size="9" fill="var(--muted)">'+Math.round(val)+'</text>';}
-  const line=(arr,col)=>{const pts=days.map((d,i)=>X(i)+','+Y(arr[d]||0)).join(' ');const dots=days.map((d,i)=>'<circle cx="'+X(i)+'" cy="'+Y(arr[d]||0)+'" r="2.4" fill="var(--card)" stroke="'+col+'" stroke-width="1.5"/>').join('');return '<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="2"/>'+dots;};
-  const step=Math.max(1,Math.ceil(n/8));let xl='';days.forEach((d,i)=>{if(i%step===0||i===n-1)xl+='<text x="'+X(i)+'" y="'+(H-9)+'" text-anchor="middle" font-size="8.5" fill="var(--muted)">'+fmtFecha(d).slice(0,5)+'</text>';});
-  let hits='';const bw=n===1?pw:pw/(n-1);days.forEach((d,i)=>{const cx=X(i);const tip='_pvTip(event,\''+fmtFecha(d)+'<br>Ventas: '+(dV[d]||0)+'<br>Productos: '+(dP[d]||0)+'\')';hits+='<rect x="'+(cx-bw/2)+'" y="'+pT+'" width="'+bw+'" height="'+ph+'" fill="transparent" onmousemove="'+tip+'" onmouseleave="_pvTipHide()"/>';});
-  return '<svg viewBox="0 0 '+W+' '+H+'" class="pv-svg" preserveAspectRatio="xMidYMid meet">'+g+line(dV,'#4a90e2')+line(dP,'#43b581')+xl+hits+'</svg>';
+  let g='';for(let k=0;k<=4;k++){const val=maxY*k/4,yy=Y(val);g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--sep)" stroke-dasharray="3 3"/><text x="'+(pL-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="10" fill="var(--muted)">'+Math.round(val)+'</text>';}
+  const line=(arr,col)=>{const pts=days.map((d,i)=>X(i)+','+Y(arr[d]||0)).join(' ');const dots=days.map((d,i)=>'<circle cx="'+X(i)+'" cy="'+Y(arr[d]||0)+'" r="2.6" fill="var(--card)" stroke="'+col+'" stroke-width="1.6"/>').join('');return '<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="2.2"/>'+dots;};
+  const step=Math.max(1,Math.ceil(n/8));let xl='';days.forEach((d,i)=>{if(i%step===0||i===n-1)xl+='<text x="'+X(i)+'" y="'+(H-11)+'" text-anchor="middle" font-size="9.5" fill="var(--muted)">'+fmtFecha(d).slice(0,5)+'</text>';});
+  const vline='<line class="pv-vline" x1="0" x2="0" y1="'+pT+'" y2="'+(pT+ph)+'" stroke="var(--muted)" stroke-width="1" style="display:none"/>';
+  const hlV='<circle class="pv-hlV" r="4.5" fill="#4a90e2" stroke="var(--card)" stroke-width="2" style="display:none"/>';
+  const hlP='<circle class="pv-hlP" r="4.5" fill="#43b581" stroke="var(--card)" stroke-width="2" style="display:none"/>';
+  const hover='<rect x="'+pL+'" y="'+pT+'" width="'+pw+'" height="'+ph+'" fill="transparent" onmousemove="_pvLineHover(event)" onmouseleave="_pvLineLeave()"/>';
+  return '<svg id="pv-line" viewBox="0 0 '+W+' '+H+'" class="pv-svg" preserveAspectRatio="xMidYMid meet">'+g+line(dV,'#4a90e2')+line(dP,'#43b581')+xl+vline+hlV+hlP+hover+'</svg>';
 }
+function _pvLineHover(ev){
+  const G=_pvLineGeom;if(!G)return;const svg=document.getElementById('pv-line');if(!svg)return;
+  const r=svg.getBoundingClientRect();if(!r.width)return;
+  const sx=(ev.clientX-r.left)/r.width*G.W;
+  let i=G.n===1?0:Math.round((sx-G.pL)/(G.pw/(G.n-1)));i=Math.max(0,Math.min(G.n-1,i));
+  const d=G.days[i];const X=G.pL+(G.n===1?G.pw/2:i*G.pw/(G.n-1));
+  const Yv=G.pT+G.ph-((G.dV[d]||0)/G.maxY)*G.ph,Yp=G.pT+G.ph-((G.dP[d]||0)/G.maxY)*G.ph;
+  const vl=svg.querySelector('.pv-vline');vl.setAttribute('x1',X);vl.setAttribute('x2',X);vl.style.display='';
+  const c1=svg.querySelector('.pv-hlV');c1.setAttribute('cx',X);c1.setAttribute('cy',Yv);c1.style.display='';
+  const c2=svg.querySelector('.pv-hlP');c2.setAttribute('cx',X);c2.setAttribute('cy',Yp);c2.style.display='';
+  _pvTip(ev,'<b>'+fmtFecha(d)+'</b><br><span style="color:#4a90e2">Ventas : '+(G.dV[d]||0)+'</span><br><span style="color:#43b581">Productos : '+(G.dP[d]||0)+'</span>');
+}
+function _pvLineLeave(){const svg=document.getElementById('pv-line');if(svg)svg.querySelectorAll('.pv-vline,.pv-hlV,.pv-hlP').forEach(e=>e.style.display='none');_pvTipHide();}
 function _pvBarSVG(items,color,valKey,fmtFn){
   if(!items.length)return '<div class="faint" style="padding:26px;text-align:center">Sin datos.</div>';
   const W=340,H=240,pL=32,pR=8,pT=12,pB=32,pw=W-pL-pR,ph=H-pT-pB,n=items.length;
