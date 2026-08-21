@@ -1965,7 +1965,7 @@ function renderVentasAdmin(){
   _backfillVentaNums();
   const all=_ventasList();
   if(!all.length){main.innerHTML='<div class="page"><h1>🧾 Ventas</h1><div class="sub">Todavía no hay ventas cargadas.</div></div>';return;}
-  let h='<div class="page"><div class="conv-head-row"><h1>🧾 Ventas</h1><div class="xbtn-row"><button class="xbtn excel" onclick="_exportarVentas()">⬇ Excel</button><button class="xbtn pdf" onclick="_pdfVentasTabla()">⬇ PDF</button></div></div>';
+  let h='<div class="page page-wide"><div class="conv-head-row"><h1>🧾 Ventas</h1><div class="xbtn-row"><button class="xbtn excel" onclick="_exportarVentas()">⬇ Excel</button><button class="xbtn pdf" onclick="_pdfVentasTabla()">⬇ PDF</button></div></div>';
   const fld=(label,key)=>'<div class="vf-field"><label>'+label+'</label>'+_vSelBtn('vf-fld',_vfLbl(key),!_vf[key],'_pickVf(\''+key+'\')')+'</div>';
   h+='<div class="vf-grid">'
     +'<div class="vf-field"><label>Desde</label>'+_dateBtn('vf-fld',_vf.desde,'📅 Cualquiera','_pickVfFecha(\'desde\')')+'</div>'
@@ -2440,7 +2440,7 @@ function renderInventario(){
     ?'<button class="btn ghost" onclick="_invSelAll()">Seleccionar todos</button><button class="btn ghost" onclick="_invSelModeToggle()">Cancelar</button>'
     :'<button class="xbtn" style="background:var(--accent);color:#fff" onclick="_invImport()">📤 Subir inventario</button><button class="xbtn excel" onclick="_invExport(\'excel\')">⬇ Excel</button><button class="xbtn pdf" onclick="_invExport(\'pdf\')">⬇ PDF</button><button class="btn ghost" onclick="_invSelModeToggle()">☑️ Seleccionar</button><button class="btn" onclick="_invModal(-1)">＋ Agregar</button>')+'</div>';
   const card=(l,v,s)=>'<div class="fin-card"><div class="fc-l">'+l+'</div><div class="fc-v">'+v+'</div><div class="fc-s">'+s+'</div></div>';
-  let h='<div class="page"><div class="conv-head-row"><h1>📦 Inventario</h1>'+head+'</div>';
+  let h='<div class="page page-wide"><div class="conv-head-row"><h1>📦 Inventario</h1>'+head+'</div>';
   h+='<div class="fin-cards">'+card('Total',total,'Productos cargados')+card('Activos',act,'Disponibles para vender')+card('Inactivos',inact,'No visibles en ventas')+card('Con mínimo',conMin,'Con precio mínimo')+'</div>';
   if(sel)h+='<div class="inv-bulk" id="inv-bulk" style="display:none"></div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, modelo, marca o color…" value="'+esc(_invQ)+'" oninput="_invQ=this.value.toLowerCase();_invRenderRows()">';
@@ -2748,7 +2748,7 @@ function _finFiltrada(){
 function renderFinancieras(){
   const total=_FIN.length,act=_FIN.filter(_finActiva).length,inact=total-act,conf=_FIN.filter(_finConfig).length,cuo=_FIN.filter(_finTieneCuotas).length;
   const card=(l,v,s)=>'<div class="fin-card"><div class="fc-l">'+l+'</div><div class="fc-v">'+v+'</div><div class="fc-s">'+s+'</div></div>';
-  let h='<div class="page"><div class="conv-head-row"><h1>🏦 Financieras</h1><button class="btn" onclick="_finModal(-1)">＋ Agregar financiera</button></div>';
+  let h='<div class="page page-wide"><div class="conv-head-row"><h1>🏦 Financieras</h1><button class="btn" onclick="_finModal(-1)">＋ Agregar financiera</button></div>';
   h+='<div class="fin-cards">'+card('Activas',act,'Disponibles para operar')+card('Inactivas',inact,'No visibles en ventas')+card('Configuradas',conf,'Con fee o reglas')+card('Con cuotas',cuo,'Con plan de cuotas')+'</div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, código o cuotas…" value="'+esc(_finQ)+'" oninput="_finQ=this.value.toLowerCase();_finRenderRows()">';
   h+='<div class="fin-tabs">'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
@@ -2848,7 +2848,7 @@ async function renderInicioAdmin(){
   const ventasAll=clientes.filter(c=>!c.borrado&&!c.descartado&&!c.anulada&&(c.etapa==='vendido'||c.etapa==='posventa'));
   const fond=ventasAll.filter(c=>c.fondeada),nofond=ventasAll.filter(c=>!c.fondeada);
   const mFond=fond.reduce((s,c)=>s+_ventaTotal(c),0),mNoFond=nofond.reduce((s,c)=>s+_ventaTotal(c),0);
-  let h='<div class="page">';
+  let h='<div class="page page-wide">';
   h+='<div class="conv-head-row"><h1>🏠 Inicio</h1><div class="head-btns"><button class="btn cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button></div></div>';
   h+='<div class="sub">Resumen del equipo · '+nombreMes+'</div>';
   // Tiles de ventas: totales, fondeadas (plata en mano) y no fondeadas (por cobrar)
