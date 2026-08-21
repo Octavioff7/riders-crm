@@ -225,6 +225,11 @@
   .v-card{background:var(--bg);border:1px solid var(--sep);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:7px}
   .v-full{width:100%}
   .v-lbl-sm{font-size:11.5px;font-weight:600;color:var(--muted);margin-top:2px}
+  .ent-card{border:1px solid var(--sep);border-radius:12px;padding:12px;margin-bottom:12px;background:var(--card)}
+  .ent-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .ent-head b{font-size:13.5px}
+  .ent-del{border:none;background:none;color:#c0392b;font-size:12px;cursor:pointer;font-family:inherit}
+  .vr-div{border-top:1px dashed var(--sep);margin:8px 0}
   .v-selbtn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg);border:1px solid var(--sep-strong);border-radius:8px;padding:9px 12px;color:var(--txt);font-size:14px;font-family:inherit;cursor:pointer;text-align:left;box-sizing:border-box;line-height:1.3}
   .v-selbtn:hover{border-color:var(--accent)}
   .v-selbtn.ph{color:var(--muted)}
@@ -1193,11 +1198,9 @@ function abrirCargarVenta(){
   if(RO())return;
   cerrarModal();cerrarVenta();
   _venta={step:1,
-    comprador:{nombre:'',apellido:'',telefono:'+1 ',email:'',direccion:'',apt:'',ciudad:'',estado:'',codigoPostal:''},
-    compradorImgs:[],
+    compradores:[_nuevoComprador()],
     receptorModo:'ahora',
-    receptor:{nombre:'',apellido:'',carnet:'',telefono:'+53 ',direccion:'',municipio:'',provincia:'',pais:'Cuba'},
-    receptorImgs:[],
+    receptores:[_nuevoReceptor()],
     productos:[{producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:''}],
     pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null}]};
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-venta';
@@ -1223,18 +1226,25 @@ function _ventaRender(){
 }
 function _ventaBack(){if(_venta.step>1){_venta.step--;_ventaRender();}}
 function _ventaNext(){
-  if(_venta.step===1&&!(_venta.comprador.nombre||'').trim()){alert('Poné al menos el nombre del cliente que compra.');return;}
+  if(_venta.step===1&&!((_venta.compradores[0]||{}).nombre||'').trim()){alert('Poné al menos el nombre del cliente que compra.');return;}
   if(_venta.step<3){_venta.step++;_ventaRender();}
 }
-function _imgSlot(who,idx,label){
-  const im=(_venta[who+'Imgs']||[])[idx];
-  if(im)return '<div class="scan-slot has"><img src="data:'+im.mime+';base64,'+im.data+'"><button class="scan-x" onclick="_imgDel(\''+who+'\','+idx+')">✕</button></div>';
-  return '<label class="scan-slot"><input type="file" accept="image/*" style="display:none" onchange="_imgPick(\''+who+'\','+idx+',this)"><span class="scan-plus">＋</span><span class="scan-cap">'+label+'</span></label>';
+function _nuevoComprador(){return {nombre:'',apellido:'',telefono:'+1 ',email:'',direccion:'',apt:'',ciudad:'',estado:'',codigoPostal:'',imgs:[]};}
+function _nuevoReceptor(){return {nombre:'',apellido:'',carnet:'',telefono:'+53 ',direccion:'',municipio:'',provincia:'',pais:'Cuba',imgs:[]};}
+function _entArr(who){return who==='receptor'?_venta.receptores:_venta.compradores;}
+function _addComprador(){_venta.compradores.push(_nuevoComprador());_ventaRender();}
+function _delComprador(i){_venta.compradores.splice(i,1);if(!_venta.compradores.length)_venta.compradores.push(_nuevoComprador());_ventaRender();}
+function _addReceptor(){_venta.receptores.push(_nuevoReceptor());_ventaRender();}
+function _delReceptor(i){_venta.receptores.splice(i,1);if(!_venta.receptores.length)_venta.receptores.push(_nuevoReceptor());_ventaRender();}
+function _imgSlot(who,ei,si,label){
+  const e=_entArr(who)[ei];const im=(e.imgs||[])[si];
+  if(im)return '<div class="scan-slot has"><img src="data:'+im.mime+';base64,'+im.data+'"><button class="scan-x" onclick="_imgDel(\''+who+'\','+ei+','+si+')">✕</button></div>';
+  return '<label class="scan-slot"><input type="file" accept="image/*" style="display:none" onchange="_imgPick(\''+who+'\','+ei+','+si+',this)"><span class="scan-plus">＋</span><span class="scan-cap">'+label+'</span></label>';
 }
-function _imgDel(who,idx){_venta[who+'Imgs'][idx]=undefined;_ventaRender();}
-async function _imgPick(who,idx,input){
+function _imgDel(who,ei,si){_entArr(who)[ei].imgs[si]=undefined;_ventaRender();}
+async function _imgPick(who,ei,si,input){
   const f=input.files&&input.files[0];if(!f)return;
-  try{_venta[who+'Imgs'][idx]=await _fileToScaled(f);_ventaRender();}catch(e){alert('No pude leer la imagen.');}
+  try{const e=_entArr(who)[ei];e.imgs=e.imgs||[];e.imgs[si]=await _fileToScaled(f);_ventaRender();}catch(err){alert('No pude leer la imagen.');}
 }
 function _fileToScaled(file){return new Promise((resolve,reject)=>{
   const fr=new FileReader();fr.onerror=()=>reject();
@@ -1245,57 +1255,70 @@ function _fileToScaled(file){return new Promise((resolve,reject)=>{
       resolve({mime:'image/jpeg',data:cv.toDataURL('image/jpeg',0.82).split(',')[1]});};
     img.src=fr.result;};
   fr.readAsDataURL(file);});}
-async function _scan(who){
-  const imgs=(_venta[who+'Imgs']||[]).filter(Boolean);if(!imgs.length)return;
-  const btn=document.getElementById('scan-'+who),msg=document.getElementById('scan-msg-'+who);
+async function _scan(who,ei){
+  const e=_entArr(who)[ei];const imgs=(e.imgs||[]).filter(Boolean);if(!imgs.length)return;
+  const sid=who+'-'+ei;const btn=document.getElementById('scan-'+sid),msg=document.getElementById('scan-msg-'+sid);
   if(btn){btn.disabled=true;btn.textContent='Escaneando…';}
   if(msg){msg.textContent='';msg.className='scan-msg';}
   try{
     const r=await api('/api/scan-doc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:who==='receptor'?'cubano':'licencia',images:imgs})});
     const j=await r.json();
     if(j&&j.ok&&j.data){
-      const tgt=who==='receptor'?_venta.receptor:_venta.comprador;
       const campos=who==='receptor'?['nombre','apellido','carnet','telefono','direccion','municipio','provincia']:['nombre','apellido','direccion','apt','ciudad','estado','codigoPostal'];
-      campos.forEach(k=>{if(j.data[k])tgt[k]=j.data[k];});
+      campos.forEach(k=>{if(j.data[k])e[k]=j.data[k];});
       _ventaRender();
-      const m2=document.getElementById('scan-msg-'+who);if(m2){m2.textContent='✅ Datos autocompletados — revisalos.';m2.className='scan-msg ok';}
+      const m2=document.getElementById('scan-msg-'+sid);if(m2){m2.textContent='✅ Datos autocompletados — revisalos.';m2.className='scan-msg ok';}
     }else{
       if(btn){btn.disabled=false;btn.textContent='✨ Escanear y autocompletar';}
       if(msg){msg.textContent='⚠️ '+((j&&j.reason)||'No pude leer el documento.');msg.className='scan-msg err';}
     }
-  }catch(e){
+  }catch(err){
     if(btn){btn.disabled=false;btn.textContent='✨ Escanear y autocompletar';}
     if(msg){msg.textContent='⚠️ Error de conexión al escanear.';msg.className='scan-msg err';}
   }
 }
 function _ventaStep1(){
-  const c=_venta.comprador,has=(_venta.compradorImgs||[]).filter(Boolean).length;
-  return '<div class="scan-box"><div class="scan-title">📷 Licencia del cliente <span>(opcional — la IA autocompleta)</span></div>'
-   +'<div class="scan-imgs">'+_imgSlot('comprador',0,'Frente')+_imgSlot('comprador',1,'Dorso')+'</div>'
-   +'<button class="btn scan-btn" id="scan-comprador" onclick="_scan(\'comprador\')" '+(has?'':'disabled')+'>✨ Escanear y autocompletar</button>'
-   +'<div class="scan-msg" id="scan-msg-comprador"></div></div>'
-   +'<div class="row2"><div><label>Nombre</label><input value="'+esc(c.nombre)+'" oninput="_venta.comprador.nombre=this.value"></div><div><label>Apellido</label><input value="'+esc(c.apellido)+'" oninput="_venta.comprador.apellido=this.value"></div></div>'
-   +'<div class="row2"><div><label>Teléfono</label><input value="'+esc(c.telefono)+'" inputmode="tel" oninput="this.value=fmtTel(this.value);_venta.comprador.telefono=this.value"></div><div><label>Correo electrónico</label><input value="'+esc(c.email)+'" inputmode="email" oninput="_venta.comprador.email=this.value"></div></div>'
-   +'<label>Dirección</label><input value="'+esc(c.direccion)+'" oninput="_venta.comprador.direccion=this.value">'
-   +'<div class="row2"><div><label>Apt / Unidad</label><input value="'+esc(c.apt)+'" oninput="_venta.comprador.apt=this.value"></div><div><label>Ciudad</label><input value="'+esc(c.ciudad)+'" oninput="_venta.comprador.ciudad=this.value"></div></div>'
-   +'<div class="row2"><div><label>Estado</label><input value="'+esc(c.estado)+'" oninput="_venta.comprador.estado=this.value"></div><div><label>Código postal</label><input value="'+esc(c.codigoPostal)+'" inputmode="numeric" oninput="_venta.comprador.codigoPostal=this.value"></div></div>';
+  let h='';
+  _venta.compradores.forEach((c,ei)=>{
+    const has=(c.imgs||[]).filter(Boolean).length,P='_venta.compradores['+ei+']';
+    h+='<div class="ent-card">'+(_venta.compradores.length>1?'<div class="ent-head"><b>Comprador '+(ei+1)+'</b><button class="ent-del" onclick="_delComprador('+ei+')">✕ Quitar</button></div>':'')
+     +'<div class="scan-box"><div class="scan-title">📷 Licencia del cliente <span>(opcional — la IA autocompleta)</span></div>'
+     +'<div class="scan-imgs">'+_imgSlot('comprador',ei,0,'Frente')+_imgSlot('comprador',ei,1,'Dorso')+'</div>'
+     +'<button class="btn scan-btn" id="scan-comprador-'+ei+'" onclick="_scan(\'comprador\','+ei+')" '+(has?'':'disabled')+'>✨ Escanear y autocompletar</button>'
+     +'<div class="scan-msg" id="scan-msg-comprador-'+ei+'"></div></div>'
+     +'<div class="row2"><div><label>Nombre</label><input value="'+esc(c.nombre)+'" oninput="'+P+'.nombre=this.value"></div><div><label>Apellido</label><input value="'+esc(c.apellido)+'" oninput="'+P+'.apellido=this.value"></div></div>'
+     +'<div class="row2"><div><label>Teléfono</label><input value="'+esc(c.telefono)+'" inputmode="tel" oninput="this.value=fmtTel(this.value);'+P+'.telefono=this.value"></div><div><label>Correo electrónico</label><input value="'+esc(c.email)+'" inputmode="email" oninput="'+P+'.email=this.value"></div></div>'
+     +'<label>Dirección</label><input value="'+esc(c.direccion)+'" oninput="'+P+'.direccion=this.value">'
+     +'<div class="row2"><div><label>Apt / Unidad</label><input value="'+esc(c.apt)+'" oninput="'+P+'.apt=this.value"></div><div><label>Ciudad</label><input value="'+esc(c.ciudad)+'" oninput="'+P+'.ciudad=this.value"></div></div>'
+     +'<div class="row2"><div><label>Estado</label><input value="'+esc(c.estado)+'" oninput="'+P+'.estado=this.value"></div><div><label>Código postal</label><input value="'+esc(c.codigoPostal)+'" inputmode="numeric" oninput="'+P+'.codigoPostal=this.value"></div></div>'
+     +'</div>';
+  });
+  h+='<button class="v-add" onclick="_addComprador()">＋ Agregar comprador</button>';
+  return h;
 }
 function _ventaStep2(){
   const modo=_venta.receptorModo;
   const seg='<div class="seg2"><button class="'+(modo==='ahora'?'on':'')+'" onclick="_venta.receptorModo=\'ahora\';_ventaRender()">Cargar ahora</button><button class="'+(modo==='despues'?'on':'')+'" onclick="_venta.receptorModo=\'despues\';_ventaRender()">Cargar más adelante</button></div>';
   if(modo==='despues')return seg+'<div class="v-hint">👌 Listo. Vas a poder cargar los datos de quien recibe (el cubano) más adelante desde la ficha de la venta.</div>';
-  const c=_venta.receptor,has=(_venta.receptorImgs||[]).filter(Boolean).length;
-  return seg+'<div class="scan-box"><div class="scan-title">📷 Documento de quien recibe <span>(opcional — la IA autocompleta)</span></div>'
-   +'<div class="scan-imgs">'+_imgSlot('receptor',0,'Frente')+_imgSlot('receptor',1,'Dorso')+'</div>'
-   +'<button class="btn scan-btn" id="scan-receptor" onclick="_scan(\'receptor\')" '+(has?'':'disabled')+'>✨ Escanear y autocompletar</button>'
-   +'<div class="scan-msg" id="scan-msg-receptor"></div></div>'
-   +'<div class="row2"><div><label>Nombre</label><input value="'+esc(c.nombre)+'" oninput="_venta.receptor.nombre=this.value"></div><div><label>Apellido</label><input value="'+esc(c.apellido)+'" oninput="_venta.receptor.apellido=this.value"></div></div>'
-   +'<div class="row2"><div><label>N° de carnet</label><input value="'+esc(c.carnet)+'" oninput="_venta.receptor.carnet=this.value"></div><div><label>Teléfono</label><input value="'+esc(c.telefono||'+53 ')+'" inputmode="tel" oninput="_venta.receptor.telefono=this.value" onfocus="var v=this.value;this.setSelectionRange(v.length,v.length)"></div></div>'
-   +'<label>Dirección</label><input value="'+esc(c.direccion)+'" oninput="_venta.receptor.direccion=this.value">'
-   +'<div class="row2"><div><label>Municipio</label><input value="'+esc(c.municipio||'')+'" oninput="_venta.receptor.municipio=this.value"></div><div><label>Provincia</label>'+_vSelBtn('v-full',(c.provincia||'Elegí la provincia…'),!c.provincia,'_pickProvincia()')+'</div></div>'
-   +'<label>País</label><input value="'+esc(c.pais||'Cuba')+'" oninput="_venta.receptor.pais=this.value">';
+  let h=seg;
+  _venta.receptores.forEach((c,ei)=>{
+    const has=(c.imgs||[]).filter(Boolean).length,R='_venta.receptores['+ei+']';
+    h+='<div class="ent-card">'+(_venta.receptores.length>1?'<div class="ent-head"><b>Recibe '+(ei+1)+'</b><button class="ent-del" onclick="_delReceptor('+ei+')">✕ Quitar</button></div>':'')
+     +'<div class="scan-box"><div class="scan-title">📷 Documento de quien recibe <span>(opcional — la IA autocompleta)</span></div>'
+     +'<div class="scan-imgs">'+_imgSlot('receptor',ei,0,'Frente')+_imgSlot('receptor',ei,1,'Dorso')+'</div>'
+     +'<button class="btn scan-btn" id="scan-receptor-'+ei+'" onclick="_scan(\'receptor\','+ei+')" '+(has?'':'disabled')+'>✨ Escanear y autocompletar</button>'
+     +'<div class="scan-msg" id="scan-msg-receptor-'+ei+'"></div></div>'
+     +'<div class="row2"><div><label>Nombre</label><input value="'+esc(c.nombre)+'" oninput="'+R+'.nombre=this.value"></div><div><label>Apellido</label><input value="'+esc(c.apellido)+'" oninput="'+R+'.apellido=this.value"></div></div>'
+     +'<div class="row2"><div><label>N° de carnet</label><input value="'+esc(c.carnet)+'" oninput="'+R+'.carnet=this.value"></div><div><label>Teléfono</label><input value="'+esc(c.telefono||'+53 ')+'" inputmode="tel" oninput="'+R+'.telefono=this.value" onfocus="var v=this.value;this.setSelectionRange(v.length,v.length)"></div></div>'
+     +'<label>Dirección</label><input value="'+esc(c.direccion)+'" oninput="'+R+'.direccion=this.value">'
+     +'<div class="row2"><div><label>Municipio</label><input value="'+esc(c.municipio||'')+'" oninput="'+R+'.municipio=this.value"></div><div><label>Provincia</label>'+_vSelBtn('v-full',(c.provincia||'Elegí la provincia…'),!c.provincia,'_pickProvincia('+ei+')')+'</div></div>'
+     +'<label>País</label><input value="'+esc(c.pais||'Cuba')+'" oninput="'+R+'.pais=this.value">'
+     +'</div>';
+  });
+  h+='<button class="v-add" onclick="_addReceptor()">＋ Agregar receptor</button>';
+  return h;
 }
-function _pickProvincia(){appPick({titulo:'Provincia (Cuba)',search:true,actual:_venta.receptor.provincia||'',opciones:_PROV_CUBA.map(p=>({value:p,label:p})),onPick:v=>{_venta.receptor.provincia=v;_ventaRender();}});}
+function _pickProvincia(ei){appPick({titulo:'Provincia (Cuba)',search:true,actual:_venta.receptores[ei].provincia||'',opciones:_PROV_CUBA.map(p=>({value:p,label:p})),onPick:v=>{_venta.receptores[ei].provincia=v;_ventaRender();}});}
 function _ventaStep3(){
   let h='<div class="v-sec-t">🛒 Productos vendidos</div><div class="v-rows">';
   _venta.productos.forEach((p,i)=>{
@@ -1435,7 +1458,7 @@ async function _subirDocs(imgs){
 }
 async function guardarVenta(){
   if(RO()||!_venta||_venta.guardando)return;
-  const cmp=_venta.comprador;
+  const cmp=_venta.compradores[0]||{};
   const nombre=((cmp.nombre||'')+' '+(cmp.apellido||'')).trim();
   if(!nombre){alert('Falta el nombre del cliente que compra.');return;}
   const prods=_venta.productos.filter(p=>(p.producto||'').trim()||parseFloat(p.precio));
@@ -1445,12 +1468,18 @@ async function guardarVenta(){
   const pagos=_venta.pagos.filter(p=>parseFloat(p.monto));
   const total=_ventaSum(prods,'precio'),cantidad=prods.length;
   const tel=(cmp.telefono&&cmp.telefono.replace(/\D/g,'').replace(/^1/,'').length>=7)?cmp.telefono:'';
-  const rec=_venta.receptorModo==='ahora'?_venta.receptor:null;
-  const recVacio=rec&&!['nombre','apellido','carnet','direccion','municipio'].some(k=>(rec[k]||'').trim());
-  // Guardar las fotos de los documentos como archivos (para verlas desde dueño/supervisor/admin)
-  const compradorDocs=await _subirDocs(_venta.compradorImgs);
-  const receptorDocs=(_venta.receptorModo==='ahora')?await _subirDocs(_venta.receptorImgs):[];
-  // Subir comprobantes de pago (Zelle / tarjeta)
+  // Compradores (subo docs de cada uno). Se descartan los extra vacíos.
+  const compsIn=_venta.compradores.filter((b,i)=>i===0||(b.nombre||'').trim()||(b.apellido||'').trim());
+  const compradores=[];
+  for(const b of compsIn){const docs=await _subirDocs((b.imgs||[]).filter(Boolean));compradores.push({nombre:b.nombre,apellido:b.apellido,telefono:b.telefono,email:b.email,direccion:b.direccion,apt:b.apt,ciudad:b.ciudad,estado:b.estado,codigoPostal:b.codigoPostal,docs});}
+  // Receptores (solo si "cargar ahora"). Se descartan los vacíos.
+  let receptores=[],receptorPendiente=(_venta.receptorModo==='despues');
+  if(_venta.receptorModo==='ahora'){
+    const recsIn=_venta.receptores.filter(r=>['nombre','apellido','carnet','direccion','municipio'].some(k=>(r[k]||'').trim()));
+    if(!recsIn.length)receptorPendiente=true;
+    for(const r of recsIn){const docs=await _subirDocs((r.imgs||[]).filter(Boolean));receptores.push({nombre:r.nombre,apellido:r.apellido,carnet:r.carnet,telefono:r.telefono,direccion:r.direccion,municipio:r.municipio,provincia:r.provincia,pais:r.pais||'Cuba',docs});}
+  }
+  // Subir comprobantes de pago
   const pagosOut=[];
   for(const p of pagos){
     let compId=null;
@@ -1458,10 +1487,7 @@ async function guardarVenta(){
     pagosOut.push({metodo:p.metodo,monto:parseFloat(p.monto)||0,fecha:p.fecha||'',financiera:(p.metodo==='financiado'?(p.financiera||''):''),comprobante:compId});
   }
   const venta={
-    compradorDocs,receptorDocs,
-    comprador:{nombre:cmp.nombre,apellido:cmp.apellido,telefono:cmp.telefono,email:cmp.email,direccion:cmp.direccion,apt:cmp.apt,ciudad:cmp.ciudad,estado:cmp.estado,codigoPostal:cmp.codigoPostal},
-    receptor:(rec&&!recVacio)?{nombre:rec.nombre,apellido:rec.apellido,carnet:rec.carnet,telefono:rec.telefono,direccion:rec.direccion,municipio:rec.municipio,provincia:rec.provincia,pais:rec.pais||'Cuba'}:null,
-    receptorPendiente:_venta.receptorModo==='despues'||recVacio,
+    compradores,receptores,receptorPendiente,
     productos:prods.map(p=>({producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),listaPrecio:p.listaPrecio||null,precio:parseFloat(p.precio)||0})),
     pagos:pagosOut,
     total};
@@ -1482,7 +1508,8 @@ async function guardarVenta(){
 }
 function ventaResumenHTML(c){
   const v=c.venta;if(!v)return '';
-  const cmp=v.comprador||{},rec=v.receptor;
+  const compradores=v.compradores||(v.comprador?[Object.assign({},v.comprador,{docs:v.compradorDocs||[]})]:[]);
+  const receptores=v.receptores||(v.receptor?[Object.assign({},v.receptor,{docs:v.receptorDocs||[]})]:[]);
   const linea=o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.municipio,o.estado,o.provincia,o.codigoPostal,o.pais].filter(Boolean).join(', ');
   const docsHTML=arr=>{
     if(!arr||!arr.length)return '';
@@ -1490,18 +1517,27 @@ function ventaResumenHTML(c){
   };
   let h='<div class="vr-card">';
   h+='<div class="vr-t">🧾 Venta cargada</div>';
-  h+='<div class="vr-blk"><div class="vr-lbl">👤 Compra</div><div class="vr-nm">'+esc(((cmp.nombre||'')+' '+(cmp.apellido||'')).trim()||'—')+'</div>';
-  if(cmp.telefono&&cmp.telefono.trim())h+='<div class="vr-ln">📞 '+esc(cmp.telefono)+'</div>';
-  if(cmp.email)h+='<div class="vr-ln">✉️ '+esc(cmp.email)+'</div>';
-  if(linea(cmp))h+='<div class="vr-ln">📍 '+esc(linea(cmp))+'</div>';
-  h+=docsHTML(v.compradorDocs);
+  h+='<div class="vr-blk"><div class="vr-lbl">👤 '+(compradores.length>1?'Compran':'Compra')+'</div>';
+  compradores.forEach((cmp,i)=>{
+    if(i>0)h+='<div class="vr-div"></div>';
+    h+='<div class="vr-nm">'+esc(((cmp.nombre||'')+' '+(cmp.apellido||'')).trim()||'—')+'</div>';
+    if(cmp.telefono&&cmp.telefono.trim())h+='<div class="vr-ln">📞 '+esc(cmp.telefono)+'</div>';
+    if(cmp.email)h+='<div class="vr-ln">✉️ '+esc(cmp.email)+'</div>';
+    if(linea(cmp))h+='<div class="vr-ln">📍 '+esc(linea(cmp))+'</div>';
+    h+=docsHTML(cmp.docs);
+  });
+  if(!compradores.length)h+='<div class="vr-ln">—</div>';
   h+='</div>';
-  h+='<div class="vr-blk"><div class="vr-lbl">📦 Recibe</div>';
-  if(rec){h+='<div class="vr-nm">'+esc(((rec.nombre||'')+' '+(rec.apellido||'')).trim()||'—')+'</div>';
-    if(rec.carnet&&rec.carnet.trim())h+='<div class="vr-ln">🪪 Carnet: '+esc(rec.carnet)+'</div>';
-    if(rec.telefono&&rec.telefono.trim())h+='<div class="vr-ln">📞 '+esc(rec.telefono)+'</div>';
-    if(linea(rec))h+='<div class="vr-ln">📍 '+esc(linea(rec))+'</div>';
-    h+=docsHTML(v.receptorDocs);
+  h+='<div class="vr-blk"><div class="vr-lbl">📦 '+(receptores.length>1?'Reciben':'Recibe')+'</div>';
+  if(receptores.length){
+    receptores.forEach((rec,i)=>{
+      if(i>0)h+='<div class="vr-div"></div>';
+      h+='<div class="vr-nm">'+esc(((rec.nombre||'')+' '+(rec.apellido||'')).trim()||'—')+'</div>';
+      if(rec.carnet&&rec.carnet.trim())h+='<div class="vr-ln">🪪 Carnet: '+esc(rec.carnet)+'</div>';
+      if(rec.telefono&&rec.telefono.trim())h+='<div class="vr-ln">📞 '+esc(rec.telefono)+'</div>';
+      if(linea(rec))h+='<div class="vr-ln">📍 '+esc(linea(rec))+'</div>';
+      h+=docsHTML(rec.docs);
+    });
   }else{h+='<div class="vr-ln" style="opacity:.7">Pendiente de cargar</div>';}
   h+='</div>';
   h+='<div class="vr-blk"><div class="vr-lbl">🛒 Productos</div>';
@@ -1623,7 +1659,10 @@ function renderVendidos(){
 }
 /* ---- VENTAS (vista administrativa: supervisor/dueño/admin) ---- */
 function _ventasList(){return clientes.filter(c=>!c.borrado&&!c.descartado&&(c.etapa==='vendido'||c.etapa==='posventa')).sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));}
-function _tieneDocs(c){const v=c.venta;return !!(v&&((v.compradorDocs&&v.compradorDocs.length)||(v.receptorDocs&&v.receptorDocs.length)||(v.pagos&&v.pagos.some(p=>p.comprobante))));}
+function _entList(v,who){if(!v)return [];if(who==='comprador')return v.compradores||(v.comprador?[v.comprador]:[]);return v.receptores||(v.receptor?[v.receptor]:[]);}
+function _tieneDocs(c){const v=c.venta;if(!v)return false;
+  const has=arr=>arr.some(e=>(e.docs&&e.docs.length));
+  return !!(has(_entList(v,'comprador'))||has(_entList(v,'receptor'))||(v.compradorDocs&&v.compradorDocs.length)||(v.receptorDocs&&v.receptorDocs.length)||(v.pagos&&v.pagos.some(p=>p.comprobante)));}
 function _ventaProdStr(c){return (c.venta&&c.venta.productos&&c.venta.productos.length)?c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')).join(', '):(c.ventaDetalle||c.producto||'');}
 function _ventaTotal(c){return Number((c.venta&&c.venta.cobro&&c.venta.cobro.total)||c.valor||0);}
 function _ventasRow(c){
@@ -1680,8 +1719,9 @@ function _vfApply(){
   const el=document.getElementById('ventas-list');if(el)el.innerHTML=list.length?list.map(_ventasRow).join(''):'<div class="empty" style="padding:22px">No hay ventas con esos filtros.</div>';
 }
 /* ---- Exportar ventas a Excel (.xls vía tabla HTML, sin dependencias) ---- */
-function _gv(c,who,k){return (c.venta&&c.venta[who]&&c.venta[who][k])?c.venta[who][k]:'';}
-function _dirExport(c,who){const o=c.venta&&c.venta[who];if(!o)return '';return [o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.municipio,o.estado,o.provincia,o.codigoPostal,o.pais].filter(Boolean).join(', ');}
+function _entNom(e){return ((e.nombre||'')+' '+(e.apellido||'')).trim();}
+function _gv(c,who,k){const l=_entList(c.venta,who);if(!l.length)return '';return l.map(e=>e[k]||'').filter(Boolean).join(' ; ');}
+function _dirExport(c,who){const l=_entList(c.venta,who);return l.map(o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.municipio,o.estado,o.provincia,o.codigoPostal,o.pais].filter(Boolean).join(', ')).filter(Boolean).join(' ; ');}
 function _prodExport(c){if(!(c.venta&&c.venta.productos&&c.venta.productos.length))return c.ventaDetalle||c.producto||'';return c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')+(p.color?' ('+p.color+')':'')+' $'+(p.precio||0)).join(' ; ');}
 function _pagosExport(c){if(!(c.venta&&c.venta.pagos&&c.venta.pagos.length))return '';return c.venta.pagos.map(p=>(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' '+p.financiera:'')+' $'+(p.monto||0)+(p.fecha?' ('+fmtFecha(p.fecha)+')':'')).join(' ; ');}
 function _exportarVentas(){
@@ -1691,11 +1731,11 @@ function _exportarVentas(){
   const cols=[
     {h:'Fecha',g:c=>c.vendidoFecha?fmtFecha(c.vendidoFecha):'',t:1},
     {h:'Vendedor',g:c=>nombreVend(c.vendedorId)},
-    {h:'Cliente (compra)',g:c=>{const o=c.venta&&c.venta.comprador;return o?((o.nombre||'')+' '+(o.apellido||'')).trim():c.nombre;}},
+    {h:'Cliente (compra)',g:c=>{const l=_entList(c.venta,'comprador');return l.length?l.map(_entNom).filter(Boolean).join(' ; '):c.nombre;}},
     {h:'Teléfono',g:c=>_gv(c,'comprador','telefono')||c.whatsapp||'',t:1},
     {h:'Email',g:c=>_gv(c,'comprador','email')},
     {h:'Dirección',g:c=>_dirExport(c,'comprador')},
-    {h:'Recibe (cubano)',g:c=>{const r=c.venta&&c.venta.receptor;return r?((r.nombre||'')+' '+(r.apellido||'')).trim():((c.venta&&c.venta.receptorPendiente)?'(pendiente)':'');}},
+    {h:'Recibe (cubano)',g:c=>{const l=_entList(c.venta,'receptor');return l.length?l.map(_entNom).filter(Boolean).join(' ; '):((c.venta&&c.venta.receptorPendiente)?'(pendiente)':'');}},
     {h:'Carnet',g:c=>_gv(c,'receptor','carnet'),t:1},
     {h:'Tel. receptor',g:c=>_gv(c,'receptor','telefono'),t:1},
     {h:'Dir. receptor',g:c=>_dirExport(c,'receptor')},
