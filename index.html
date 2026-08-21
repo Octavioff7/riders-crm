@@ -1756,14 +1756,15 @@ function _pagoEstado(c){
   return {total,acred,saldo,estado};
 }
 function _padNum(n){return String(n||0).padStart(3,'0');}
-// Renumera TODAS las ventas cronológicamente: 001 = la más antigua. Guarda solo si cambió y puede escribir.
-function _reNumVentas(){
-  if(RO())return;
-  const vs=clientes.filter(c=>!c.borrado&&(c.etapa==='vendido'||c.etapa==='posventa'));
+function _maxVentaNum(){return clientes.reduce((m,x)=>Math.max(m,x.ventaNum||0),0);} // incluye borradas → los números no se reutilizan
+// Asigna N° SOLO a las ventas que no lo tengan (permanente, nunca renumera). El más antiguo primero.
+function _backfillVentaNums(){
+  if(!_esAdminRol())return;
+  const vs=clientes.filter(c=>!c.borrado&&(c.etapa==='vendido'||c.etapa==='posventa')&&!c.ventaNum);
+  if(!vs.length)return;
+  let maxN=_maxVentaNum();
   vs.sort((a,b)=>(a.creadoTs||Date.parse(a.creado||0)||0)-(b.creadoTs||Date.parse(b.creado||0)||0)||String(a.vendidoFecha||'').localeCompare(String(b.vendidoFecha||'')));
-  let changed=false;
-  vs.forEach((c,i)=>{if(c.ventaNum!==i+1){c.ventaNum=i+1;changed=true;}});
-  if(changed)save();
+  vs.forEach(c=>{c.ventaNum=++maxN;_savCliente(c);});
 }
 function _ventasRow(c){
   const total=_ventaTotal(c),prods=_ventaProdStr(c),vend=nombreVend(c.vendedorId);
@@ -1788,7 +1789,7 @@ function _vfMatch(c){
 }
 function renderVentasAdmin(){
   if(_lastView!=='ventas')_vfReset();
-  _reNumVentas();
+  _backfillVentaNums();
   const all=_ventasList();
   if(!all.length){main.innerHTML='<div class="page"><h1>🧾 Ventas</h1><div class="sub">Todavía no hay ventas cargadas.</div></div>';return;}
   let h='<div class="page"><div class="conv-head-row"><h1>🧾 Ventas</h1><button class="btn ghost" onclick="_exportarVentas()">⬇ Exportar a Excel</button></div>';
@@ -1826,7 +1827,7 @@ function _ventasTablaHTML(list){
   const nom=(c,who)=>{const l=_entList(c.venta,who);return l.length?l.map(_entNom).filter(Boolean).join(' | '):(who==='comprador'?c.nombre:((c.venta&&c.venta.receptorPendiente)?'—':''));};
   const money=n=>'$'+Number(n||0).toLocaleString('es-AR');
   const estBadge=e=>e==='PAGADO'?'<span class="vt-badge ok">PAGADO</span>':(e==='PARCIAL'?'<span class="vt-badge warn">PARCIAL</span>':'<span class="vt-badge no">PENDIENTE</span>');
-  const cols=['N°','Pago','Ver','PDF','Editar','Seg.','Fecha','Vendedor','Cliente compra','Productos','Recibe','Recepción','Ítems','Total','Estado pago','Saldo'];
+  const cols=['N°','Pago','Ver','PDF','Editar','Seg.','Fecha','Vendedor','Cliente compra','Productos','Recibe','Recepción','Ítems','Total','Estado pago','Saldo','Borrar'];
   let h='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
   list.forEach(c=>{const v=c.venta||{};const items=(v.productos&&v.productos.length)||1;const ep=_pagoEstado(c);
     const recep=v.receptorPendiente?'<span class="vt-badge warn">Pendiente</span>':'<span class="vt-badge ok">Completa</span>';
@@ -1847,6 +1848,7 @@ function _ventasTablaHTML(list){
       +'<td class="num"><b style="color:#248a3d">'+money(ep.total)+'</b></td>'
       +'<td>'+estBadge(ep.estado)+'</td>'
       +'<td class="num"'+(ep.saldo>0.009?' style="color:#ff3b30"':'')+'>'+money(ep.saldo)+'</td>'
+      +'<td><button class="vt-ic" style="background:#e74c3c" title="Eliminar venta" onclick="_delVenta(\''+c.id+'\')">🗑️</button></td>'
       +'</tr>';
   });
   h+='</tbody></table></div>';
@@ -1854,6 +1856,17 @@ function _ventasTablaHTML(list){
 }
 function _recIdxByName(v,name){if(!name)return 0;const l=_entList(v,'receptor');const i=l.findIndex(r=>_entNom(r)===name);return i>=0?i:0;}
 function _compIdxByName(v,name){if(!name)return 0;const l=_entList(v,'comprador');const i=l.findIndex(cm=>_entNom(cm)===name);return i>=0?i:0;}
+function _delVenta(id){
+  const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())return;
+  const num=_padNum(c.ventaNum);
+  appModal({titulo:'Eliminar venta',texto:'¿Eliminar la venta N° '+num+' de "'+c.nombre+'"?\n\nVa a la papelera. El número '+num+' NO se vuelve a usar.',okLabel:'Eliminar',okDanger:true,onOk:()=>{
+    c.borrado=true;c.borradoFecha=hoy();
+    _savCliente(c);
+    if(view==='ventas')_vfApply();
+    if(view==='inicioAdmin')renderInicioAdmin();
+    updateCounts&&updateCounts();
+  }});
+}
 function editarVenta(id){
   const c=clientes.find(x=>x.id===id);if(!c||!c.venta||!_esAdminRol())return;
   const v=c.venta;cerrarModal();cerrarVenta();
