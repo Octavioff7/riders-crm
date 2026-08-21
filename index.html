@@ -307,6 +307,9 @@
   .vtbl tbody tr:hover{background:var(--hover)}
   .vtbl .num{text-align:right}
   .vtbl .vt-prod{max-width:230px;overflow:hidden;text-overflow:ellipsis}
+  .vt-envio{width:74px;border:1px solid var(--sep-strong);background:var(--bg);color:var(--txt);border-radius:7px;padding:5px 7px;font-size:12.5px;font-family:inherit;text-align:right}
+  .vt-envio:focus{outline:none;border-color:var(--accent)}
+  .vt-envio:disabled{opacity:.6;cursor:not-allowed}
   .vt-badge{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--hover);color:var(--muted)}
   .vt-badge.rev{background:rgba(0,122,255,.14);color:#0064d6}
   .vt-badge.ok{background:rgba(52,199,89,.16);color:#248a3d}
@@ -1756,8 +1759,16 @@ function _tieneDocs(c){const v=c.venta;if(!v)return false;
   return !!(has(_entList(v,'comprador'))||has(_entList(v,'receptor'))||(v.compradorDocs&&v.compradorDocs.length)||(v.receptorDocs&&v.receptorDocs.length)||(v.pagos&&v.pagos.some(p=>p.comprobante)));}
 function _ventaProdStr(c){return (c.venta&&c.venta.productos&&c.venta.productos.length)?c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')).join(', '):(c.ventaDetalle||c.producto||'');}
 function _ventaTotal(c){return Number((c.venta&&c.venta.cobro&&c.venta.cobro.total)||c.valor||0);}
+function _baseProd(c){const v=c.venta;if(v&&v.productos&&v.productos.length)return v.productos.reduce((s,p)=>s+(Number(p.precio)||0),0);return Number((v&&v.total)||c.valor||0);}
+function _taxesV(c){return Number((c.venta&&c.venta.cobro&&c.venta.cobro.tax)||0);}
+function _envioV(c){return Number((c.venta&&c.venta.envio)||0);}
+// Monto total que paga el cliente = productos + taxes (0 si fue todo cash) + envío
+function _montoTotal(c){return Math.round((_baseProd(c)+_taxesV(c)+_envioV(c))*100)/100;}
+function _recepCompleta(c){const v=c.venta;if(!v)return false;const comps=_entList(v,'comprador'),recs=_entList(v,'receptor');const okC=comps.length>0&&comps.every(e=>e.docs&&e.docs.length);const okR=recs.length>0&&recs.every(e=>e.docs&&e.docs.length);return okC&&okR;}
+function _bajoMin(c){const prods=(c.venta&&c.venta.productos)||[];return prods.some(p=>{const inv=INVENTARIO.find(x=>x.nombre===(p.detalle||'···')||x.nombre===(p.producto||'···'));return inv&&inv.precioMin&&(Number(p.precio)||0)<Number(inv.precioMin);});}
+function _setEnvio(id,val){const c=clientes.find(x=>x.id===id);if(!c||!c.venta||!_esAdminRol())return;c.venta.envio=Math.round((parseFloat(val)||0)*100)/100;c.fondeada=(_pagoEstado(c).estado==='PAGADO');_savCliente(c);_vfApply();}
 function _pagoEstado(c){
-  const total=_ventaTotal(c);
+  const total=_montoTotal(c);
   const pagos=(c.venta&&c.venta.pagos)||[];
   const acred=pagos.reduce((s,p)=>s+(p.acreditado?(Number(p.monto)||0):0),0);
   const saldo=Math.round((total-acred)*100)/100;
@@ -1836,10 +1847,13 @@ function _ventasTablaHTML(list){
   const nom=(c,who)=>{const l=_entList(c.venta,who);return l.length?l.map(_entNom).filter(Boolean).join(' | '):(who==='comprador'?c.nombre:((c.venta&&c.venta.receptorPendiente)?'—':''));};
   const money=n=>'$'+Number(n||0).toLocaleString('es-AR');
   const estBadge=e=>e==='PAGADO'?'<span class="vt-badge ok">PAGADO</span>':(e==='PARCIAL'?'<span class="vt-badge warn">PARCIAL</span>':'<span class="vt-badge no">PENDIENTE</span>');
-  const cols=['N°','Pago','Ver','PDF','Editar','Seg.','Fecha','Vendedor','Colaborador','Cliente compra','Productos','Recibe','Recepción','Ítems','Total','Estado pago','Saldo','Borrar'];
+  const ro=!_esAdminRol();
+  const cols=['N°','Pago','Ver','PDF','Editar','Seg.','Fecha','Cliente compra','Producto','Cliente recibe','Recepción','Productos','Envío','Monto total','Estado pago','Acreditado','Saldo','Comisión','Bajo mín.','Vendedor','Colaborador','Borrar'];
   let h='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
-  list.forEach(c=>{const v=c.venta||{};const items=(v.productos&&v.productos.length)||1;const ep=_pagoEstado(c);
-    const recep=v.receptorPendiente?'<span class="vt-badge warn">Pendiente</span>':'<span class="vt-badge ok">Completa</span>';
+  list.forEach(c=>{const v=c.venta||{};const ep=_pagoEstado(c);
+    const recep=_recepCompleta(c)?'<span class="vt-badge ok">completo</span>':'<span class="vt-badge warn">incompleto</span>';
+    const bajo=_bajoMin(c)?'<span class="vt-badge no">Sí</span>':'<span class="vt-badge ok">No</span>';
+    const envInp='<input class="vt-envio" type="number" min="0" step="1" value="'+(_envioV(c)||'')+'" placeholder="0"'+(ro?' disabled':'')+' onclick="event.stopPropagation()" onchange="_setEnvio(\''+c.id+'\',this.value)">';
     h+='<tr>'
       +'<td><b>'+(c.ventaNum?_padNum(c.ventaNum):'—')+'</b></td>'
       +'<td><button class="vt-ic" style="background:#34c759" title="Pagos" onclick="abrirPagosVenta(\''+c.id+'\')">💵</button></td>'
@@ -1848,16 +1862,20 @@ function _ventasTablaHTML(list){
       +'<td><button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="editarVenta(\''+c.id+'\')">✏️</button></td>'
       +'<td><span class="vt-seg"><button class="vt-ic" style="background:#8e44ad" title="Seguimiento" onclick="abrirSeguimiento(\''+c.id+'\')">🔔</button>'+(_segPend(c)?'<span class="vt-seg-n">'+_segPend(c)+'</span>':'')+'</span></td>'
       +'<td>'+(c.vendidoFecha?fmtFecha(c.vendidoFecha):'')+'</td>'
-      +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
-      +'<td>'+esc(_colabNom(c)||'-')+'</td>'
       +'<td>'+esc(nom(c,'comprador'))+'</td>'
       +'<td class="vt-prod">'+esc(_ventaProdStr(c))+'</td>'
       +'<td>'+esc(nom(c,'receptor')||'—')+'</td>'
       +'<td>'+recep+'</td>'
-      +'<td class="num">'+items+'</td>'
+      +'<td class="num">'+money(_baseProd(c))+'</td>'
+      +'<td class="num">'+envInp+'</td>'
       +'<td class="num"><b style="color:#248a3d">'+money(ep.total)+'</b></td>'
       +'<td>'+estBadge(ep.estado)+'</td>'
+      +'<td class="num" style="color:#248a3d">'+money(ep.acred)+'</td>'
       +'<td class="num"'+(ep.saldo>0.009?' style="color:#ff3b30"':'')+'>'+money(ep.saldo)+'</td>'
+      +'<td class="num">'+money(c.comision)+'</td>'
+      +'<td>'+bajo+'</td>'
+      +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
+      +'<td>'+esc(_colabNom(c)||'-')+'</td>'
       +'<td><button class="vt-ic" style="background:#e74c3c" title="Eliminar venta" onclick="_delVenta(\''+c.id+'\')">🗑️</button></td>'
       +'</tr>';
   });
@@ -2218,6 +2236,7 @@ function _invModal(idx){
     +'<label>Categoría</label><select id="inv-cat">'+['moto','triciclo','kit'].map(c=>'<option value="'+c+'"'+(p.cat===c?' selected':'')+'>'+_CATLBL[c]+'</option>').join('')+'</select>'
     +'<label>Color (opcional)</label><input id="inv-color" value="'+esc(p.color||'')+'">'
     +'<label>Precio de venta ($)</label><input id="inv-precio" type="number" inputmode="numeric" value="'+esc(p.precio)+'">'
+    +'<label>Precio mínimo permitido ($) <span style="color:var(--muted);font-weight:400">— opcional, para avisar "bajo mínimo"</span></label><input id="inv-min" type="number" inputmode="numeric" value="'+esc(p.precioMin||'')+'" placeholder="sin mínimo">'
     +'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="_invSave('+idx+')">Guardar</button></div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
   const n=document.getElementById('inv-nombre');if(n)n.focus();
@@ -2225,7 +2244,7 @@ function _invModal(idx){
 function _invSave(idx){
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const nombre=g('inv-nombre');if(!nombre){alert('Poné un nombre.');return;}
-  const item={nombre,cat:g('inv-cat')||'moto',color:g('inv-color'),precio:Number(g('inv-precio'))||0};
+  const item={nombre,cat:g('inv-cat')||'moto',color:g('inv-color'),precio:Number(g('inv-precio'))||0,precioMin:Number(g('inv-min'))||0};
   if(idx<0)INVENTARIO.push(item);else INVENTARIO[idx]=Object.assign({},INVENTARIO[idx],item);
   _invRenum();_invPersist();cerrarModal();render();
 }
