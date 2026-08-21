@@ -1850,7 +1850,7 @@ function _ventasTablaHTML(list){
   const money=n=>'$'+Number(n||0).toLocaleString('es-AR');
   const estBadge=e=>e==='PAGADO'?'<span class="vt-badge ok">PAGADO</span>':(e==='PARCIAL'?'<span class="vt-badge warn">PARCIAL</span>':'<span class="vt-badge no">PENDIENTE</span>');
   const ro=!_esAdminRol();
-  const cols=['N°','Pago','Ver','PDF','Editar','Seg.','Fecha','Cliente compra','Producto','Cliente recibe','Recepción','Productos','Envío','Monto total','Estado pago','Acreditado','Saldo','Comisión','Bajo mín.','Vendedor','Colaborador','Borrar'];
+  const cols=['N°','Pago','Ver','PDF','WA','Editar','Seg.','Fecha','Cliente compra','Producto','Cliente recibe','Recepción','Productos','Envío','Monto total','Estado pago','Acreditado','Saldo','Comisión','Bajo mín.','Vendedor','Colaborador','Borrar'];
   let h='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
   list.forEach(c=>{const v=c.venta||{};const ep=_pagoEstado(c);
     const recep=_recepCompleta(c)?'<span class="vt-badge ok">completo</span>':'<span class="vt-badge warn">incompleto</span>';
@@ -1861,6 +1861,7 @@ function _ventasTablaHTML(list){
       +'<td><button class="vt-ic" style="background:#34c759" title="Pagos" onclick="abrirPagosVenta(\''+c.id+'\')">💵</button></td>'
       +'<td><button class="vt-ic" style="background:#007aff" title="Ver ficha" onclick="verVentaDetalle(\''+c.id+'\')">👁</button></td>'
       +'<td><button class="vt-ic" style="background:#e74c3c" title="Descargar PDF" onclick="_pdfVenta(\''+c.id+'\')">📄</button></td>'
+      +'<td><button class="vt-ic" style="background:#25d366" title="Enviar resumen por WhatsApp" onclick="_waVenta(\''+c.id+'\')">💬</button></td>'
       +'<td><button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="editarVenta(\''+c.id+'\')">✏️</button></td>'
       +'<td><span class="vt-seg"><button class="vt-ic" style="background:#8e44ad" title="Seguimiento" onclick="abrirSeguimiento(\''+c.id+'\')">🔔</button>'+(_segPend(c)?'<span class="vt-seg-n">'+_segPend(c)+'</span>':'')+'</span></td>'
       +'<td>'+(c.vendidoFecha?fmtFecha(c.vendidoFecha):'')+'</td>'
@@ -1915,6 +1916,56 @@ function _docsKeepHTML(who,ei){
   return '<div class="scan-keep"><div class="scan-keep-l">Ya cargadas:</div><div class="scan-imgs">'+keep.map(idd=>'<div class="scan-slot has"><img class="vr-doc" data-doc="'+esc(idd)+'" onclick="verDoc(\''+esc(idd)+'\')"><button class="scan-x" onclick="_docKeepDel(\''+who+'\','+ei+',\''+esc(idd)+'\')">✕</button></div>').join('')+'</div></div>';
 }
 function _docKeepDel(who,ei,idd){const e=_entArr(who)[ei];e.docsKeep=(e.docsKeep||[]).filter(x=>x!==idd);_ventaRender();}
+/* ---- RESUMEN DE VENTA por WhatsApp ---- */
+const _WA_DEST='13055020419'; // por ahora fijo
+function _waVenta(id){
+  const c=clientes.find(x=>x.id===id);if(!c)return;
+  const v=c.venta||{};
+  const m=n=>{n=Math.round((Number(n)||0)*100)/100;return n.toLocaleString('en-US',{minimumFractionDigits:(n%1?2:0),maximumFractionDigits:2});};
+  const comp=_entList(v,'comprador')[0]||{};
+  const nombreComp=_entNom(comp)||c.nombre||'';
+  const cel=comp.telefono||c.whatsapp||c.telefono||'';
+  const L=[];
+  L.push('📅 Fecha: '+(c.vendidoFecha?fmtFecha(c.vendidoFecha):''));
+  L.push('👨 Vendedor: '+nombreVend(c.vendedorId));
+  L.push('👤 Cliente: '+nombreComp);
+  L.push('📱 Cel Cliente: '+cel);
+  L.push('');
+  (v.productos||[]).forEach(p=>{const nm=String(p.detalle||p.producto||'').toUpperCase();L.push('📦 '+nm+': US$ '+m(p.precio));});
+  const env=_envioV(c);if(env>0)L.push('🚚 Envío: US$ '+m(env));
+  L.push('');
+  L.push('🧾 Tax (7%): US$ '+m(_taxesV(c)));
+  L.push('💰 Total Venta: US$ '+m(_montoTotal(c)));
+  (v.pagos||[]).forEach(p=>{
+    const mm=Number(p.monto)||0;if(!mm)return;
+    L.push('');
+    let t=0,f=0,fin=null;
+    if(p.metodo==='financiado'){
+      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?mm*0.07:0;f=mm*fin.fee;}
+      L.push('💳 CRÉDITO FINANCIERA');
+      if(p.financiera)L.push('🏦 Financiera: '+p.financiera);
+      L.push('💵 Aplicado a venta: US$ '+m(mm));
+      if(t)L.push('🧾 Tax (7%): US$ '+m(t));
+      if(fin)L.push('💵 Fee Financiera ('+_pctLabel(fin.fee)+'): US$ '+m(f));
+      L.push('💰 Total cobrado cliente: US$ '+m(mm+t+f));
+    }else if(p.metodo==='zelle'||p.metodo==='debito'||p.metodo==='credito'){
+      t=mm*0.07;
+      L.push((p.metodo==='zelle'?'📲 ZELLE':'💳 '+String(_VMETLBL[p.metodo]||'').toUpperCase()));
+      L.push('💵 Aplicado a venta: US$ '+m(mm));
+      L.push('🧾 Tax (7%): US$ '+m(t));
+      L.push('💰 Total cobrado cliente: US$ '+m(mm+t));
+    }else{
+      L.push('💵 EFECTIVO (CASH)');
+      L.push('💵 Aplicado a venta: US$ '+m(mm));
+      L.push('💰 Total cobrado cliente: US$ '+m(mm));
+    }
+  });
+  const ep=_pagoEstado(c);
+  L.push('');
+  L.push('✅ Total acreditado: US$ '+m(ep.acred));
+  L.push('💰 Saldo: US$ '+m(ep.saldo));
+  window.open('https://wa.me/'+_WA_DEST+'?text='+encodeURIComponent(L.join('\n')),'_blank');
+}
 /* ---- FICHA DE VENTA en PDF (ventana de impresión → Guardar como PDF) ---- */
 function _pdfVenta(id){
   const c=clientes.find(x=>x.id===id);if(!c)return;
