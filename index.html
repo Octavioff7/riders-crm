@@ -294,6 +294,17 @@
   .vf-field input:focus,.vf-field select:focus{outline:none;border-color:var(--accent)}
   .vf-field.grow{flex:1;min-width:160px}
   .vf-field.grow input{min-width:0;width:100%}
+  .vf-field .v-selbtn.vf-fld{min-width:150px;width:100%;padding:9px 11px;font-size:13px;background:var(--card);border:1px solid var(--sep-strong);border-radius:8px;color:var(--txt)}
+  .vf-field .v-selbtn.vf-fld.ph{color:var(--muted)}
+  .ad-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .ad-nav b{font-size:14px}
+  .ad-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .ad-dowc{text-align:center;font-size:11px;color:var(--muted);font-weight:600;padding:3px 0}
+  .ad-cell{border:none;background:transparent;color:var(--txt);font-family:inherit;font-size:13.5px;padding:9px 0;border-radius:8px;cursor:pointer}
+  .ad-cell.empty{visibility:hidden;cursor:default}
+  .ad-cell:hover:not(.empty){background:var(--hover)}
+  .ad-cell.today{border:1px solid var(--accent)}
+  .ad-cell.sel{background:var(--accent);color:#fff;font-weight:700}
   .vf-search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt)}
   .vf-selbtn{width:auto;min-width:190px;flex:none;background:var(--card);padding:10px 14px}
   .vf-clear{flex:none;border:1px solid var(--sep-strong);background:var(--card);color:var(--muted);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -932,7 +943,7 @@ function crmHTML(c){
       <div class="section-t">📅 Programar próximo contacto</div>
       ${prox}
       <div class="field"><label>Tipo</label><select id="prox-tipo">${['Llamada','Entrevista','Visita presencial','Mensaje','Otro'].map(x=>`<option ${c.proximoTipo===x?'selected':''}>${x}</option>`).join('')}</select></div>
-      <div class="row2"><div class="field"><label>Fecha</label><input type="date" id="prox-fecha" value="${c.proximo||hoy()}"></div><div class="field"><label>Hora</label><input type="time" id="prox-hora" value="${c.proximoHora||''}"></div></div>
+      <div class="row2"><div class="field"><label>Fecha</label><input type="hidden" id="prox-fecha" value="${c.proximo||hoy()}"><button type="button" class="v-selbtn v-full" id="prox-fecha-btn" onclick="_pickProxFecha()">📅 ${fmtFecha(c.proximo||hoy())}<span class="v-selarr">▾</span></button></div><div class="field"><label>Hora</label><input type="time" id="prox-hora" value="${c.proximoHora||''}"></div></div>
       <button class="btn" style="width:100%;margin-bottom:6px" onclick="agendarProximo('${c.id}')">Agendar contacto</button>
       <button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="googleCal('${c.id}')">📅 Agendar en Google Calendar</button>
       <div class="section-t">📝 Notas del seguimiento</div>
@@ -1420,7 +1431,7 @@ function _ventaStep3(){
     if(esFin){
       h+=_vSelBtn('v-full',p.financiera||'— Elegí la financiera —',!p.financiera,'_pickFinanciera('+i+')');
     }
-    h+='<label class="v-lbl-sm">📅 Fecha del pago</label><input type="date" class="v-full" value="'+esc(p.fecha||'')+'" oninput="_venta.pagos['+i+'].fecha=this.value">';
+    h+='<label class="v-lbl-sm">📅 Fecha del pago</label>'+_dateBtn('v-full',p.fecha,'📅 Elegí la fecha','_pickFechaPago('+i+')');
     h+=_pagoCompradorSel(p,i);
     if(p.comprobante){
       h+='<div class="v-comp has"><img src="data:'+p.comprobante.mime+';base64,'+p.comprobante.data+'"><span>✅ Comprobante adjunto</span><button class="v-comp-x" onclick="_pagoCompDel('+i+')">✕</button></div>';
@@ -1434,7 +1445,7 @@ function _ventaStep3(){
   // Datos de la venta (fecha, vendedor, comisión, observaciones) — editables
   const M=_venta.meta||{};const showVend=me&&me.rol!=='vendedor'&&(usuarios&&usuarios.length);
   h+='<div class="v-sec-t" style="margin-top:15px">🧾 Datos de la venta</div><div class="v-card">'
-    +'<label class="v-lbl-sm">📅 Fecha de la venta</label><input type="date" class="v-full" value="'+esc(M.fecha||'')+'" oninput="_venta.meta.fecha=this.value">'
+    +'<label class="v-lbl-sm">📅 Fecha de la venta</label>'+_dateBtn('v-full',M.fecha,'📅 Elegí la fecha','_pickFechaVenta()')
     +(showVend?'<label class="v-lbl-sm">👤 Vendedor asignado</label>'+_vSelBtn('v-full',(M.vendedorId?nombreVend(M.vendedorId):'—'),!M.vendedorId,'_pickVentaVend()'):'')
     +(showVend?'<label class="v-lbl-sm">🤝 Colaborador (opcional)</label>'+_vSelBtn('v-full',(M.colaborador||'— Ninguno —'),!M.colaborador,'_pickVentaColab()'):'')
     +'<label class="v-lbl-sm">💰 Comisión ($)</label><input type="number" inputmode="numeric" class="v-full" value="'+esc(M.comision||'')+'" oninput="_venta.meta.comision=this.value">'
@@ -1470,6 +1481,42 @@ function appPick(o){
     if(si){si.oninput=()=>{const q=si.value.toLowerCase().trim();document.querySelectorAll('#pick-list .pick-row').forEach(b=>{const t=b.getAttribute('data-search')||'';b.style.display=(!q||t.indexOf(q)>=0)?'':'none';});};setTimeout(()=>si.focus(),30);}
   }
 }
+/* ---- ALMANAQUE estilo CRM (reemplaza los <input type=date> nativos) ---- */
+let _adState=null;
+const _AD_MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const _AD_DOW=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+function appDate(o){
+  const val=(o.actual&&/^\d{4}-\d{2}-\d{2}$/.test(String(o.actual).slice(0,10)))?String(o.actual).slice(0,10):'';
+  _adState={sel:val,view:(val||hoy()).slice(0,7),onPick:o.onPick,clearable:o.clearable!==false,titulo:o.titulo||'Elegí la fecha'};
+  _adRender();
+}
+function _adRender(){
+  const m=document.getElementById('modal-date');if(m)m.remove();
+  const S=_adState;const y=+S.view.slice(0,4),mo=+S.view.slice(5,7);
+  const startDow=(new Date(y,mo-1,1).getDay()+6)%7;
+  const dim=new Date(y,mo,0).getDate();const t=hoy();
+  let cells='';for(let i=0;i<startDow;i++)cells+='<div class="ad-cell empty"></div>';
+  for(let d=1;d<=dim;d++){const ds=y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    cells+='<button type="button" class="ad-cell'+(ds===S.sel?' sel':'')+(ds===t?' today':'')+'" onclick="_adPick(\''+ds+'\')">'+d+'</button>';}
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-date';wrap.style.zIndex=400;
+  wrap.innerHTML='<div class="modal" style="max-width:320px">'
+    +'<div class="modal-h"><b>'+esc(S.titulo)+'</b><button class="mini" onclick="_adClose()">✕</button></div>'
+    +'<div class="modal-b">'
+    +'<div class="ad-nav"><button type="button" class="mini" onclick="_adMonth(-1)">‹</button><b>'+_AD_MESES[mo-1]+' '+y+'</b><button type="button" class="mini" onclick="_adMonth(1)">›</button></div>'
+    +'<div class="ad-grid" style="margin-bottom:4px">'+_AD_DOW.map(d=>'<div class="ad-dowc">'+d+'</div>').join('')+'</div>'
+    +'<div class="ad-grid">'+cells+'</div>'
+    +'</div>'
+    +'<div class="modal-f">'+(S.clearable?'<button type="button" class="btn ghost" onclick="_adPick(\'\')">Limpiar</button>':'')+'<button type="button" class="btn ghost" onclick="_adPick(\''+t+'\')">Hoy</button></div>'
+    +'</div>';
+  wrap.onclick=e=>{if(e.target===wrap)_adClose();};document.body.appendChild(wrap);
+}
+function _adMonth(delta){const y=+_adState.view.slice(0,4),mo=+_adState.view.slice(5,7);const d=new Date(y,mo-1+delta,1);_adState.view=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');_adRender();}
+function _adPick(ds){const cb=_adState&&_adState.onPick;_adClose();if(cb)cb(ds);}
+function _adClose(){const m=document.getElementById('modal-date');if(m)m.remove();_adState=null;}
+function _dateBtn(cls,val,ph,onclickExpr){return _vSelBtn(cls,val?('📅 '+fmtFecha(val)):(ph||'📅 Elegí la fecha'),!val,onclickExpr);}
+function _pickFechaPago(i){appDate({titulo:'Fecha del pago',actual:_venta.pagos[i].fecha,clearable:false,onPick:v=>{_venta.pagos[i].fecha=v;_ventaRender();}});}
+function _pickFechaVenta(){appDate({titulo:'Fecha de la venta',actual:_venta.meta.fecha,clearable:false,onPick:v=>{_venta.meta.fecha=v;_ventaRender();}});}
+function _pickProxFecha(){const inp=document.getElementById('prox-fecha');if(!inp)return;appDate({titulo:'Fecha del próximo contacto',actual:inp.value,clearable:false,onPick:v=>{inp.value=v;const b=document.getElementById('prox-fecha-btn');if(b)b.innerHTML='📅 '+esc(fmtFecha(v))+'<span class="v-selarr">▾</span>';}});}
 function _pickDetalle(i){
   const p=_venta.productos[i];const cat=_PRODCAT[p.producto];
   if(!cat){ // "Otro" → texto libre
@@ -1846,6 +1893,17 @@ const _EST_VENTA=['PENDIENTE','CONFIRMADA','EN PROCESO','ENVIADA','ENTREGADA','A
 function _estadoVenta(c){return c.anulada?'ANULADA':(c.estadoVenta||'CONFIRMADA');}
 const _MEDIO_MAP={cash:'EFECTIVO EN TIENDA',zelle:'ZELLE',debito:'DEBITO',credito:'CREDITO',financiado:'CREDITO FINANCIERA'};
 function _acredState(c){if(c.anulada)return 'ANULADO';const p=(c.venta&&c.venta.pagos)||[];if(p.length&&p.every(x=>x.acreditado))return 'ACREDITADO';return 'PENDIENTE';}
+const _VF_OPTS={
+  estadoVenta:[['','Todos']].concat(_EST_VENTA.map(x=>[x,x])),
+  estadoPago:[['','Todos'],['PENDIENTE','PENDIENTE'],['PARCIAL','PARCIAL'],['PAGADO','PAGADO']],
+  medioPago:[['','Todos'],['SIN PAGOS','SIN PAGOS'],['EFECTIVO EN TIENDA','EFECTIVO EN TIENDA'],['ZELLE','ZELLE'],['DEBITO','DEBITO'],['CREDITO','CREDITO'],['CREDITO FINANCIERA','CREDITO FINANCIERA']],
+  acred:[['','Todas'],['PENDIENTE','PENDIENTE'],['ACREDITADO','ACREDITADO'],['ANULADO','ANULADO']]
+};
+const _VF_TIT={estadoVenta:'Estado de la venta',estadoPago:'Estado del pago',medioPago:'Medio de pago',acred:'Acreditación',financiera:'Financiera'};
+function _vfOpts(key){return key==='financiera'?[['','Todas']].concat(_FIN.map(f=>[f.n,f.n])):_VF_OPTS[key];}
+function _vfLbl(key){const cur=_vf[key];const o=_vfOpts(key).find(x=>x[0]===cur);return o?o[1]:_vfOpts(key)[0][1];}
+function _pickVf(key){appPick({titulo:_VF_TIT[key]||'Elegí',actual:_vf[key]||'',opciones:_vfOpts(key).map(o=>({value:o[0],label:o[1]})),onPick:v=>{_vf[key]=v;renderVentasAdmin();}});}
+function _pickVfFecha(which){appDate({titulo:which==='desde'?'Desde':'Hasta',actual:_vf[which],onPick:v=>{_vf[which]=v;_vf.preset='';renderVentasAdmin();}});}
 function _vfClear(){_vfReset();render();}
 function _vfVista(v){_vf.vista=v;render();}
 function _dMinus(days){const d=new Date();d.setDate(d.getDate()-days);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -1877,17 +1935,15 @@ function renderVentasAdmin(){
   const all=_ventasList();
   if(!all.length){main.innerHTML='<div class="page"><h1>🧾 Ventas</h1><div class="sub">Todavía no hay ventas cargadas.</div></div>';return;}
   let h='<div class="page"><div class="conv-head-row"><h1>🧾 Ventas</h1><div class="xbtn-row"><button class="xbtn excel" onclick="_exportarVentas()">⬇ Excel</button><button class="xbtn pdf" onclick="_pdfVentasTabla()">⬇ PDF</button></div></div>';
-  const opt=(key,arr)=>arr.map(o=>'<option value="'+esc(o[0])+'"'+(_vf[key]===o[0]?' selected':'')+'>'+esc(o[1])+'</option>').join('');
-  const sel=(label,key,arr)=>'<div class="vf-field"><label>'+label+'</label><select onchange="_vf.'+key+'=this.value;_vfApply()">'+opt(key,arr)+'</select></div>';
-  const so=x=>[x,x];
+  const fld=(label,key)=>'<div class="vf-field"><label>'+label+'</label>'+_vSelBtn('vf-fld',_vfLbl(key),!_vf[key],'_pickVf(\''+key+'\')')+'</div>';
   h+='<div class="vf-grid">'
-    +'<div class="vf-field"><label>Desde</label><input type="date" id="vf-desde" value="'+_vf.desde+'" onchange="_vf.desde=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"></div>'
-    +'<div class="vf-field"><label>Hasta</label><input type="date" id="vf-hasta" value="'+_vf.hasta+'" onchange="_vf.hasta=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"></div>'
-    +sel('Estado venta','estadoVenta',[['','Todos']].concat(_EST_VENTA.map(so)))
-    +sel('Estado pago','estadoPago',[['','Todos'],so('PENDIENTE'),so('PARCIAL'),so('PAGADO')])
-    +sel('Medio pago','medioPago',[['','Todos'],so('SIN PAGOS'),so('EFECTIVO EN TIENDA'),so('ZELLE'),so('DEBITO'),so('CREDITO'),so('CREDITO FINANCIERA')])
-    +sel('Acreditación','acred',[['','Todas'],so('PENDIENTE'),so('ACREDITADO'),so('ANULADO')])
-    +sel('Financiera','financiera',[['','Todas']].concat(_FIN.map(f=>[f.n,f.n])))
+    +'<div class="vf-field"><label>Desde</label>'+_dateBtn('vf-fld',_vf.desde,'📅 Cualquiera','_pickVfFecha(\'desde\')')+'</div>'
+    +'<div class="vf-field"><label>Hasta</label>'+_dateBtn('vf-fld',_vf.hasta,'📅 Cualquiera','_pickVfFecha(\'hasta\')')+'</div>'
+    +fld('Estado venta','estadoVenta')
+    +fld('Estado pago','estadoPago')
+    +fld('Medio pago','medioPago')
+    +fld('Acreditación','acred')
+    +fld('Financiera','financiera')
     +'<div class="vf-field grow"><label>Buscar</label><input class="vf-search" placeholder="Venta, cliente, medio…" value="'+esc(_vf.q)+'" oninput="_vf.q=this.value.toLowerCase();_vfApply()"></div>'
     +'</div>';
   h+='<div class="vf-bar">'+_vSelBtn('vf-selbtn',(_vf.vend?nombreVend(_vf.vend):'Todos los vendedores'),!_vf.vend,'_pickVfVend()')+'<div class="vf-chips">'+[['Hoy','hoy'],['7 días','7d'],['Este mes','mes'],['Todas','todas']].map(x=>'<button class="vf-chip" data-k="'+x[1]+'" onclick="_vfPreset(\''+x[1]+'\')">'+x[0]+'</button>').join('')+'</div><button class="vf-clear" onclick="_vfClear()">✕ Limpiar filtros</button></div>';
@@ -1902,9 +1958,7 @@ function _vfPreset(k){const t=hoy();_vf.preset=k;
   else if(k==='7d'){_vf.desde=_dMinus(6);_vf.hasta=t;}
   else if(k==='mes'){_vf.desde=t.slice(0,8)+'01';_vf.hasta=t;}
   else{_vf.desde='';_vf.hasta='';}
-  const d=document.getElementById('vf-desde');if(d)d.value=_vf.desde;
-  const hh=document.getElementById('vf-hasta');if(hh)hh.value=_vf.hasta;
-  _vfChipHi();_vfApply();
+  renderVentasAdmin();
 }
 function _pickVfVend(){
   const vendIds=[...new Set(_ventasList().map(c=>c.vendedorId).filter(Boolean))].sort((a,b)=>String(nombreVend(a)).localeCompare(String(nombreVend(b))));
@@ -2198,7 +2252,7 @@ function _pvRender(id){
       +'<div class="row2"><div><label class="v-lbl-sm">Medio de pago</label>'+_vSelBtn('v-full',_VMETLBL[n.metodo]||'Medio',false,'_pvPickMetodo(\''+id+'\')')+'</div><div><label class="v-lbl-sm">Monto</label><input class="v-full" id="pv-monto" type="number" inputmode="decimal" placeholder="0" value="'+esc(n.monto)+'" oninput="_pvNew.monto=this.value"></div></div>'
       +(n.metodo==='financiado'?'<label class="v-lbl-sm">Financiera</label>'+_vSelBtn('v-full',n.financiera||'— Elegí —',!n.financiera,'_pvPickFin(\''+id+'\')'):'')
       +(comps.length>1?'<label class="v-lbl-sm">A nombre de</label>'+_vSelBtn('v-full',n.comprador||comps[0],false,'_pvPickComp(\''+id+'\')'):'')
-      +'<div class="row2"><div><label class="v-lbl-sm">Fecha</label><input class="v-full" id="pv-fecha" type="date" value="'+esc(n.fecha)+'" oninput="_pvNew.fecha=this.value"></div><div><label class="v-lbl-sm">&nbsp;</label><label class="v-comp" style="justify-content:flex-start"><input type="checkbox" style="width:auto;margin:0 6px 0 0" '+(n.acreditado?'checked':'')+' onchange="_pvNew.acreditado=this.checked"> Ya acreditado</label></div></div>'
+      +'<div class="row2"><div><label class="v-lbl-sm">Fecha</label>'+_dateBtn('v-full',n.fecha,'📅 Elegí la fecha','_pvPickFecha(\''+id+'\')')+'</div><div><label class="v-lbl-sm">&nbsp;</label><label class="v-comp" style="justify-content:flex-start"><input type="checkbox" style="width:auto;margin:0 6px 0 0" '+(n.acreditado?'checked':'')+' onchange="_pvNew.acreditado=this.checked"> Ya acreditado</label></div></div>'
       +'<button class="btn" style="width:100%;margin-top:10px" onclick="_pvAdd(\''+id+'\')">＋ Agregar pago</button>'
     +'</div>';
   }
@@ -2210,6 +2264,7 @@ function _pvDel(id,i){const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())
 function _pvPickMetodo(id){appPick({titulo:'Medio de pago',actual:_pvNew.metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_pvNew.metodo=v;if(v!=='financiado')_pvNew.financiera='';_pvRender(id);}});}
 function _pvPickFin(id){appPick({titulo:'Financiera',actual:_pvNew.financiera||'',opciones:_FIN.filter(_finActiva).map(f=>({value:f.n,label:f.n})),onPick:v=>{_pvNew.financiera=v;_pvRender(id);}});}
 function _pvPickComp(id){const c=clientes.find(x=>x.id===id);const comps=_entList(c.venta,'comprador').map(_entNom).filter(Boolean);appPick({titulo:'A nombre de',actual:_pvNew.comprador||comps[0]||'',opciones:comps.map(x=>({value:x,label:x})),onPick:v=>{_pvNew.comprador=v;_pvRender(id);}});}
+function _pvPickFecha(id){appDate({titulo:'Fecha del pago',actual:_pvNew.fecha,clearable:false,onPick:v=>{_pvNew.fecha=v;_pvRender(id);}});}
 function _pvAdd(id){
   const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())return;const n=_pvNew;
   const monto=parseFloat(n.monto)||0;if(monto<=0){alert('Poné un monto mayor a 0.');return;}
