@@ -1201,7 +1201,7 @@ function abrirCargarVenta(){
     compradores:[_nuevoComprador()],
     receptorModo:'ahora',
     receptores:[_nuevoReceptor()],
-    productos:[{producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:''}],
+    productos:[{producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0}],
     pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null}]};
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-venta';
   wrap.innerHTML='<div class="modal venta-modal"><div class="modal-h"><b>Cargar venta</b><button class="mini" onclick="cerrarVenta()">✕</button></div><div class="venta-steps" id="venta-steps"></div><div class="modal-b" id="venta-body"></div><div class="modal-f" id="venta-foot"></div></div>';
@@ -1329,6 +1329,7 @@ function _ventaStep3(){
       +(_venta.productos.length>1?'<button class="v-del" onclick="_ventaDelProd('+i+')">✕</button>':'<span class="v-del-sp"></span>')+'</div>'
       +'<button type="button" class="v-selbtn v-full'+(p.detalle?'':' ph')+'" onclick="_pickDetalle('+i+')">'+detDisp+'<span class="v-selarr">▾</span></button>'
       +'<input class="v-full" placeholder="Color (opcional)" value="'+esc(p.color)+'" oninput="_venta.productos['+i+'].color=this.value">'
+      +_prodReceptorSel(p,i)
       +'</div>';
   });
   h+='</div><button class="v-add" onclick="_ventaAddProd()">＋ Agregar producto</button>';
@@ -1383,6 +1384,16 @@ function _pickDetalle(i){
   appPick({titulo:'Elegí el producto',search:true,actual:p.detalle||'',
     opciones:items.map(x=>({value:x.nombre,label:x.n+'. '+x.nombre,nota:'$'+_money(x.precio)})),
     onPick:v=>{const it=items.find(x=>x.nombre===v);p.detalle=v;p.listaPrecio=it?it.precio:null;_ventaRender();}});
+}
+function _recLabel(r,i){return (_entNom(r)||('Receptor '+(i+1)))+(r&&r.provincia?' · '+r.provincia:'');}
+function _prodReceptorSel(p,i){
+  if(_venta.receptorModo!=='ahora'||!_venta.receptores.length)return '';
+  let ri=p.receptorIdx||0;if(ri>=_venta.receptores.length)ri=0;
+  return '<label class="v-lbl-sm">📦 Enviar a</label>'+_vSelBtn('v-full','📦 '+_recLabel(_venta.receptores[ri],ri),false,'_pickProductoReceptor('+i+')');
+}
+function _pickProductoReceptor(i){
+  const opts=_venta.receptores.map((r,ri)=>({value:String(ri),label:_recLabel(r,ri)}));
+  appPick({titulo:'¿A qué receptor va este producto?',actual:String(_venta.productos[i].receptorIdx||0),opciones:opts,onPick:v=>{_venta.productos[i].receptorIdx=parseInt(v,10)||0;_ventaRender();}});
 }
 function cerrarPick(){const m=document.getElementById('modal-pick');if(m)m.remove();}
 function _pickProducto(i){appPick({titulo:'Producto',actual:_venta.productos[i].producto,opciones:PRODUCTOS.map(p=>({value:p,label:p})),onPick:v=>{const p=_venta.productos[i];if(p.producto!==v){p.detalle='';p.listaPrecio=null;}p.producto=v;_ventaRender();}});}
@@ -1443,8 +1454,8 @@ function _ventaCalcHTML(){
   if(_venta.pagos.some(p=>p.metodo==='financiado'&&!p.financiera))h+='<div class="v-calc-note">⚠️ Elegí la financiera para calcular su fee.</div>';
   return h;
 }
-function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:''});_ventaRender();}
-function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:''});_ventaRender();}
+function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0});_ventaRender();}
+function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0});_ventaRender();}
 function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
 function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
 async function _subirDocs(imgs){
@@ -1488,7 +1499,7 @@ async function guardarVenta(){
   }
   const venta={
     compradores,receptores,receptorPendiente,
-    productos:prods.map(p=>({producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),listaPrecio:p.listaPrecio||null,precio:parseFloat(p.precio)||0})),
+    productos:prods.map(p=>{const rr=(_venta.receptorModo==='ahora'&&_venta.receptores[p.receptorIdx||0])?_entNom(_venta.receptores[p.receptorIdx||0]):'';return {producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),listaPrecio:p.listaPrecio||null,precio:parseFloat(p.precio)||0,receptor:rr};}),
     pagos:pagosOut,
     total};
   const _calc=_ventaCalc();
@@ -1541,7 +1552,7 @@ function ventaResumenHTML(c){
   }else{h+='<div class="vr-ln" style="opacity:.7">Pendiente de cargar</div>';}
   h+='</div>';
   h+='<div class="vr-blk"><div class="vr-lbl">🛒 Productos</div>';
-  (v.productos||[]).forEach(p=>{h+='<div class="vr-ln">• '+esc(p.producto)+(p.color?' <span style="opacity:.7">('+esc(p.color)+')</span>':'')+' — <b>$'+_money(p.precio)+'</b>'+(p.detalle?'<div class="vr-sub">'+esc(p.detalle)+(p.listaPrecio?' · lista $'+_money(p.listaPrecio):'')+'</div>':'')+'</div>';});
+  (v.productos||[]).forEach(p=>{h+='<div class="vr-ln">• '+esc(p.producto)+(p.color?' <span style="opacity:.7">('+esc(p.color)+')</span>':'')+' — <b>$'+_money(p.precio)+'</b>'+(p.receptor&&receptores.length>1?' <span style="opacity:.7">→ '+esc(p.receptor)+'</span>':'')+(p.detalle?'<div class="vr-sub">'+esc(p.detalle)+(p.listaPrecio?' · lista $'+_money(p.listaPrecio):'')+'</div>':'')+'</div>';});
   if(v.pagos&&v.pagos.length){
     h+='<div class="vr-ln" style="margin-top:5px">💳 Pagos:</div>';
     v.pagos.forEach(p=>{h+='<div class="vr-ln" style="margin-left:12px">• '+esc(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' <span style="opacity:.7">— '+esc(p.financiera)+'</span>':'')+' <b>$'+_money(p.monto)+'</b>'+(p.fecha?' <span style="opacity:.7">· '+(typeof fmtFecha==='function'?fmtFecha(p.fecha):esc(p.fecha))+'</span>':'')+'</div>';});
@@ -1722,7 +1733,7 @@ function _vfApply(){
 function _entNom(e){return ((e.nombre||'')+' '+(e.apellido||'')).trim();}
 function _gv(c,who,k){const l=_entList(c.venta,who);if(!l.length)return '';return l.map(e=>e[k]||'').filter(Boolean).join(' ; ');}
 function _dirExport(c,who){const l=_entList(c.venta,who);return l.map(o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.municipio,o.estado,o.provincia,o.codigoPostal,o.pais].filter(Boolean).join(', ')).filter(Boolean).join(' ; ');}
-function _prodExport(c){if(!(c.venta&&c.venta.productos&&c.venta.productos.length))return c.ventaDetalle||c.producto||'';return c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')+(p.color?' ('+p.color+')':'')+' $'+(p.precio||0)).join(' ; ');}
+function _prodExport(c){if(!(c.venta&&c.venta.productos&&c.venta.productos.length))return c.ventaDetalle||c.producto||'';return c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')+(p.color?' ('+p.color+')':'')+' $'+(p.precio||0)+(p.receptor?' → '+p.receptor:'')).join(' ; ');}
 function _pagosExport(c){if(!(c.venta&&c.venta.pagos&&c.venta.pagos.length))return '';return c.venta.pagos.map(p=>(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' '+p.financiera:'')+' $'+(p.monto||0)+(p.fecha?' ('+fmtFecha(p.fecha)+')':'')).join(' ; ');}
 function _exportarVentas(){
   const list=_ventasList().filter(_vfMatch);
