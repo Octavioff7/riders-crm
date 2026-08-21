@@ -307,7 +307,8 @@
   .vtbl tbody tr:hover{background:var(--hover)}
   .vtbl .num{text-align:right}
   .vtbl .vt-prod{max-width:230px;overflow:hidden;text-overflow:ellipsis}
-  .vt-badge{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:12px}
+  .vt-badge{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--hover);color:var(--muted)}
+  .vt-badge.rev{background:rgba(0,122,255,.14);color:#0064d6}
   .vt-badge.ok{background:rgba(52,199,89,.16);color:#248a3d}
   .vt-badge.warn{background:rgba(255,159,10,.16);color:#c76e00}
   .vt-badge.no{background:rgba(255,59,48,.14);color:#c0392b}
@@ -318,6 +319,9 @@
   .pv-v{font-size:15px;font-weight:700;margin-top:2px}
   .pv-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--sep)}
   .pv-add{background:var(--bg);border-radius:10px;padding:12px 14px}
+  .seg-row{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid var(--sep)}
+  .vt-seg{position:relative;display:inline-block}
+  .vt-seg-n{position:absolute;top:-6px;right:-6px;background:#e67e22;color:#fff;font-size:9px;font-weight:700;min-width:15px;height:15px;border-radius:8px;display:grid;place-items:center;padding:0 3px}
   .vdet-head{display:flex;align-items:center;gap:11px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--sep)}
   .vdet-head .nm{font-size:16px;font-weight:700}
   .vrow .av{flex:none}
@@ -1806,7 +1810,7 @@ function _ventasTablaHTML(list){
   const nom=(c,who)=>{const l=_entList(c.venta,who);return l.length?l.map(_entNom).filter(Boolean).join(' | '):(who==='comprador'?c.nombre:((c.venta&&c.venta.receptorPendiente)?'—':''));};
   const money=n=>'$'+Number(n||0).toLocaleString('es-AR');
   const estBadge=e=>e==='PAGADO'?'<span class="vt-badge ok">PAGADO</span>':(e==='PARCIAL'?'<span class="vt-badge warn">PARCIAL</span>':'<span class="vt-badge no">PENDIENTE</span>');
-  const cols=['N°','Pago','Ver','PDF','Editar','Fecha','Vendedor','Cliente compra','Productos','Recibe','Recepción','Ítems','Total','Estado pago','Saldo'];
+  const cols=['N°','Pago','Ver','PDF','Editar','Seg.','Fecha','Vendedor','Cliente compra','Productos','Recibe','Recepción','Ítems','Total','Estado pago','Saldo'];
   let h='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
   list.forEach(c=>{const v=c.venta||{};const items=(v.productos&&v.productos.length)||1;const ep=_pagoEstado(c);
     const recep=v.receptorPendiente?'<span class="vt-badge warn">Pendiente</span>':'<span class="vt-badge ok">Completa</span>';
@@ -1816,6 +1820,7 @@ function _ventasTablaHTML(list){
       +'<td><button class="vt-ic" style="background:#007aff" title="Ver ficha" onclick="verVentaDetalle(\''+c.id+'\')">👁</button></td>'
       +'<td><button class="vt-ic" style="background:#e74c3c" title="Descargar PDF" onclick="_pdfVenta(\''+c.id+'\')">📄</button></td>'
       +'<td><button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="editarVenta(\''+c.id+'\')">✏️</button></td>'
+      +'<td><span class="vt-seg"><button class="vt-ic" style="background:#8e44ad" title="Seguimiento" onclick="abrirSeguimiento(\''+c.id+'\')">🔔</button>'+(_segPend(c)?'<span class="vt-seg-n">'+_segPend(c)+'</span>':'')+'</span></td>'
       +'<td>'+(c.vendidoFecha?fmtFecha(c.vendidoFecha):'')+'</td>'
       +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
       +'<td>'+esc(nom(c,'comprador'))+'</td>'
@@ -1895,6 +1900,50 @@ function _pdfVenta(id){
   if(!w){alert('El navegador bloqueó la ventana. Permití las ventanas emergentes para descargar el PDF.');return;}
   w.document.open();w.document.write(html);w.document.close();
 }
+/* ---- SEGUIMIENTO de la venta/cliente ---- */
+const _SEG_EST=['PENDIENTE','EN REVISIÓN','RESUELTO'];
+const _SEG_PRI=['NORMAL','ALTA'];
+let _segNew=null;
+function _segPend(c){return (c.seg||[]).filter(s=>s.estado==='PENDIENTE').length;}
+function _segEstBadge(e){const cls=e==='RESUELTO'?'ok':(e==='EN REVISIÓN'?'rev':'warn');return '<span class="vt-badge '+cls+'">'+esc(e)+'</span>';}
+function _segPriBadge(p){return p==='ALTA'?'<span class="vt-badge no">ALTA</span>':'<span class="vt-badge">NORMAL</span>';}
+function abrirSeguimiento(id){
+  const c=clientes.find(x=>x.id===id);if(!c)return;
+  _segNew={estado:'PENDIENTE',prioridad:'NORMAL',detalle:''};
+  cerrarSeg();
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-seg';wrap.style.zIndex=320;
+  wrap.innerHTML='<div class="modal" style="width:min(640px,calc(100vw - 24px));max-height:92vh;display:flex;flex-direction:column"><div class="modal-h"><b>🔔 Seguimiento — '+esc(c.nombre)+(c.ventaNum?' · N° '+_padNum(c.ventaNum):'')+'</b><button class="mini" onclick="cerrarSeg()">✕</button></div><div class="modal-b" id="seg-body" style="overflow-y:auto"></div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarSeg();};document.body.appendChild(wrap);
+  _segRender(id);
+}
+function cerrarSeg(){const m=document.getElementById('modal-seg');if(m)m.remove();}
+function _segRender(id){
+  const c=clientes.find(x=>x.id===id);const b=document.getElementById('seg-body');if(!c||!b)return;
+  const ro=RO();const seg=(c.seg||[]);
+  let h='<div class="pv-sum"><div><div class="pv-l">Cliente</div><div class="pv-v">'+esc(c.nombre)+'</div></div><div><div class="pv-l">Venta</div><div class="pv-v">N° '+(c.ventaNum?_padNum(c.ventaNum):'—')+'</div></div><div><div class="pv-l">Pendientes</div><div class="pv-v" style="color:#e67e22">'+_segPend(c)+'</div></div></div>';
+  if(!ro){
+    h+='<div class="v-sec-t" style="margin-top:14px">Agregar seguimiento</div>'
+      +'<textarea id="seg-det" placeholder="Ej: Cliente llamó consultando por financiera, revisar documentación, enviar WhatsApp…" style="width:100%;min-height:72px;box-sizing:border-box">'+esc(_segNew.detalle||'')+'</textarea>'
+      +'<div class="row2" style="margin-top:8px"><div><label class="v-lbl-sm">Estado</label>'+_vSelBtn('v-full',_segNew.estado,false,'_segPickEstado(\''+id+'\')')+'</div><div><label class="v-lbl-sm">Prioridad</label>'+_vSelBtn('v-full',_segNew.prioridad,false,'_segPickPrior(\''+id+'\')')+'</div></div>'
+      +'<button class="btn" style="width:100%;margin-top:10px" onclick="_segAdd(\''+id+'\')">＋ Guardar seguimiento</button>';
+  }
+  h+='<div class="v-sec-t" style="margin-top:16px">Historial</div>';
+  h+=seg.length?seg.map((s,i)=>i).reverse().map(i=>{const s=seg[i];return '<div class="seg-row"><div style="flex:1;min-width:0"><div style="font-size:13px;white-space:pre-line">'+esc(s.detalle||'')+'</div><div class="faint" style="font-size:11.5px;margin-top:4px">'+_segEstBadge(s.estado)+' '+_segPriBadge(s.prioridad)+' · '+esc(s.fecha||'')+(s.hora?' '+esc(s.hora):'')+(s.usuario?' · 👤 '+esc(s.usuario):'')+'</div></div>'+(!ro?'<button class="mini" onclick="_segDel(\''+id+'\','+i+')">🗑</button>':'')+'</div>';}).join(''):'<div class="faint" style="padding:8px 0">Este cliente todavía no tiene seguimiento.</div>';
+  b.innerHTML=h;
+  const t=document.getElementById('seg-det');if(t)t.oninput=function(){_segNew.detalle=t.value;};
+}
+function _segAdd(id){
+  const c=clientes.find(x=>x.id===id);if(!c||RO())return;
+  const t=document.getElementById('seg-det');const det=t?t.value.trim():'';
+  if(!det){alert('Escribí una nota para el seguimiento.');return;}
+  c.seg=c.seg||[];
+  c.seg.push({fecha:hoy(),hora:ahora(),estado:_segNew.estado,prioridad:_segNew.prioridad,detalle:det,usuario:(me&&me.nombre)||''});
+  _segNew={estado:'PENDIENTE',prioridad:'NORMAL',detalle:''};
+  save();_segRender(id);if(view==='ventas')_vfApply();
+}
+function _segDel(id,i){const c=clientes.find(x=>x.id===id);if(!c||RO())return;appModal({titulo:'Eliminar seguimiento',texto:'¿Eliminar esta nota?',okLabel:'Eliminar',okDanger:true,onOk:()=>{c.seg.splice(i,1);save();_segRender(id);if(view==='ventas')_vfApply();}});}
+function _segPickEstado(id){appPick({titulo:'Estado',actual:_segNew.estado,opciones:_SEG_EST.map(e=>({value:e,label:e})),onPick:v=>{_segNew.estado=v;_segRender(id);}});}
+function _segPickPrior(id){appPick({titulo:'Prioridad',actual:_segNew.prioridad,opciones:_SEG_PRI.map(e=>({value:e,label:e})),onPick:v=>{_segNew.prioridad=v;_segRender(id);}});}
 /* ---- PAGOS DE VENTA (acreditación / saldo) ---- */
 let _pvNew=null;
 function _money2(n){return '$'+Number(n||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
