@@ -308,7 +308,14 @@
   .vt-badge{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:12px}
   .vt-badge.ok{background:rgba(52,199,89,.16);color:#248a3d}
   .vt-badge.warn{background:rgba(255,159,10,.16);color:#c76e00}
+  .vt-badge.no{background:rgba(255,59,48,.14);color:#c0392b}
   .vt-ver{border:1px solid var(--sep-strong);background:var(--bg);color:var(--accent);border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .vt-ic{border:none;color:#fff;border-radius:7px;width:30px;height:28px;font-size:13px;cursor:pointer;display:inline-grid;place-items:center}
+  .pv-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;background:var(--bg);border-radius:10px;padding:13px 15px}
+  .pv-l{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+  .pv-v{font-size:15px;font-weight:700;margin-top:2px}
+  .pv-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--sep)}
+  .pv-add{background:var(--bg);border-radius:10px;padding:12px 14px}
   .vdet-head{display:flex;align-items:center;gap:11px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--sep)}
   .vdet-head .nm{font-size:16px;font-weight:700}
   .vrow .av{flex:none}
@@ -1530,7 +1537,8 @@ async function guardarVenta(){
   venta.cobro={base:_calc.base,tax:_calc.tax,fee:_calc.fee,total:_calc.total};
   const resumen=venta.productos.map(p=>'• '+p.producto+(p.color?' ('+p.color+')':'')+' — $'+_money(p.precio)).join('\n')
     +(venta.pagos.length?('\nPagos: '+venta.pagos.map(p=>_VMETLBL[p.metodo]+' $'+_money(p.monto)).join(' + ')):'');
-  const c={id:uid(),nombre,whatsapp:tel,email:cmp.email||'',
+  const ventaNum=clientes.reduce((m,x)=>Math.max(m,x.ventaNum||0),0)+1;
+  const c={id:uid(),nombre,whatsapp:tel,email:cmp.email||'',ventaNum,
     producto:venta.productos[0].producto,operacion:'',ubicacion:[cmp.ciudad,cmp.estado].filter(Boolean).join(', '),
     etapa:'vendido',valor:total,cantidad,venta,ventaDetalle:venta.productos.map(p=>p.producto+(p.color?' '+p.color:'')+' $'+_money(p.precio)).join(', '),
     vendidoFecha:hoy(),vendedorId:filtroVend||(me&&me.id)||'',
@@ -1700,6 +1708,24 @@ function _tieneDocs(c){const v=c.venta;if(!v)return false;
   return !!(has(_entList(v,'comprador'))||has(_entList(v,'receptor'))||(v.compradorDocs&&v.compradorDocs.length)||(v.receptorDocs&&v.receptorDocs.length)||(v.pagos&&v.pagos.some(p=>p.comprobante)));}
 function _ventaProdStr(c){return (c.venta&&c.venta.productos&&c.venta.productos.length)?c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')).join(', '):(c.ventaDetalle||c.producto||'');}
 function _ventaTotal(c){return Number((c.venta&&c.venta.cobro&&c.venta.cobro.total)||c.valor||0);}
+function _pagoEstado(c){
+  const total=_ventaTotal(c);
+  const pagos=(c.venta&&c.venta.pagos)||[];
+  const acred=pagos.reduce((s,p)=>s+(p.acreditado?(Number(p.monto)||0):0),0);
+  const saldo=Math.round((total-acred)*100)/100;
+  const estado=acred<=0?'PENDIENTE':(saldo>0.009?'PARCIAL':'PAGADO');
+  return {total,acred,saldo,estado};
+}
+// Asigna N° de venta a las ventas que no lo tengan (por fecha) y guarda (solo si puede escribir)
+function _backfillVentaNums(){
+  if(RO())return;
+  const sinNum=clientes.filter(c=>!c.borrado&&(c.etapa==='vendido'||c.etapa==='posventa')&&!c.ventaNum);
+  if(!sinNum.length)return;
+  let maxN=clientes.reduce((m,x)=>Math.max(m,x.ventaNum||0),0);
+  sinNum.sort((a,b)=>(a.creadoTs||Date.parse(a.creado||0)||0)-(b.creadoTs||Date.parse(b.creado||0)||0)||String(a.vendidoFecha||'').localeCompare(String(b.vendidoFecha||'')));
+  sinNum.forEach(c=>{c.ventaNum=++maxN;});
+  save();
+}
 function _ventasRow(c){
   const total=_ventaTotal(c),prods=_ventaProdStr(c),vend=nombreVend(c.vendedorId);
   return `<div class="frow vrow" style="cursor:pointer" onclick="verVentaDetalle('${c.id}')">
@@ -1723,6 +1749,7 @@ function _vfMatch(c){
 }
 function renderVentasAdmin(){
   if(_lastView!=='ventas')_vfReset();
+  _backfillVentaNums();
   const all=_ventasList();
   if(!all.length){main.innerHTML='<div class="page"><h1>🧾 Ventas</h1><div class="sub">Todavía no hay ventas cargadas.</div></div>';return;}
   let h='<div class="page"><div class="conv-head-row"><h1>🧾 Ventas</h1><button class="btn ghost" onclick="_exportarVentas()">⬇ Exportar a Excel</button></div>';
@@ -1759,12 +1786,16 @@ function _vfApply(){
 function _ventasTablaHTML(list){
   const nom=(c,who)=>{const l=_entList(c.venta,who);return l.length?l.map(_entNom).filter(Boolean).join(' | '):(who==='comprador'?c.nombre:((c.venta&&c.venta.receptorPendiente)?'—':''));};
   const money=n=>'$'+Number(n||0).toLocaleString('es-AR');
-  const cols=['Fecha','Vendedor','Cliente compra','Productos','Recibe','Recepción','Ítems','Total','Taxes','Fees','Fondeo',''];
+  const estBadge=e=>e==='PAGADO'?'<span class="vt-badge ok">PAGADO</span>':(e==='PARCIAL'?'<span class="vt-badge warn">PARCIAL</span>':'<span class="vt-badge no">PENDIENTE</span>');
+  const cols=['N°','Pago','Ver','Editar','Fecha','Vendedor','Cliente compra','Productos','Recibe','Recepción','Ítems','Total','Estado pago','Saldo'];
   let h='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
-  list.forEach(c=>{const v=c.venta||{};const items=(v.productos&&v.productos.length)||1;
+  list.forEach(c=>{const v=c.venta||{};const items=(v.productos&&v.productos.length)||1;const ep=_pagoEstado(c);
     const recep=v.receptorPendiente?'<span class="vt-badge warn">Pendiente</span>':'<span class="vt-badge ok">Completa</span>';
-    const fond=c.fondeada?'<span class="vt-badge ok">Fondeada</span>':'<span class="vt-badge warn">No</span>';
-    h+='<tr onclick="verVentaDetalle(\''+c.id+'\')">'
+    h+='<tr>'
+      +'<td><b>'+(c.ventaNum||'—')+'</b></td>'
+      +'<td><button class="vt-ic" style="background:#34c759" title="Pagos" onclick="abrirPagosVenta(\''+c.id+'\')">💵</button></td>'
+      +'<td><button class="vt-ic" style="background:#007aff" title="Ver ficha" onclick="verVentaDetalle(\''+c.id+'\')">👁</button></td>'
+      +'<td><button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="editarVenta(\''+c.id+'\')">✏️</button></td>'
       +'<td>'+(c.vendidoFecha?fmtFecha(c.vendidoFecha):'')+'</td>'
       +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
       +'<td>'+esc(nom(c,'comprador'))+'</td>'
@@ -1772,15 +1803,68 @@ function _ventasTablaHTML(list){
       +'<td>'+esc(nom(c,'receptor')||'—')+'</td>'
       +'<td>'+recep+'</td>'
       +'<td class="num">'+items+'</td>'
-      +'<td class="num"><b style="color:#248a3d">'+money(_ventaTotal(c))+'</b></td>'
-      +'<td class="num">'+money((v.cobro&&v.cobro.tax)||0)+'</td>'
-      +'<td class="num">'+money((v.cobro&&v.cobro.fee)||0)+'</td>'
-      +'<td>'+fond+'</td>'
-      +'<td><button class="vt-ver" onclick="event.stopPropagation();verVentaDetalle(\''+c.id+'\')">👁 Ver</button></td>'
+      +'<td class="num"><b style="color:#248a3d">'+money(ep.total)+'</b></td>'
+      +'<td>'+estBadge(ep.estado)+'</td>'
+      +'<td class="num"'+(ep.saldo>0.009?' style="color:#ff3b30"':'')+'>'+money(ep.saldo)+'</td>'
       +'</tr>';
   });
   h+='</tbody></table></div>';
   return h;
+}
+function editarVenta(id){appModal({titulo:'Editar venta',texto:'La edición completa de la venta está en camino (próxima actualización). Por ahora podés gestionar los pagos con el botón 💵 y ver la ficha con 👁.',okLabel:'Entendido'});}
+/* ---- PAGOS DE VENTA (acreditación / saldo) ---- */
+let _pvNew=null;
+function _money2(n){return '$'+Number(n||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function _estBadge(e){return e==='PAGADO'?'<span class="vt-badge ok">PAGADO</span>':(e==='PARCIAL'?'<span class="vt-badge warn">PARCIAL</span>':'<span class="vt-badge no">PENDIENTE</span>');}
+function abrirPagosVenta(id){
+  const c=clientes.find(x=>x.id===id);if(!c||!c.venta)return;
+  _pvNew={metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprador:'',acreditado:true};
+  cerrarPagosV();
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-pv';wrap.style.zIndex=320;
+  wrap.innerHTML='<div class="modal" style="width:min(680px,calc(100vw - 24px));max-height:92vh;display:flex;flex-direction:column"><div class="modal-h"><b>💵 Pagos de la venta N° '+(c.ventaNum||'—')+'</b><button class="mini" onclick="cerrarPagosV()">✕</button></div><div class="modal-b" id="pv-body" style="overflow-y:auto"></div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarPagosV();};document.body.appendChild(wrap);
+  _pvRender(id);
+}
+function cerrarPagosV(){const m=document.getElementById('modal-pv');if(m)m.remove();}
+function _pvRender(id){
+  const c=clientes.find(x=>x.id===id);const b=document.getElementById('pv-body');if(!c||!b)return;
+  const ep=_pagoEstado(c);const pagos=c.venta.pagos||[];const ro=RO();
+  const comps=_entList(c.venta,'comprador').map(_entNom).filter(Boolean);
+  let h='<div class="pv-sum">'
+    +'<div><div class="pv-l">Cliente</div><div class="pv-v">'+esc(c.nombre)+'</div></div>'
+    +'<div><div class="pv-l">Total venta</div><div class="pv-v">'+_money2(ep.total)+'</div></div>'
+    +'<div><div class="pv-l">Acreditado</div><div class="pv-v" style="color:#248a3d">'+_money2(ep.acred)+'</div></div>'
+    +'<div><div class="pv-l">Saldo</div><div class="pv-v" style="color:'+(ep.saldo>0.009?'#ff3b30':'#248a3d')+'">'+_money2(ep.saldo)+'</div></div>'
+    +'<div><div class="pv-l">Estado</div><div style="margin-top:3px">'+_estBadge(ep.estado)+'</div></div>'
+  +'</div>';
+  h+='<div class="v-sec-t" style="margin-top:14px">Pagos cargados</div>';
+  h+=pagos.length?pagos.map((p,i)=>'<div class="pv-row"><div style="flex:1;min-width:0"><b>'+esc(_VMETLBL[p.metodo]||p.metodo)+'</b>'+(p.financiera?' <span class="faint">· '+esc(p.financiera)+'</span>':'')+(p.comprador?' <span class="faint">· 👤 '+esc(p.comprador)+'</span>':'')+'<div class="faint" style="font-size:11.5px">'+_money2(p.monto)+(p.fecha?' · '+fmtFecha(p.fecha):'')+'</div></div>'+(p.acreditado?'<span class="vt-badge ok">Acreditado</span>':'<span class="vt-badge no">Pendiente</span>')+(!ro?'<button class="mini" title="'+(p.acreditado?'Marcar pendiente':'Acreditar')+'" onclick="_pvToggle(\''+id+'\','+i+')">'+(p.acreditado?'↩':'✓')+'</button><button class="mini" title="Eliminar" onclick="_pvDel(\''+id+'\','+i+')">🗑</button>':'')+'</div>').join(''):'<div class="faint" style="padding:8px 0">Sin pagos cargados.</div>';
+  if(!ro){
+    const n=_pvNew;
+    h+='<div class="v-sec-t" style="margin-top:16px">Agregar pago</div><div class="pv-add">'
+      +'<div class="row2"><div><label class="v-lbl-sm">Medio de pago</label>'+_vSelBtn('v-full',_VMETLBL[n.metodo]||'Medio',false,'_pvPickMetodo(\''+id+'\')')+'</div><div><label class="v-lbl-sm">Monto</label><input class="v-full" id="pv-monto" type="number" inputmode="decimal" placeholder="0" value="'+esc(n.monto)+'" oninput="_pvNew.monto=this.value"></div></div>'
+      +(n.metodo==='financiado'?'<label class="v-lbl-sm">Financiera</label>'+_vSelBtn('v-full',n.financiera||'— Elegí —',!n.financiera,'_pvPickFin(\''+id+'\')'):'')
+      +(comps.length>1?'<label class="v-lbl-sm">A nombre de</label>'+_vSelBtn('v-full',n.comprador||comps[0],false,'_pvPickComp(\''+id+'\')'):'')
+      +'<div class="row2"><div><label class="v-lbl-sm">Fecha</label><input class="v-full" id="pv-fecha" type="date" value="'+esc(n.fecha)+'" oninput="_pvNew.fecha=this.value"></div><div><label class="v-lbl-sm">&nbsp;</label><label class="v-comp" style="justify-content:flex-start"><input type="checkbox" style="width:auto;margin:0 6px 0 0" '+(n.acreditado?'checked':'')+' onchange="_pvNew.acreditado=this.checked"> Ya acreditado</label></div></div>'
+      +'<button class="btn" style="width:100%;margin-top:10px" onclick="_pvAdd(\''+id+'\')">＋ Agregar pago</button>'
+    +'</div>';
+  }
+  b.innerHTML=h;
+}
+function _pvSave(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.fondeada=(_pagoEstado(c).estado==='PAGADO');save();_pvRender(id);if(view==='ventas')_vfApply();if(view==='inicioAdmin')renderInicioAdmin();}
+function _pvToggle(id,i){const c=clientes.find(x=>x.id===id);if(!c||RO())return;const p=c.venta.pagos[i];if(!p)return;p.acreditado=!p.acreditado;p.acredFecha=p.acreditado?hoy():'';_pvSave(id);}
+function _pvDel(id,i){const c=clientes.find(x=>x.id===id);if(!c||RO())return;appModal({titulo:'Eliminar pago',texto:'¿Eliminar este pago?',okLabel:'Eliminar',okDanger:true,onOk:()=>{c.venta.pagos.splice(i,1);_pvSave(id);}});}
+function _pvPickMetodo(id){appPick({titulo:'Medio de pago',actual:_pvNew.metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_pvNew.metodo=v;if(v!=='financiado')_pvNew.financiera='';_pvRender(id);}});}
+function _pvPickFin(id){appPick({titulo:'Financiera',actual:_pvNew.financiera||'',opciones:_FINANCIERAS.map(f=>({value:f,label:f})),onPick:v=>{_pvNew.financiera=v;_pvRender(id);}});}
+function _pvPickComp(id){const c=clientes.find(x=>x.id===id);const comps=_entList(c.venta,'comprador').map(_entNom).filter(Boolean);appPick({titulo:'A nombre de',actual:_pvNew.comprador||comps[0]||'',opciones:comps.map(x=>({value:x,label:x})),onPick:v=>{_pvNew.comprador=v;_pvRender(id);}});}
+function _pvAdd(id){
+  const c=clientes.find(x=>x.id===id);if(!c||RO())return;const n=_pvNew;
+  const monto=parseFloat(n.monto)||0;if(monto<=0){alert('Poné un monto mayor a 0.');return;}
+  const comps=_entList(c.venta,'comprador').map(_entNom).filter(Boolean);
+  c.venta.pagos=c.venta.pagos||[];
+  c.venta.pagos.push({metodo:n.metodo,monto,fecha:n.fecha||hoy(),financiera:n.metodo==='financiado'?(n.financiera||''):'',comprador:n.comprador||comps[0]||'',comprobante:null,acreditado:!!n.acreditado,acredFecha:n.acreditado?hoy():''});
+  _pvNew={metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprador:'',acreditado:true};
+  _pvSave(id);
 }
 /* ---- Exportar ventas a Excel (.xls vía tabla HTML, sin dependencias) ---- */
 function _entNom(e){return ((e.nombre||'')+' '+(e.apellido||'')).trim();}
@@ -1828,7 +1912,7 @@ function verVentaDetalle(id){
   const fondBadge=c.fondeada?'<span class="fond-badge on">💰 Fondeada</span>':'<span class="fond-badge">⏳ No fondeada</span>';
   const fondBtn=!RO()?('<button class="btn '+(c.fondeada?'ghost':'')+'" style="width:100%;margin-top:6px" onclick="toggleFondeada(\''+c.id+'\')">'+(c.fondeada?'↩ Marcar como NO fondeada':'💰 Marcar como fondeada (ya entró la plata)')+'</button>'):'';
   wrap.innerHTML='<div class="modal" style="width:min(480px,calc(100vw - 32px));max-height:92vh;display:flex;flex-direction:column">'
-    +'<div class="modal-h"><b>Detalle de la venta</b><button class="mini" onclick="cerrarVentaDet()">✕</button></div>'
+    +'<div class="modal-h"><b>🧾 Ficha de venta'+(c.ventaNum?' · N° '+c.ventaNum:'')+'</b><button class="mini" onclick="cerrarVentaDet()">✕</button></div>'
     +'<div class="modal-b" style="overflow-y:auto">'
     +'<div class="vdet-head"><div class="av" style="width:40px;height:40px;background:'+avColor(c.id)+'">'+iniciales(c.nombre)+'</div><div style="flex:1"><div class="nm">'+esc(c.nombre)+'</div><div style="font-size:12.5px;color:var(--muted)">'+esc(c.whatsapp||'sin número')+' · 👤 '+esc(vend)+'</div></div>'+fondBadge+'</div>'
     +body
