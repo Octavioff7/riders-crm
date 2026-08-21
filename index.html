@@ -477,6 +477,9 @@
   .prox-set{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.2);border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:13.5px}
   .tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
   .tile{background:var(--card);border:1px solid var(--sep);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .tile-sub{font-size:13px;font-weight:700;margin-top:3px}
+  .fond-badge{align-self:center;flex:none;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:14px;background:var(--hover);color:var(--muted);white-space:nowrap}
+  .fond-badge.on{background:rgba(52,199,89,.16);color:#248a3d}
   .tile .n{font-size:23px;font-weight:800;letter-spacing:-0.02em}
   .tile .l{color:var(--muted);font-size:11.5px;font-weight:600;margin-top:3px}
   .tile.hot .n{color:var(--caliente)}.tile.due .n{color:var(--accent)}.tile.cold .n{color:var(--frio)}.tile.sold .n{color:#34c759}
@@ -1716,18 +1719,22 @@ function verVentaDetalle(id){
   let body;
   if(c.venta){body=ventaResumenHTML(c);}
   else{body='<div class="vr-card"><div class="vr-t">Venta marcada a mano</div><div class="vr-ln">'+esc(c.ventaDetalle||c.producto||'Sin detalle cargado')+'</div>'+(c.comision?'<div class="vr-ln">Comisión: <b>$'+Number(c.comision).toLocaleString('es-AR')+'</b></div>':'')+(c.vendidoFecha?'<div class="vr-ln">Fecha: '+fmtFecha(c.vendidoFecha)+'</div>':'')+'</div>';}
+  const fondBadge=c.fondeada?'<span class="fond-badge on">💰 Fondeada</span>':'<span class="fond-badge">⏳ No fondeada</span>';
+  const fondBtn=!RO()?('<button class="btn '+(c.fondeada?'ghost':'')+'" style="width:100%;margin-top:6px" onclick="toggleFondeada(\''+c.id+'\')">'+(c.fondeada?'↩ Marcar como NO fondeada':'💰 Marcar como fondeada (ya entró la plata)')+'</button>'):'';
   wrap.innerHTML='<div class="modal" style="width:min(480px,calc(100vw - 32px));max-height:92vh;display:flex;flex-direction:column">'
     +'<div class="modal-h"><b>Detalle de la venta</b><button class="mini" onclick="cerrarVentaDet()">✕</button></div>'
     +'<div class="modal-b" style="overflow-y:auto">'
-    +'<div class="vdet-head"><div class="av" style="width:40px;height:40px;background:'+avColor(c.id)+'">'+iniciales(c.nombre)+'</div><div><div class="nm">'+esc(c.nombre)+'</div><div style="font-size:12.5px;color:var(--muted)">'+esc(c.whatsapp||'sin número')+' · 👤 '+esc(vend)+'</div></div></div>'
+    +'<div class="vdet-head"><div class="av" style="width:40px;height:40px;background:'+avColor(c.id)+'">'+iniciales(c.nombre)+'</div><div style="flex:1"><div class="nm">'+esc(c.nombre)+'</div><div style="font-size:12.5px;color:var(--muted)">'+esc(c.whatsapp||'sin número')+' · 👤 '+esc(vend)+'</div></div>'+fondBadge+'</div>'
     +body
-    +(c.whatsapp?'<a class="btn" style="width:100%;margin-top:6px;text-align:center;text-decoration:none;display:block" href="'+waHref(c)+'" target="_blank" rel="noopener">Abrir WhatsApp</a>':'')
+    +fondBtn
+    +(c.whatsapp?'<a class="btn ghost" style="width:100%;margin-top:6px;text-align:center;text-decoration:none;display:block" href="'+waHref(c)+'" target="_blank" rel="noopener">Abrir WhatsApp</a>':'')
     +'</div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarVentaDet();};
   document.body.appendChild(wrap);
   hydrateVentaDocs();
 }
 function cerrarVentaDet(){const m=document.getElementById('modal-vdet');if(m)m.remove();}
+function toggleFondeada(id){const c=clientes.find(x=>x.id===id);if(!c||RO())return;c.fondeada=!c.fondeada;save();verVentaDetalle(id);if(view==='inicioAdmin')renderInicioAdmin();}
 /* ---- GESTIÓN DE INVENTARIO (admin) ---- */
 function _invPersist(){if(SERVER)api('/api/inventario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(INVENTARIO)}).catch(()=>{});}
 function _invRenum(){const order={moto:0,triciclo:1,kit:2};INVENTARIO.sort((a,b)=>(order[a.cat]||0)-(order[b.cat]||0));INVENTARIO.forEach((p,i)=>p.n=i+1);}
@@ -1971,9 +1978,19 @@ async function renderInicioAdmin(){
   const nombreMes=new Date().toLocaleDateString('es-AR',{month:'long'});
   const kpi=(l,v,s,col)=>`<div class="okpi"><div class="ok-l">${l}</div><div class="ok-v"${col?' style="color:'+col+'"':''}>${v}</div><div class="ok-s">${s}</div></div>`;
   const mini=(ic,n,l)=>`<div class="omini"><span class="om-ic">${ic}</span><span class="om-n">${n}</span><span class="om-l">${l}</span></div>`;
+  // Ventas totales y estado de fondeo (calculado desde los clientes, no de /metrics)
+  const ventasAll=clientes.filter(c=>!c.borrado&&!c.descartado&&(c.etapa==='vendido'||c.etapa==='posventa'));
+  const fond=ventasAll.filter(c=>c.fondeada),nofond=ventasAll.filter(c=>!c.fondeada);
+  const mFond=fond.reduce((s,c)=>s+_ventaTotal(c),0),mNoFond=nofond.reduce((s,c)=>s+_ventaTotal(c),0);
   let h='<div class="page">';
   h+='<h1>🏠 Inicio</h1>';
   h+='<div class="sub">Resumen del equipo · '+nombreMes+'</div>';
+  // Tiles de ventas: totales, fondeadas (plata en mano) y no fondeadas (por cobrar)
+  h+='<div class="tiles" style="grid-template-columns:repeat(3,1fr)">'
+    +'<div class="tile"><div class="n">'+ventasAll.length+'</div><div class="l">Ventas totales</div></div>'
+    +'<div class="tile sold"><div class="n">💰 '+fond.length+'</div><div class="l">Fondeadas</div><div class="tile-sub" style="color:#248a3d">'+money(mFond)+' en mano</div></div>'
+    +'<div class="tile due"><div class="n">⏳ '+nofond.length+'</div><div class="l">No fondeadas</div><div class="tile-sub" style="color:#e67e22">'+money(mNoFond)+' por cobrar</div></div>'
+  +'</div>';
   // KPIs administrativos: cuántos cierran, facturación, conversión
   h+='<div class="owner-kpis owner-kpis-3">'+
     kpi('✅ Ventas cerradas',T.ventasMes,'este mes','#248a3d')+
