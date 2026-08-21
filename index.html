@@ -1897,7 +1897,7 @@ function _finModal(idx){
     +'<label>Nombre</label><input id="fin-n" value="'+esc(f.n)+'">'
     +'<label>Fee (%)</label><input id="fin-fee" type="number" inputmode="decimal" value="'+(Math.round((f.fee||0)*10000)/100)+'">'
     +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="fin-tax" style="width:auto;margin:0"'+(f.tax?' checked':'')+'> Lleva 7% de taxes</label>'
-    +'<label>Días que se puede usar <button type="button" class="mini" style="float:right" onclick="_finDiaTodos('+(_finDiasSel.length===7?'false':'true')+')">'+(_finDiasSel.length===7?'Ninguno':'Todos')+'</button></label><div class="dia-chips">'+chips+'</div>'
+    +'<label>Días que se puede usar <span style="float:right"><button type="button" class="mini" onclick="_finDiaTodos(true)">Todos</button> <button type="button" class="mini" onclick="_finDiaTodos(false)">Ninguno</button></span></label><div class="dia-chips">'+chips+'</div>'
     +'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="_finSave('+idx+')">Guardar</button></div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
   const n=document.getElementById('fin-n');if(n)n.focus();
