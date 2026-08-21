@@ -1753,12 +1753,6 @@ async function renderInicioAdmin(){
       <div style="text-align:right;flex:none"><b style="color:#248a3d">${m.ventasMes} venta(s)</b><div class="faint" style="font-size:12px">${money(m.facturadoMes)}</div></div></div>`;
   });
   h+='</div>';
-  // Necesitan atención (resumen chico, sin el detalle de notas)
-  h+='<div class="owner-mini" style="margin-top:4px">'+
-    mini('🔥',T.calientes,'Calientes sin atender')+
-    mini('⏰',T.atrasados,'Seguimientos atrasados')+
-  '</div>';
-  h+='<div class="faint" style="font-size:12px;margin-top:10px">Para ver el ranking detallado y las alertas por vendedor, entrá a <b>Panel del equipo</b>.</div>';
   h+='</div>';
   main.innerHTML=h;
 }
