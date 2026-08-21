@@ -1082,7 +1082,7 @@ function renderList(){
   let banner='';
   if(filtroVend)banner=`<div class="vend-banner"><div>👤 Viendo la cartera de <b>${esc(nombreVend(filtroVend))}</b></div><button class="mini" onclick="filtroVend='';render()">Quitar filtro</button></div>`;
   else if(filtroEtapa)banner=`<div class="vend-banner"><div>Etapa: <b>${esc(etapaDe(filtroEtapa).nombre)}</b></div><button class="mini" onclick="filtroEtapa='';render()">Quitar filtro</button></div>`;
-  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Todos los clientes</h1><div class="head-btns"><button class="btn ghost nuevo-cli-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub" id="list-sub">${activos().length} clientes en total${filtro?` · ${listFiltered().length} coinciden`:''}</div>${banner}
+  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Todos los clientes</h1><div class="head-btns"><button class="btn ghost cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub" id="list-sub">${activos().length} clientes en total${filtro?` · ${listFiltered().length} coinciden`:''}</div>${banner}
     <input id="cli-search" aria-label="Buscar clientes" placeholder="🔎 Buscar por nombre, teléfono o producto…" oninput="filtrarLista(this.value)" value="${esc(filtro)}" style="width:100%;max-width:440px;padding:11px 14px;border:1px solid var(--sep-strong);border-radius:8px;margin-bottom:16px;font-size:13.5px;background:var(--card)">
     <div class="tbl-scroll"><table><thead><tr><th>Cliente</th><th>WhatsApp</th><th>Producto</th><th>Etapa</th><th>Prioridad</th><th>Seguir</th><th>Chat</th></tr></thead><tbody id="cli-tbody">${listRowsHTML()}</tbody></table></div>
   </div>`;
@@ -2498,7 +2498,7 @@ async function renderInicioAdmin(){
   const fond=ventasAll.filter(c=>c.fondeada),nofond=ventasAll.filter(c=>!c.fondeada);
   const mFond=fond.reduce((s,c)=>s+_ventaTotal(c),0),mNoFond=nofond.reduce((s,c)=>s+_ventaTotal(c),0);
   let h='<div class="page">';
-  h+='<div class="conv-head-row"><h1>🏠 Inicio</h1><div class="head-btns"><button class="btn nuevo-cli-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button></div></div>';
+  h+='<div class="conv-head-row"><h1>🏠 Inicio</h1><div class="head-btns"><button class="btn cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button></div></div>';
   h+='<div class="sub">Resumen del equipo · '+nombreMes+'</div>';
   // Tiles de ventas: totales, fondeadas (plata en mano) y no fondeadas (por cobrar)
   h+='<div class="tiles" style="grid-template-columns:repeat(3,1fr)">'
@@ -2749,7 +2749,7 @@ function renderPanel(){
     const lp=pts[pts.length-1];
     return '<div class="panelcard"><h3>'+titulo+'</h3><div class="vchart-top"><span class="'+(total>=obj?'done':'')+'">'+total+'</span><span class="obj"> / '+obj+' 🎯</span></div><svg viewBox="0 0 '+W+' '+H+'" class="vline"><line x1="'+x0+'" y1="'+yat(obj).toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yat(obj).toFixed(1)+'" class="tgt"/><line x1="'+x0+'" y1="'+pt+'" x2="'+x0+'" y2="'+y0+'" class="ax"/><line x1="'+x0+'" y1="'+y0+'" x2="'+(W-pr)+'" y2="'+y0+'" class="ax"/>'+yT+xT+'<polyline points="'+poly+'" class="ln"/><circle cx="'+lp[0].toFixed(1)+'" cy="'+lp[1].toFixed(1)+'" r="2.5" class="dot"/></svg></div>';
   };
-  main.innerHTML=`<div class="page"><div class="conv-head-row panel-head"><h1>Panel</h1><div class="head-btns"><button class="btn ghost nuevo-cli-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub panel-sub">Riders Miami · ${total} clientes en total</div>
+  main.innerHTML=`<div class="page"><div class="conv-head-row panel-head"><h1>Panel</h1><div class="head-btns"><button class="btn ghost cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub panel-sub">Riders Miami · ${total} clientes en total</div>
     <div class="tiles">
       <div class="tile"><div class="n">${total}</div><div class="l">Clientes</div></div>
       <div class="tile hot"><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div>
