@@ -320,7 +320,7 @@ function metricsFor(vendId){
   let seguim=0;const acts=[];
   cl.forEach(c=>{(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguim++;acts.push({cliente:c.nombre,fecha:l.fecha,hora:l.hora||'',texto:l.texto});});});
   acts.sort((a,b)=>(b.fecha+(b.hora||'')).localeCompare(a.fecha+(a.hora||'')));
-  const esVend=c=>c.etapa==='vendido'||c.etapa==='posventa';
+  const esVend=c=>(c.etapa==='vendido'||c.etapa==='posventa')&&!c.anulada;
   const vendidosMes=cl.filter(c=>esVend(c)&&(c.vendidoFecha||'').slice(0,7)===mes);
   const facturadoMes=vendidosMes.reduce((s,c)=>s+(Number(c.valor)||0),0);
   const comisionMes=vendidosMes.reduce((s,c)=>s+(Number(c.comision)||0),0);
@@ -330,7 +330,7 @@ function metricsFor(vendId){
   const ultAct=cl.reduce((f,c)=>{const l=ultimoLogFecha(c);return l>f?l:f;},'');
   return {
     total:cl.length,
-    ventas:cl.filter(c=>c.etapa==='vendido').length,
+    ventas:cl.filter(c=>c.etapa==='vendido'&&!c.anulada).length,
     atrasados:cl.filter(estadoAtrasadoSrv).length,
     calientes:cl.filter(esCalienteSrv).length,
     plata:abiertos.reduce((s,c)=>s+(Number(c.valor)||0),0),

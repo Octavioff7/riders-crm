@@ -318,6 +318,8 @@
   .prod-specs .ps-row:first-child{border-top:none}
   .prod-specs .ps-k{color:var(--muted)}
   .prod-specs .ps-v{font-weight:600;color:var(--txt)}
+  .vtbl tbody tr.vt-anulada td{opacity:.55}
+  .vtbl tbody tr.vt-anulada td:nth-child(9),.vtbl tbody tr.vt-anulada td:nth-child(10){text-decoration:line-through}
   .vtbl tbody tr.inv-sep td{background:#262a63;color:#fff;font-weight:700;font-size:12px;letter-spacing:.05em;padding:8px 13px;text-transform:uppercase;position:static}
   .vtbl tbody tr.inv-sep:hover td{background:#262a63}
   .dia-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
@@ -1881,8 +1883,10 @@ function _pickVfVend(){
 }
 function _vfApply(){
   const list=_ventasList().filter(_vfMatch);
-  const totalVal=list.reduce((s,c)=>s+_ventaTotal(c),0);
-  const sub=document.getElementById('ventas-sub');if(sub)sub.textContent=list.length+' venta(s) · $'+totalVal.toLocaleString('es-AR')+(_vf.vend?' · '+nombreVend(_vf.vend):'');
+  const activas=list.filter(c=>!c.anulada);
+  const totalVal=activas.reduce((s,c)=>s+_ventaTotal(c),0);
+  const anul=list.length-activas.length;
+  const sub=document.getElementById('ventas-sub');if(sub)sub.textContent=activas.length+' venta(s) · $'+totalVal.toLocaleString('es-AR')+(anul?' · '+anul+' anulada(s)':'')+(_vf.vend?' · '+nombreVend(_vf.vend):'');
   const el=document.getElementById('ventas-list');if(!el)return;
   if(!list.length){el.innerHTML='<div class="panelcard"><div class="empty" style="padding:22px">No hay ventas con esos filtros.</div></div>';return;}
   el.innerHTML=(_vf.vista==='tabla')?_ventasTablaHTML(list):('<div class="panelcard">'+list.map(_ventasRow).join('')+'</div>');
@@ -1892,13 +1896,13 @@ function _ventasTablaHTML(list){
   const money=n=>'$'+Number(n||0).toLocaleString('es-AR');
   const estBadge=e=>e==='PAGADO'?'<span class="vt-badge ok">PAGADO</span>':(e==='PARCIAL'?'<span class="vt-badge warn">PARCIAL</span>':'<span class="vt-badge no">PENDIENTE</span>');
   const ro=!_esAdminRol();
-  const cols=['N°','Pago','Ver','PDF','WA','Editar','Seg.','Fecha','Cliente compra','Producto','Cliente recibe','Recepción','Productos','Envío','Monto total','Estado pago','Acreditado','Saldo','Comisión','Bajo mín.','Vendedor','Colaborador','Borrar'];
+  const cols=['N°','Pago','Ver','PDF','WA','Editar','Seg.','Fecha','Cliente compra','Producto','Cliente recibe','Recepción','Productos','Envío','Monto total','Estado pago','Acreditado','Saldo','Comisión','Bajo mín.','Vendedor','Colaborador','Anular','Borrar'];
   let h='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
   list.forEach(c=>{const v=c.venta||{};const ep=_pagoEstado(c);
     const recep=_recepCompleta(c)?'<span class="vt-badge ok">completo</span>':'<span class="vt-badge warn">incompleto</span>';
     const bajo=_bajoMin(c)?'<span class="vt-badge no">Sí</span>':'<span class="vt-badge ok">No</span>';
     const envInp='<input class="vt-envio" type="number" min="0" step="1" value="'+(_envioV(c)||'')+'" placeholder="0"'+(ro?' disabled':'')+' onclick="event.stopPropagation()" onchange="_setEnvio(\''+c.id+'\',this.value)">';
-    h+='<tr>'
+    h+='<tr'+(c.anulada?' class="vt-anulada"':'')+'>'
       +'<td><b>'+(c.ventaNum?_padNum(c.ventaNum):'—')+'</b></td>'
       +'<td><button class="vt-ic" style="background:#34c759" title="Pagos" onclick="abrirPagosVenta(\''+c.id+'\')">💵</button></td>'
       +'<td><button class="vt-ic" style="background:#007aff" title="Ver ficha" onclick="verVentaDetalle(\''+c.id+'\')">👁</button></td>'
@@ -1914,13 +1918,14 @@ function _ventasTablaHTML(list){
       +'<td class="num">'+money(_baseProd(c))+'</td>'
       +'<td class="num">'+envInp+'</td>'
       +'<td class="num"><b style="color:#248a3d">'+money(ep.total)+'</b></td>'
-      +'<td>'+estBadge(ep.estado)+'</td>'
+      +'<td>'+(c.anulada?'<span class="vt-badge no">ANULADA</span>':estBadge(ep.estado))+'</td>'
       +'<td class="num" style="color:#248a3d">'+money(ep.acred)+'</td>'
       +'<td class="num"'+(ep.saldo>0.009?' style="color:#ff3b30"':'')+'>'+money(ep.saldo)+'</td>'
       +'<td class="num">'+money(c.comision)+'</td>'
       +'<td>'+bajo+'</td>'
       +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
       +'<td>'+esc(_colabNom(c)||'-')+'</td>'
+      +'<td><button class="vt-ic" style="background:'+(c.anulada?'#34c759':'#6b7280')+'" title="'+(c.anulada?'Reactivar venta':'Anular venta')+'" onclick="_anularVenta(\''+c.id+'\')">'+(c.anulada?'↩':'⊘')+'</button></td>'
       +'<td><button class="vt-ic vt-del" title="Eliminar venta" onclick="_delVenta(\''+c.id+'\')">🗑️</button></td>'
       +'</tr>';
   });
@@ -1938,6 +1943,24 @@ function _delVenta(id){
     if(view==='ventas')_vfApply();
     if(view==='inicioAdmin')renderInicioAdmin();
     updateCounts&&updateCounts();
+  }});
+}
+function _afterVentaChange(){if(view==='ventas')_vfApply();if(view==='inicioAdmin')renderInicioAdmin();updateCounts&&updateCounts();}
+function _anularVenta(id){
+  const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())return;
+  const num=_padNum(c.ventaNum);
+  if(c.anulada){
+    appModal({titulo:'Reactivar venta',texto:'¿Reactivar la venta N° '+num+'? Vuelve a contar como venta activa en los totales.',okLabel:'Reactivar',onOk:()=>{
+      c.anulada=false;delete c.anuladaFecha;delete c.anuladaMotivo;c.fondeada=(_pagoEstado(c).estado==='PAGADO');
+      c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:'♻️ Venta reactivada'});
+      _savCliente(c);_afterVentaChange();
+    }});
+    return;
+  }
+  appModal({titulo:'Anular venta',texto:'¿Anular la venta N° '+num+' de "'+c.nombre+'"?\n\nQueda registrada como ANULADA y deja de contar en los totales. La podés reactivar cuando quieras.',conInput:true,inputPlaceholder:'Motivo (opcional)',okLabel:'Anular venta',okDanger:true,onOk:motivo=>{
+    c.anulada=true;c.anuladaFecha=hoy();c.anuladaMotivo=(motivo||'').trim();c.fondeada=false;
+    c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:'🚫 Venta anulada'+(motivo?': '+motivo:'')});
+    _savCliente(c);_afterVentaChange();
   }});
 }
 function editarVenta(id){
@@ -2171,7 +2194,7 @@ function _gv(c,who,k){const l=_entList(c.venta,who);if(!l.length)return '';retur
 function _dirExport(c,who){const l=_entList(c.venta,who);return l.map(o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.municipio,o.estado,o.provincia,o.codigoPostal,o.pais].filter(Boolean).join(', ')).filter(Boolean).join(' ; ');}
 function _prodExport(c){if(!(c.venta&&c.venta.productos&&c.venta.productos.length))return c.ventaDetalle||c.producto||'';return c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')+(p.color?' ('+p.color+')':'')+' $'+(p.precio||0)+(p.receptor?' → '+p.receptor:'')).join(' ; ');}
 function _pagosExport(c){if(!(c.venta&&c.venta.pagos&&c.venta.pagos.length))return '';return c.venta.pagos.map(p=>(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' '+p.financiera:'')+' $'+(p.monto||0)+(p.fecha?' ('+fmtFecha(p.fecha)+')':'')+(p.comprador?' — '+p.comprador:'')).join(' ; ');}
-function _vtEstado(c){return _pagoEstado(c).estado;}
+function _vtEstado(c){return c.anulada?'ANULADA':_pagoEstado(c).estado;}
 function _ventasScope(scope){return scope==='todo'?_ventasList():_ventasList().filter(_vfMatch);}
 function _exportarVentas(scope){
   const list=_ventasScope(scope);
@@ -2703,7 +2726,7 @@ async function renderInicioAdmin(){
   const kpi=(l,v,s,col)=>`<div class="okpi"><div class="ok-l">${l}</div><div class="ok-v"${col?' style="color:'+col+'"':''}>${v}</div><div class="ok-s">${s}</div></div>`;
   const mini=(ic,n,l)=>`<div class="omini"><span class="om-ic">${ic}</span><span class="om-n">${n}</span><span class="om-l">${l}</span></div>`;
   // Ventas totales y estado de fondeo (calculado desde los clientes, no de /metrics)
-  const ventasAll=clientes.filter(c=>!c.borrado&&!c.descartado&&(c.etapa==='vendido'||c.etapa==='posventa'));
+  const ventasAll=clientes.filter(c=>!c.borrado&&!c.descartado&&!c.anulada&&(c.etapa==='vendido'||c.etapa==='posventa'));
   const fond=ventasAll.filter(c=>c.fondeada),nofond=ventasAll.filter(c=>!c.fondeada);
   const mFond=fond.reduce((s,c)=>s+_ventaTotal(c),0),mNoFond=nofond.reduce((s,c)=>s+_ventaTotal(c),0);
   let h='<div class="page">';
