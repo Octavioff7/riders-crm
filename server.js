@@ -36,22 +36,53 @@ function loadWaMap(){try{return JSON.parse(fs.readFileSync(WAMAPPATH,'utf8'))}ca
 const INVPATH=path.join(DATA_DIR,'inventario.json');
 const FINPATH=path.join(DATA_DIR,'financieras.json');
 const DEFAULT_INVENTARIO=[
-  {n:1,nombre:'MATIAS',precio:4600,cat:'moto',color:''},{n:2,nombre:'TITAN',precio:4500,cat:'moto',color:''},{n:3,nombre:'GTX',precio:4500,cat:'moto',color:''},
-  {n:4,nombre:'XMT',precio:4400,cat:'moto',color:''},{n:5,nombre:'GP 250cc',precio:4300,cat:'moto',color:''},{n:6,nombre:'KRATHOS',precio:4000,cat:'moto',color:''},
-  {n:7,nombre:'RAVEN',precio:3800,cat:'moto',color:''},{n:8,nombre:'XMOX RR',precio:4700,cat:'moto',color:''},{n:9,nombre:'MAJESTIC',precio:3900,cat:'moto',color:''},
-  {n:10,nombre:'VHAGAR',precio:5000,cat:'moto',color:''},{n:11,nombre:'DUCASU',precio:4000,cat:'moto',color:''},{n:12,nombre:'KRESTON',precio:3600,cat:'moto',color:''},
-  {n:13,nombre:'FALCON',precio:4300,cat:'moto',color:''},{n:14,nombre:'TANK',precio:3300,cat:'moto',color:''},{n:15,nombre:'TANK SPORT',precio:3500,cat:'moto',color:''},
-  {n:16,nombre:'INTREPID',precio:3600,cat:'moto',color:''},{n:17,nombre:'SUPRA',precio:4400,cat:'moto',color:''},{n:18,nombre:'EAGLE',precio:3500,cat:'moto',color:''},
-  {n:19,nombre:'SUZUKI 200cc',precio:4100,cat:'moto',color:''},{n:20,nombre:'CHP',precio:3500,cat:'moto',color:''},{n:21,nombre:'MISAKI',precio:2900,cat:'moto',color:''},
-  {n:22,nombre:'FOCUS',precio:3200,cat:'moto',color:''},{n:23,nombre:'SUZUKI GN 125',precio:3600,cat:'moto',color:''},{n:24,nombre:'UNISON AX100',precio:2700,cat:'moto',color:''},
-  {n:25,nombre:'TANK ELECTRICA',precio:3200,cat:'moto',color:''},{n:26,nombre:'TANK SPORT ELECTRICA',precio:3200,cat:'moto',color:''},{n:27,nombre:'FOCUS ELECTRICA',precio:3200,cat:'moto',color:''},
-  {n:28,nombre:'GRILLO',precio:2300,cat:'moto',color:''},{n:29,nombre:'MASTERSONIC',precio:1600,cat:'moto',color:''},{n:30,nombre:'MASTERSONIC 2.0',precio:2300,cat:'moto',color:''},
-  {n:31,nombre:'TRICICLO ROOFHYBRID',precio:5700,cat:'triciclo',color:''},{n:32,nombre:'TRICICLO HIBRIDO SOLAR',precio:5350,cat:'triciclo',color:''},{n:33,nombre:'TRICICLO HIBRIDO LITIO',precio:5250,cat:'triciclo',color:''},
-  {n:34,nombre:'TRICICLO HIBRIDO GEL',precio:5000,cat:'triciclo',color:''},{n:35,nombre:'TRICICLO ELECTRICO',precio:4500,cat:'triciclo',color:''},
-  {n:36,nombre:'KIT 2',precio:7200,cat:'kit',color:''},{n:37,nombre:'KIT 1',precio:6350,cat:'kit',color:''},{n:38,nombre:'KIT RESIDENCIAL',precio:5600,cat:'kit',color:''},
-  {n:39,nombre:'KIT MUST',precio:4600,cat:'kit',color:''},{n:40,nombre:'BATERIA 15K',precio:2500,cat:'kit',color:''},{n:41,nombre:'INVERSOR 10K',precio:2000,cat:'kit',color:''},
-  {n:42,nombre:'PANEL SOLAR',precio:230,cat:'kit',color:''},{n:43,nombre:'RIVER 2',precio:1000,cat:'kit',color:''},{n:44,nombre:'DELTA 3 CLASSIC',precio:1250,cat:'kit',color:''},
-  {n:45,nombre:'DELTA 3 PLUS',precio:1500,cat:'kit',color:''},{n:46,nombre:'DELTA 2 MAX',precio:1950,cat:'kit',color:''},{n:47,nombre:'DELTA PRO',precio:2900,cat:'kit',color:''}
+  {n:1,nombre:'MATIAS',modelo:'MATIAS 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4600,comision:500,activo:true},
+  {n:2,nombre:'TITAN',modelo:'TITAN 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4500,comision:500,activo:true},
+  {n:3,nombre:'GTX',modelo:'GTX 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4500,comision:500,activo:true},
+  {n:4,nombre:'XMT',modelo:'XMT 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4400,comision:500,activo:true},
+  {n:5,nombre:'GP 250cc',modelo:'GP 250CC',cat:'moto',marca:'XMOX',motor:'250cc',cc:250,color:'',precio:4300,comision:500,activo:true},
+  {n:6,nombre:'KRATHOS',modelo:'KRATHOS 250CC',cat:'moto',marca:'MOTORSTRECK',motor:'250cc',cc:250,color:'',precio:4000,comision:500,activo:true},
+  {n:7,nombre:'RAVEN',modelo:'RAVEN 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:3800,comision:500,activo:true},
+  {n:8,nombre:'XMOX RR',modelo:'RR 250',cat:'moto',marca:'XMOX',motor:'250cc',cc:250,color:'',precio:4700,comision:500,activo:true},
+  {n:9,nombre:'MAJESTIC',cat:'moto',motor:'250cc',cc:250,color:'',precio:3900,comision:500,activo:true},
+  {n:10,nombre:'VHAGAR',modelo:'DX 250CC',cat:'moto',marca:'VHAGAR',motor:'250cc',cc:250,color:'',precio:5000,comision:500,activo:true},
+  {n:11,nombre:'DUCASU',modelo:'DUCASSU 250CC',cat:'moto',marca:'DUCASU',motor:'250cc',cc:250,color:'',precio:4000,comision:500,activo:true},
+  {n:12,nombre:'KRESTON',modelo:'KRESTON 250CC',cat:'moto',marca:'KRESTON',motor:'250cc',cc:250,color:'',precio:3600,comision:500,activo:true},
+  {n:13,nombre:'FALCON',modelo:'FALCON 200CC',cat:'moto',marca:'VITACCI',motor:'200cc',cc:200,color:'',precio:4300,comision:500,activo:true},
+  {n:14,nombre:'TANK',modelo:'ZENITH TANK 200CC',cat:'moto',marca:'MZ',motor:'200cc',cc:200,color:'',precio:3300,comision:500,activo:true},
+  {n:15,nombre:'TANK SPORT',modelo:'TANK SPORT 200CC',cat:'moto',marca:'VITACCI',motor:'200cc',cc:200,color:'',precio:3500,comision:500,activo:true},
+  {n:16,nombre:'INTREPID',modelo:'INTREPID 200CC',cat:'moto',marca:'VITACCI',motor:'200cc',cc:200,color:'',precio:3600,comision:500,activo:true},
+  {n:17,nombre:'SUPRA',modelo:'SUPRA 200CC',cat:'moto',marca:'ITALICA',motor:'200cc',cc:200,color:'',precio:4400,comision:500,activo:true},
+  {n:18,nombre:'EAGLE',modelo:'EAGLE 200CC',cat:'moto',marca:'VITACCI',motor:'200cc',cc:200,color:'',precio:3500,comision:500,activo:true},
+  {n:19,nombre:'SUZUKI 200cc',cat:'moto',motor:'200cc',cc:200,color:'',precio:4100,comision:500,activo:true},
+  {n:20,nombre:'CHP',modelo:'CHP 200CC',cat:'moto',marca:'MZ',motor:'200cc',cc:200,color:'',precio:3500,comision:500,activo:true},
+  {n:21,nombre:'MISAKI',modelo:'GN 150',cat:'moto',marca:'MISAKI',motor:'150cc',cc:150,color:'',precio:2900,comision:500,activo:true},
+  {n:22,nombre:'FOCUS',modelo:'FOCUS 150CC',cat:'moto',marca:'VITACCI',motor:'150cc',cc:150,color:'',precio:3200,comision:500,activo:true},
+  {n:23,nombre:'SUZUKI GN 125',modelo:'GN 125F',cat:'moto',marca:'SUZUKI',motor:'125cc',cc:125,color:'',precio:3600,comision:500,activo:true},
+  {n:24,nombre:'UNISON AX100',modelo:'UNISON AX100',cat:'moto',marca:'UNISON',motor:'100cc',cc:100,color:'',precio:2700,comision:500,activo:true},
+  {n:25,nombre:'TANK ELECTRICA',modelo:'TANK ELECTRICA',cat:'moto',marca:'RIDERS',motor:'Eléctrica',color:'',precio:3200,comision:500,activo:true},
+  {n:26,nombre:'TANK SPORT ELECTRICA',cat:'moto',motor:'Eléctrica',color:'',precio:3200,comision:500,activo:true},
+  {n:27,nombre:'FOCUS ELECTRICA',cat:'moto',motor:'Eléctrica',color:'',precio:3200,comision:500,activo:true},
+  {n:28,nombre:'GRILLO',modelo:'BICI MOTO GRILLO',cat:'moto',marca:'MZ',motor:'Eléctrica',color:'',precio:2300,comision:300,activo:true},
+  {n:29,nombre:'MASTERSONIC',modelo:'MASTERSONIC',cat:'moto',marca:'MASTERSONIC',motor:'Eléctrica',color:'',precio:1600,comision:300,activo:true},
+  {n:30,nombre:'MASTERSONIC 2.0',cat:'moto',motor:'Eléctrica',color:'',precio:2300,comision:300,activo:true},
+  {n:31,nombre:'TRICICLO ROOFHYBRID',cat:'triciclo',motor:'Híbrido litio',color:'',precio:5700,comision:500,activo:true},
+  {n:32,nombre:'TRICICLO HIBRIDO SOLAR',cat:'triciclo',motor:'Híbrido litio',color:'',precio:5350,comision:500,activo:true},
+  {n:33,nombre:'TRICICLO HIBRIDO LITIO',cat:'triciclo',motor:'Híbrido litio',color:'',precio:5250,comision:500,activo:true},
+  {n:34,nombre:'TRICICLO HIBRIDO GEL',cat:'triciclo',motor:'Híbrido gel',color:'',precio:5000,comision:500,activo:true},
+  {n:35,nombre:'TRICICLO ELECTRICO',modelo:'TRICICLO ELECTRICO PASAJEROS / CARGA',cat:'triciclo',marca:'MZ',motor:'Eléctrico',color:'',precio:4500,comision:500,activo:true},
+  {n:36,nombre:'KIT 2',modelo:'KIT 2 SAKO',cat:'kit',marca:'SAKO',color:'',precio:7200,comision:500,activo:true},
+  {n:37,nombre:'KIT 1',modelo:'KIT 1 SAKO',cat:'kit',marca:'SAKO',color:'',precio:6350,comision:500,activo:true},
+  {n:38,nombre:'KIT RESIDENCIAL',modelo:'KIT RESIDENCIAL 6KW',cat:'kit',marca:'RIDERS',color:'',precio:5600,comision:500,activo:true},
+  {n:39,nombre:'KIT MUST',modelo:'KIT MUST',cat:'kit',marca:'MUST',color:'',precio:4600,comision:500,activo:true},
+  {n:40,nombre:'BATERIA 15K',cat:'kit',color:'',precio:2500,comision:100,activo:true},
+  {n:41,nombre:'INVERSOR 10K',cat:'kit',color:'',precio:2000,comision:0,activo:true},
+  {n:42,nombre:'PANEL SOLAR',cat:'kit',color:'',precio:230,comision:0,activo:true},
+  {n:43,nombre:'RIVER 2',cat:'kit',color:'',precio:1000,comision:175,activo:true},
+  {n:44,nombre:'DELTA 3 CLASSIC',cat:'kit',color:'',precio:1250,comision:200,activo:true},
+  {n:45,nombre:'DELTA 3 PLUS',cat:'kit',color:'',precio:1500,comision:200,activo:true},
+  {n:46,nombre:'DELTA 2 MAX',cat:'kit',color:'',precio:1950,comision:250,activo:true},
+  {n:47,nombre:'DELTA PRO',modelo:'ECOFLOW DELTA PRO',cat:'kit',marca:'RIDERS',color:'',precio:2900,comision:300,activo:true}
 ];
 const DEFAULT_FINANCIERAS=[
   {n:'US BANK CARITAS',fee:0.04,tax:true,dias:'Todos los días'},{n:'US BANK EVERLY',fee:0.08,tax:true,dias:'Todos los días'},
@@ -64,7 +95,23 @@ function loadInventario(){try{return JSON.parse(fs.readFileSync(INVPATH,'utf8'))
 function saveInventario(a){fs.writeFileSync(INVPATH,JSON.stringify(a,null,1))}
 function loadFinancieras(){try{return JSON.parse(fs.readFileSync(FINPATH,'utf8'))}catch(e){return null}}
 function saveFinancieras(a){fs.writeFileSync(FINPATH,JSON.stringify(a,null,1))}
-try{if(!loadInventario())saveInventario(DEFAULT_INVENTARIO);}catch(e){}
+// Enriquecer inventario existente con marca/modelo/motor/cc/comisión (sin tocar precio, color, fotos ni info)
+function migrateInventario(){
+  try{
+    const inv=loadInventario();if(!inv||!Array.isArray(inv))return;
+    const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const byName={};DEFAULT_INVENTARIO.forEach(d=>{byName[norm(d.nombre)]=d;});
+    let changed=false;
+    inv.forEach(p=>{const d=byName[norm(p.nombre)];if(!d)return;
+      ['marca','modelo','motor','cc','comision'].forEach(k=>{
+        if((p[k]===undefined||p[k]===null||p[k]==='')&&d[k]!==undefined&&d[k]!==''){p[k]=d[k];changed=true;}
+      });
+      if(p.activo===undefined){p.activo=true;changed=true;}
+    });
+    if(changed)saveInventario(inv);
+  }catch(e){}
+}
+try{if(!loadInventario())saveInventario(DEFAULT_INVENTARIO);else migrateInventario();}catch(e){}
 try{if(!loadFinancieras())saveFinancieras(DEFAULT_FINANCIERAS);}catch(e){}
 
 function loadClientes(){try{return JSON.parse(fs.readFileSync(DATA,'utf8'))}catch(e){return []}}
