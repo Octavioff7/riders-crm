@@ -317,6 +317,8 @@
   .vt-badge.no{background:rgba(255,59,48,.14);color:#c0392b}
   .vt-ver{border:1px solid var(--sep-strong);background:var(--bg);color:var(--accent);border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
   .vt-ic{border:none;color:#fff;border-radius:7px;width:30px;height:28px;font-size:13px;cursor:pointer;display:inline-grid;place-items:center}
+  .vt-ic.vt-del{background:var(--hover);color:var(--muted)}
+  .vt-ic.vt-del:hover{background:var(--sep-strong)}
   .pv-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;background:var(--bg);border-radius:10px;padding:13px 15px}
   .pv-l{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.02em}
   .pv-v{font-size:15px;font-weight:700;margin-top:2px}
@@ -1876,7 +1878,7 @@ function _ventasTablaHTML(list){
       +'<td>'+bajo+'</td>'
       +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
       +'<td>'+esc(_colabNom(c)||'-')+'</td>'
-      +'<td><button class="vt-ic" style="background:#e74c3c" title="Eliminar venta" onclick="_delVenta(\''+c.id+'\')">🗑️</button></td>'
+      +'<td><button class="vt-ic vt-del" title="Eliminar venta" onclick="_delVenta(\''+c.id+'\')">🗑️</button></td>'
       +'</tr>';
   });
   h+='</tbody></table></div>';
