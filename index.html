@@ -281,7 +281,7 @@
   .vr-nm{font-size:14px;font-weight:600}
   .vf-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
   .vf-search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt)}
-  .vf-sel{padding:10px 12px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt);font-family:inherit}
+  .vf-selbtn{width:auto;min-width:190px;flex:none;background:var(--card);padding:10px 14px}
   .vf-chips{display:flex;gap:6px;flex-wrap:wrap}
   .vf-chip{padding:7px 13px;border:1px solid var(--sep-strong);border-radius:20px;background:var(--card);font-size:12.5px;cursor:pointer;font-family:inherit;color:var(--txt)}
   .vf-chip:hover{border-color:var(--accent)}
@@ -1642,10 +1642,8 @@ function renderVentasAdmin(){
   if(_lastView!=='ventas')_vfReset();
   const all=_ventasList();
   if(!all.length){main.innerHTML='<div class="page"><h1>🧾 Ventas</h1><div class="sub">Todavía no hay ventas cargadas.</div></div>';return;}
-  const vendIds=[...new Set(all.map(c=>c.vendedorId).filter(Boolean))].sort((a,b)=>String(nombreVend(a)).localeCompare(String(nombreVend(b))));
-  const vendOpts='<option value="">Todos los vendedores</option>'+vendIds.map(id=>'<option value="'+id+'"'+(_vf.vend===id?' selected':'')+'>'+esc(nombreVend(id))+'</option>').join('');
   let h='<div class="page"><h1>🧾 Ventas</h1>';
-  h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar cliente, vendedor o producto…" value="'+esc(_vf.q)+'" oninput="_vf.q=this.value.toLowerCase();_vfApply()"><select class="vf-sel" onchange="_vf.vend=this.value;_vfApply()">'+vendOpts+'</select></div>';
+  h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar cliente, vendedor o producto…" value="'+esc(_vf.q)+'" oninput="_vf.q=this.value.toLowerCase();_vfApply()">'+_vSelBtn('vf-selbtn',(_vf.vend?nombreVend(_vf.vend):'Todos los vendedores'),!_vf.vend,'_pickVfVend()')+'</div>';
   h+='<div class="vf-bar"><div class="vf-chips">'+[['Hoy','hoy'],['7 días','7d'],['Este mes','mes'],['Todas','todas']].map(x=>'<button class="vf-chip" data-k="'+x[1]+'" onclick="_vfPreset(\''+x[1]+'\')">'+x[0]+'</button>').join('')+'</div><div class="vf-dates"><label>Desde</label><input type="date" id="vf-desde" value="'+_vf.desde+'" onchange="_vf.desde=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"><label>Hasta</label><input type="date" id="vf-hasta" value="'+_vf.hasta+'" onchange="_vf.hasta=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"></div></div>';
   h+='<div class="sub" id="ventas-sub"></div>';
   h+='<div class="panelcard" id="ventas-list"></div></div>';
@@ -1661,6 +1659,11 @@ function _vfPreset(k){const t=hoy();_vf.preset=k;
   const d=document.getElementById('vf-desde');if(d)d.value=_vf.desde;
   const hh=document.getElementById('vf-hasta');if(hh)hh.value=_vf.hasta;
   _vfChipHi();_vfApply();
+}
+function _pickVfVend(){
+  const vendIds=[...new Set(_ventasList().map(c=>c.vendedorId).filter(Boolean))].sort((a,b)=>String(nombreVend(a)).localeCompare(String(nombreVend(b))));
+  const opciones=[{value:'',label:'Todos los vendedores'}].concat(vendIds.map(id=>({value:id,label:nombreVend(id)})));
+  appPick({titulo:'Filtrar por vendedor',actual:_vf.vend||'',opciones,onPick:v=>{_vf.vend=v;render();}});
 }
 function _vfApply(){
   const list=_ventasList().filter(_vfMatch);
