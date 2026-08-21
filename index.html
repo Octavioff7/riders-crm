@@ -1202,7 +1202,7 @@ function abrirCargarVenta(){
     receptorModo:'ahora',
     receptores:[_nuevoReceptor()],
     productos:[{producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0}],
-    pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null}]};
+    pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null,compradorIdx:0}]};
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-venta';
   wrap.innerHTML='<div class="modal venta-modal"><div class="modal-h"><b>Cargar venta</b><button class="mini" onclick="cerrarVenta()">✕</button></div><div class="venta-steps" id="venta-steps"></div><div class="modal-b" id="venta-body"></div><div class="modal-f" id="venta-foot"></div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarVenta();};
@@ -1344,6 +1344,7 @@ function _ventaStep3(){
       h+=_vSelBtn('v-full',p.financiera||'— Elegí la financiera —',!p.financiera,'_pickFinanciera('+i+')');
     }
     h+='<label class="v-lbl-sm">📅 Fecha del pago</label><input type="date" class="v-full" value="'+esc(p.fecha||'')+'" oninput="_venta.pagos['+i+'].fecha=this.value">';
+    h+=_pagoCompradorSel(p,i);
     if(p.comprobante){
       h+='<div class="v-comp has"><img src="data:'+p.comprobante.mime+';base64,'+p.comprobante.data+'"><span>✅ Comprobante adjunto</span><button class="v-comp-x" onclick="_pagoCompDel('+i+')">✕</button></div>';
     }else{
@@ -1389,11 +1390,21 @@ function _recLabel(r,i){return (_entNom(r)||('Receptor '+(i+1)))+(r&&r.provincia
 function _prodReceptorSel(p,i){
   if(_venta.receptorModo!=='ahora'||!_venta.receptores.length)return '';
   let ri=p.receptorIdx||0;if(ri>=_venta.receptores.length)ri=0;
-  return '<label class="v-lbl-sm">📦 Enviar a</label>'+_vSelBtn('v-full','📦 '+_recLabel(_venta.receptores[ri],ri),false,'_pickProductoReceptor('+i+')');
+  return '<label class="v-lbl-sm">📦 Enviar a</label>'+_vSelBtn('v-full',_recLabel(_venta.receptores[ri],ri),false,'_pickProductoReceptor('+i+')');
 }
 function _pickProductoReceptor(i){
   const opts=_venta.receptores.map((r,ri)=>({value:String(ri),label:_recLabel(r,ri)}));
   appPick({titulo:'¿A qué receptor va este producto?',actual:String(_venta.productos[i].receptorIdx||0),opciones:opts,onPick:v=>{_venta.productos[i].receptorIdx=parseInt(v,10)||0;_ventaRender();}});
+}
+function _compLabel(c,i){return _entNom(c)||('Comprador '+(i+1));}
+function _pagoCompradorSel(p,i){
+  if(_venta.compradores.length<2)return ''; // un solo comprador → automático
+  let ci=p.compradorIdx||0;if(ci>=_venta.compradores.length)ci=0;
+  return '<label class="v-lbl-sm">👤 A nombre de</label>'+_vSelBtn('v-full',_compLabel(_venta.compradores[ci],ci),false,'_pickPagoComprador('+i+')');
+}
+function _pickPagoComprador(i){
+  const opts=_venta.compradores.map((c,ci)=>({value:String(ci),label:_compLabel(c,ci)}));
+  appPick({titulo:'¿A nombre de qué comprador?',actual:String(_venta.pagos[i].compradorIdx||0),opciones:opts,onPick:v=>{_venta.pagos[i].compradorIdx=parseInt(v,10)||0;_ventaRender();}});
 }
 function cerrarPick(){const m=document.getElementById('modal-pick');if(m)m.remove();}
 function _pickProducto(i){appPick({titulo:'Producto',actual:_venta.productos[i].producto,opciones:PRODUCTOS.map(p=>({value:p,label:p})),onPick:v=>{const p=_venta.productos[i];if(p.producto!==v){p.detalle='';p.listaPrecio=null;}p.producto=v;_ventaRender();}});}
@@ -1456,8 +1467,8 @@ function _ventaCalcHTML(){
 }
 function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0});_ventaRender();}
 function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0});_ventaRender();}
-function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
-function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null});_ventaRender();}
+function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null,compradorIdx:0});_ventaRender();}
+function _ventaDelPago(i){_venta.pagos.splice(i,1);if(!_venta.pagos.length)_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null,compradorIdx:0});_ventaRender();}
 async function _subirDocs(imgs){
   const out=[];
   for(const im of (imgs||[])){
@@ -1495,7 +1506,8 @@ async function guardarVenta(){
   for(const p of pagos){
     let compId=null;
     if(p.comprobante&&p.comprobante.data){const ids=await _subirDocs([p.comprobante]);compId=ids[0]||null;}
-    pagosOut.push({metodo:p.metodo,monto:parseFloat(p.monto)||0,fecha:p.fecha||'',financiera:(p.metodo==='financiado'?(p.financiera||''):''),comprobante:compId});
+    const pagoComp=_venta.compradores[p.compradorIdx||0]?_entNom(_venta.compradores[p.compradorIdx||0]):'';
+    pagosOut.push({metodo:p.metodo,monto:parseFloat(p.monto)||0,fecha:p.fecha||'',financiera:(p.metodo==='financiado'?(p.financiera||''):''),comprobante:compId,comprador:pagoComp});
   }
   const venta={
     compradores,receptores,receptorPendiente,
@@ -1555,7 +1567,7 @@ function ventaResumenHTML(c){
   (v.productos||[]).forEach(p=>{h+='<div class="vr-ln">• '+esc(p.producto)+(p.color?' <span style="opacity:.7">('+esc(p.color)+')</span>':'')+' — <b>$'+_money(p.precio)+'</b>'+(p.receptor&&receptores.length>1?' <span style="opacity:.7">→ '+esc(p.receptor)+'</span>':'')+(p.detalle?'<div class="vr-sub">'+esc(p.detalle)+(p.listaPrecio?' · lista $'+_money(p.listaPrecio):'')+'</div>':'')+'</div>';});
   if(v.pagos&&v.pagos.length){
     h+='<div class="vr-ln" style="margin-top:5px">💳 Pagos:</div>';
-    v.pagos.forEach(p=>{h+='<div class="vr-ln" style="margin-left:12px">• '+esc(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' <span style="opacity:.7">— '+esc(p.financiera)+'</span>':'')+' <b>$'+_money(p.monto)+'</b>'+(p.fecha?' <span style="opacity:.7">· '+(typeof fmtFecha==='function'?fmtFecha(p.fecha):esc(p.fecha))+'</span>':'')+'</div>';});
+    v.pagos.forEach(p=>{h+='<div class="vr-ln" style="margin-left:12px">• '+esc(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' <span style="opacity:.7">— '+esc(p.financiera)+'</span>':'')+' <b>$'+_money(p.monto)+'</b>'+(p.fecha?' <span style="opacity:.7">· '+(typeof fmtFecha==='function'?fmtFecha(p.fecha):esc(p.fecha))+'</span>':'')+(p.comprador&&compradores.length>1?' <span style="opacity:.7">· 👤 '+esc(p.comprador)+'</span>':'')+'</div>';});
     const comps=v.pagos.filter(p=>p.comprobante);
     if(comps.length)h+='<div class="vr-lbl" style="margin-top:7px">Comprobantes</div>'+docsHTML(comps.map(p=>p.comprobante));
   }
@@ -1734,7 +1746,7 @@ function _entNom(e){return ((e.nombre||'')+' '+(e.apellido||'')).trim();}
 function _gv(c,who,k){const l=_entList(c.venta,who);if(!l.length)return '';return l.map(e=>e[k]||'').filter(Boolean).join(' ; ');}
 function _dirExport(c,who){const l=_entList(c.venta,who);return l.map(o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.municipio,o.estado,o.provincia,o.codigoPostal,o.pais].filter(Boolean).join(', ')).filter(Boolean).join(' ; ');}
 function _prodExport(c){if(!(c.venta&&c.venta.productos&&c.venta.productos.length))return c.ventaDetalle||c.producto||'';return c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')+(p.color?' ('+p.color+')':'')+' $'+(p.precio||0)+(p.receptor?' → '+p.receptor:'')).join(' ; ');}
-function _pagosExport(c){if(!(c.venta&&c.venta.pagos&&c.venta.pagos.length))return '';return c.venta.pagos.map(p=>(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' '+p.financiera:'')+' $'+(p.monto||0)+(p.fecha?' ('+fmtFecha(p.fecha)+')':'')).join(' ; ');}
+function _pagosExport(c){if(!(c.venta&&c.venta.pagos&&c.venta.pagos.length))return '';return c.venta.pagos.map(p=>(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' '+p.financiera:'')+' $'+(p.monto||0)+(p.fecha?' ('+fmtFecha(p.fecha)+')':'')+(p.comprador?' — '+p.comprador:'')).join(' ; ');}
 function _exportarVentas(){
   const list=_ventasList().filter(_vfMatch);
   if(!list.length){alert('No hay ventas para exportar con estos filtros.');return;}
