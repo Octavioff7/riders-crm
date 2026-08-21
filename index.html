@@ -1708,8 +1708,8 @@ function _ventasRow(c){
     <div style="text-align:right;flex:none"><b style="color:#34c759">$${total.toLocaleString('es-AR')}</b>${_tieneDocs(c)?'<div style="font-size:15px" title="Tiene documentos">📷</div>':''}</div>
   </div>`;
 }
-let _vf={q:'',vend:'',desde:'',hasta:'',preset:'',vista:'lista'};
-function _vfReset(){_vf={q:'',vend:'',desde:'',hasta:'',preset:'',vista:(_vf&&_vf.vista)||'lista'};}
+let _vf={q:'',vend:'',desde:'',hasta:'',preset:'',vista:'tabla'};
+function _vfReset(){_vf={q:'',vend:'',desde:'',hasta:'',preset:'',vista:(_vf&&_vf.vista)||'tabla'};}
 function _vfVista(v){_vf.vista=v;render();}
 function _dMinus(days){const d=new Date();d.setDate(d.getDate()-days);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function _vfMatch(c){
