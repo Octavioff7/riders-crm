@@ -297,6 +297,18 @@
   .vf-chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .vf-dates{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);flex-wrap:wrap}
   .vf-dates input{padding:8px 10px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13px;background:var(--card);color:var(--txt);font-family:inherit}
+  .vtbl-wrap{overflow-x:auto;border:1px solid var(--sep);border-radius:12px;background:var(--card)}
+  .vtbl{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap}
+  .vtbl thead th{background:#262a63;color:#fff;text-align:left;padding:10px 13px;font-weight:600;position:sticky;top:0}
+  .vtbl tbody td{padding:9px 13px;border-top:1px solid var(--sep);color:var(--txt)}
+  .vtbl tbody tr{cursor:pointer}
+  .vtbl tbody tr:hover{background:var(--hover)}
+  .vtbl .num{text-align:right}
+  .vtbl .vt-prod{max-width:230px;overflow:hidden;text-overflow:ellipsis}
+  .vt-badge{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:12px}
+  .vt-badge.ok{background:rgba(52,199,89,.16);color:#248a3d}
+  .vt-badge.warn{background:rgba(255,159,10,.16);color:#c76e00}
+  .vt-ver{border:1px solid var(--sep-strong);background:var(--bg);color:var(--accent);border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
   .vdet-head{display:flex;align-items:center;gap:11px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--sep)}
   .vdet-head .nm{font-size:16px;font-weight:700}
   .vrow .av{flex:none}
@@ -1696,8 +1708,9 @@ function _ventasRow(c){
     <div style="text-align:right;flex:none"><b style="color:#34c759">$${total.toLocaleString('es-AR')}</b>${_tieneDocs(c)?'<div style="font-size:15px" title="Tiene documentos">📷</div>':''}</div>
   </div>`;
 }
-let _vf={q:'',vend:'',desde:'',hasta:'',preset:''};
-function _vfReset(){_vf={q:'',vend:'',desde:'',hasta:'',preset:''};}
+let _vf={q:'',vend:'',desde:'',hasta:'',preset:'',vista:'lista'};
+function _vfReset(){_vf={q:'',vend:'',desde:'',hasta:'',preset:'',vista:(_vf&&_vf.vista)||'lista'};}
+function _vfVista(v){_vf.vista=v;render();}
 function _dMinus(days){const d=new Date();d.setDate(d.getDate()-days);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function _vfMatch(c){
   const v=_vf;
@@ -1715,8 +1728,8 @@ function renderVentasAdmin(){
   let h='<div class="page"><div class="conv-head-row"><h1>🧾 Ventas</h1><button class="btn ghost" onclick="_exportarVentas()">⬇ Exportar a Excel</button></div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar cliente, vendedor o producto…" value="'+esc(_vf.q)+'" oninput="_vf.q=this.value.toLowerCase();_vfApply()">'+_vSelBtn('vf-selbtn',(_vf.vend?nombreVend(_vf.vend):'Todos los vendedores'),!_vf.vend,'_pickVfVend()')+'</div>';
   h+='<div class="vf-bar"><div class="vf-chips">'+[['Hoy','hoy'],['7 días','7d'],['Este mes','mes'],['Todas','todas']].map(x=>'<button class="vf-chip" data-k="'+x[1]+'" onclick="_vfPreset(\''+x[1]+'\')">'+x[0]+'</button>').join('')+'</div><div class="vf-dates"><label>Desde</label><input type="date" id="vf-desde" value="'+_vf.desde+'" onchange="_vf.desde=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"><label>Hasta</label><input type="date" id="vf-hasta" value="'+_vf.hasta+'" onchange="_vf.hasta=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"></div></div>';
-  h+='<div class="sub" id="ventas-sub"></div>';
-  h+='<div class="panelcard" id="ventas-list"></div></div>';
+  h+='<div class="vf-bar" style="justify-content:space-between"><div class="sub" id="ventas-sub" style="margin:0"></div><div class="vf-chips"><button class="vf-chip'+(_vf.vista==='lista'?' on':'')+'" onclick="_vfVista(\'lista\')">☰ Lista</button><button class="vf-chip'+(_vf.vista==='tabla'?' on':'')+'" onclick="_vfVista(\'tabla\')">▦ Tabla</button></div></div>';
+  h+='<div id="ventas-list"></div></div>';
   main.innerHTML=h;
   _vfChipHi();_vfApply();
 }
@@ -1739,7 +1752,35 @@ function _vfApply(){
   const list=_ventasList().filter(_vfMatch);
   const totalVal=list.reduce((s,c)=>s+_ventaTotal(c),0);
   const sub=document.getElementById('ventas-sub');if(sub)sub.textContent=list.length+' venta(s) · $'+totalVal.toLocaleString('es-AR')+(_vf.vend?' · '+nombreVend(_vf.vend):'');
-  const el=document.getElementById('ventas-list');if(el)el.innerHTML=list.length?list.map(_ventasRow).join(''):'<div class="empty" style="padding:22px">No hay ventas con esos filtros.</div>';
+  const el=document.getElementById('ventas-list');if(!el)return;
+  if(!list.length){el.innerHTML='<div class="panelcard"><div class="empty" style="padding:22px">No hay ventas con esos filtros.</div></div>';return;}
+  el.innerHTML=(_vf.vista==='tabla')?_ventasTablaHTML(list):('<div class="panelcard">'+list.map(_ventasRow).join('')+'</div>');
+}
+function _ventasTablaHTML(list){
+  const nom=(c,who)=>{const l=_entList(c.venta,who);return l.length?l.map(_entNom).filter(Boolean).join(' | '):(who==='comprador'?c.nombre:((c.venta&&c.venta.receptorPendiente)?'—':''));};
+  const money=n=>'$'+Number(n||0).toLocaleString('es-AR');
+  const cols=['Fecha','Vendedor','Cliente compra','Productos','Recibe','Recepción','Ítems','Total','Taxes','Fees','Fondeo',''];
+  let h='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
+  list.forEach(c=>{const v=c.venta||{};const items=(v.productos&&v.productos.length)||1;
+    const recep=v.receptorPendiente?'<span class="vt-badge warn">Pendiente</span>':'<span class="vt-badge ok">Completa</span>';
+    const fond=c.fondeada?'<span class="vt-badge ok">Fondeada</span>':'<span class="vt-badge warn">No</span>';
+    h+='<tr onclick="verVentaDetalle(\''+c.id+'\')">'
+      +'<td>'+(c.vendidoFecha?fmtFecha(c.vendidoFecha):'')+'</td>'
+      +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
+      +'<td>'+esc(nom(c,'comprador'))+'</td>'
+      +'<td class="vt-prod">'+esc(_ventaProdStr(c))+'</td>'
+      +'<td>'+esc(nom(c,'receptor')||'—')+'</td>'
+      +'<td>'+recep+'</td>'
+      +'<td class="num">'+items+'</td>'
+      +'<td class="num"><b style="color:#248a3d">'+money(_ventaTotal(c))+'</b></td>'
+      +'<td class="num">'+money((v.cobro&&v.cobro.tax)||0)+'</td>'
+      +'<td class="num">'+money((v.cobro&&v.cobro.fee)||0)+'</td>'
+      +'<td>'+fond+'</td>'
+      +'<td><button class="vt-ver" onclick="event.stopPropagation();verVentaDetalle(\''+c.id+'\')">👁 Ver</button></td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></div>';
+  return h;
 }
 /* ---- Exportar ventas a Excel (.xls vía tabla HTML, sin dependencias) ---- */
 function _entNom(e){return ((e.nombre||'')+' '+(e.apellido||'')).trim();}
