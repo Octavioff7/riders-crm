@@ -1646,7 +1646,7 @@ function renderVentasAdmin(){
   if(_lastView!=='ventas')_vfReset();
   const all=_ventasList();
   if(!all.length){main.innerHTML='<div class="page"><h1>🧾 Ventas</h1><div class="sub">Todavía no hay ventas cargadas.</div></div>';return;}
-  let h='<div class="page"><h1>🧾 Ventas</h1>';
+  let h='<div class="page"><div class="conv-head-row"><h1>🧾 Ventas</h1><button class="btn ghost" onclick="_exportarVentas()">⬇ Exportar a Excel</button></div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar cliente, vendedor o producto…" value="'+esc(_vf.q)+'" oninput="_vf.q=this.value.toLowerCase();_vfApply()">'+_vSelBtn('vf-selbtn',(_vf.vend?nombreVend(_vf.vend):'Todos los vendedores'),!_vf.vend,'_pickVfVend()')+'</div>';
   h+='<div class="vf-bar"><div class="vf-chips">'+[['Hoy','hoy'],['7 días','7d'],['Este mes','mes'],['Todas','todas']].map(x=>'<button class="vf-chip" data-k="'+x[1]+'" onclick="_vfPreset(\''+x[1]+'\')">'+x[0]+'</button>').join('')+'</div><div class="vf-dates"><label>Desde</label><input type="date" id="vf-desde" value="'+_vf.desde+'" onchange="_vf.desde=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"><label>Hasta</label><input type="date" id="vf-hasta" value="'+_vf.hasta+'" onchange="_vf.hasta=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"></div></div>';
   h+='<div class="sub" id="ventas-sub"></div>';
@@ -1674,6 +1674,40 @@ function _vfApply(){
   const totalVal=list.reduce((s,c)=>s+_ventaTotal(c),0);
   const sub=document.getElementById('ventas-sub');if(sub)sub.textContent=list.length+' venta(s) · $'+totalVal.toLocaleString('es-AR')+(_vf.vend?' · '+nombreVend(_vf.vend):'');
   const el=document.getElementById('ventas-list');if(el)el.innerHTML=list.length?list.map(_ventasRow).join(''):'<div class="empty" style="padding:22px">No hay ventas con esos filtros.</div>';
+}
+/* ---- Exportar ventas a Excel (.xls vía tabla HTML, sin dependencias) ---- */
+function _gv(c,who,k){return (c.venta&&c.venta[who]&&c.venta[who][k])?c.venta[who][k]:'';}
+function _dirExport(c,who){const o=c.venta&&c.venta[who];if(!o)return '';return [o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.estado,o.codigoPostal].filter(Boolean).join(', ');}
+function _prodExport(c){if(!(c.venta&&c.venta.productos&&c.venta.productos.length))return c.ventaDetalle||c.producto||'';return c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')+(p.color?' ('+p.color+')':'')+' $'+(p.precio||0)).join(' ; ');}
+function _pagosExport(c){if(!(c.venta&&c.venta.pagos&&c.venta.pagos.length))return '';return c.venta.pagos.map(p=>(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' '+p.financiera:'')+' $'+(p.monto||0)+(p.fecha?' ('+fmtFecha(p.fecha)+')':'')).join(' ; ');}
+function _exportarVentas(){
+  const list=_ventasList().filter(_vfMatch);
+  if(!list.length){alert('No hay ventas para exportar con estos filtros.');return;}
+  const TXT=' style="mso-number-format:\'\\@\'"';
+  const cols=[
+    {h:'Fecha',g:c=>c.vendidoFecha?fmtFecha(c.vendidoFecha):'',t:1},
+    {h:'Vendedor',g:c=>nombreVend(c.vendedorId)},
+    {h:'Cliente (compra)',g:c=>{const o=c.venta&&c.venta.comprador;return o?((o.nombre||'')+' '+(o.apellido||'')).trim():c.nombre;}},
+    {h:'Teléfono',g:c=>_gv(c,'comprador','telefono')||c.whatsapp||'',t:1},
+    {h:'Email',g:c=>_gv(c,'comprador','email')},
+    {h:'Dirección',g:c=>_dirExport(c,'comprador')},
+    {h:'Recibe (cubano)',g:c=>{const r=c.venta&&c.venta.receptor;return r?((r.nombre||'')+' '+(r.apellido||'')).trim():((c.venta&&c.venta.receptorPendiente)?'(pendiente)':'');}},
+    {h:'Carnet',g:c=>_gv(c,'receptor','carnet'),t:1},
+    {h:'Tel. receptor',g:c=>_gv(c,'receptor','telefono'),t:1},
+    {h:'Dir. receptor',g:c=>_dirExport(c,'receptor')},
+    {h:'Productos',g:c=>_prodExport(c)},
+    {h:'Pagos',g:c=>_pagosExport(c)},
+    {h:'Total productos ($)',g:c=>(c.venta&&c.venta.total)||c.valor||0,n:1},
+    {h:'Taxes ($)',g:c=>(c.venta&&c.venta.cobro&&c.venta.cobro.tax)||0,n:1},
+    {h:'Fees ($)',g:c=>(c.venta&&c.venta.cobro&&c.venta.cobro.fee)||0,n:1},
+    {h:'Total venta ($)',g:c=>_ventaTotal(c),n:1},
+    {h:'Comisión ($)',g:c=>Number(c.comision)||0,n:1}
+  ];
+  let html='<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #b0b0b0;padding:5px 9px;font-family:Arial;font-size:11px;vertical-align:top}th{background:#262a63;color:#fff;text-align:left;font-size:12px}</style></head><body><table><tr>'+cols.map(c=>'<th>'+esc(c.h)+'</th>').join('')+'</tr>';
+  list.forEach(c=>{html+='<tr>'+cols.map(col=>{const v=col.g(c);if(col.n)return '<td style="mso-number-format:\'0\'">'+(Math.round(Number(v)||0))+'</td>';return '<td'+(col.t?TXT:'')+'>'+esc(String(v==null?'':v))+'</td>';}).join('')+'</tr>';});
+  html+='</table></body></html>';
+  const blob=new Blob(['\ufeff'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ventas-riders-'+hoy()+'.xls';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 function verVentaDetalle(id){
   const c=clientes.find(x=>x.id===id);if(!c)return;
