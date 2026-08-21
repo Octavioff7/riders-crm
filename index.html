@@ -1239,7 +1239,7 @@ async function cargarCatalogos(){
   try{const fin=await (await api('/api/financieras')).json();if(Array.isArray(fin)&&fin.length){_FIN=fin;_rebuildFin();}}catch(e){}
 }
 function abrirCargarVenta(){
-  if(RO())return;
+  if(RO()&&!_esAdminRol())return; // admin/supervisor/dueño y vendedores pueden cargar ventas
   cerrarModal();cerrarVenta();
   _venta={step:1,
     compradores:[_nuevoComprador()],
@@ -1547,7 +1547,7 @@ async function _subirDocs(imgs){
 }
 async function guardarVenta(){
   if(!_venta||_venta.guardando)return;
-  if(!_venta.editId&&RO())return; // crear: bloqueado para solo-lectura; editar: permitido a admin/supervisor/dueño
+  if(!_venta.editId&&RO()&&!_esAdminRol())return; // crear: admin/supervisor/dueño y vendedores pueden; nadie más
   const cmp=_venta.compradores[0]||{};
   const nombre=((cmp.nombre||'')+' '+(cmp.apellido||'')).trim();
   if(!nombre){alert('Falta el nombre del cliente que compra.');return;}
@@ -1610,7 +1610,9 @@ async function guardarVenta(){
     proximo:'',proximoTipo:'',proximoHora:'',
     creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',tags:[],
     log:[{fecha:hoy(),hora:ahora(),texto:'🧾 Venta cargada:\n'+resumen}],mensajes:[]};
-  clientes.push(c);save();cerrarVenta();
+  clientes.push(c);
+  if(_esAdminRol()){_savCliente(c);cerrarVenta();view='ventas';render();if(typeof pushHistory==='function')pushHistory();return;}
+  save();cerrarVenta();
   selectedId=c.id;view='inbox';inboxCtx='vendidos';render();
   if(typeof pushHistory==='function')pushHistory();
 }
@@ -2496,7 +2498,7 @@ async function renderInicioAdmin(){
   const fond=ventasAll.filter(c=>c.fondeada),nofond=ventasAll.filter(c=>!c.fondeada);
   const mFond=fond.reduce((s,c)=>s+_ventaTotal(c),0),mNoFond=nofond.reduce((s,c)=>s+_ventaTotal(c),0);
   let h='<div class="page">';
-  h+='<h1>🏠 Inicio</h1>';
+  h+='<div class="conv-head-row"><h1>🏠 Inicio</h1><div class="head-btns"><button class="btn nuevo-cli-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button></div></div>';
   h+='<div class="sub">Resumen del equipo · '+nombreMes+'</div>';
   // Tiles de ventas: totales, fondeadas (plata en mano) y no fondeadas (por cobrar)
   h+='<div class="tiles" style="grid-template-columns:repeat(3,1fr)">'
