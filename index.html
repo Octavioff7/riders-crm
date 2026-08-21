@@ -318,6 +318,8 @@
   .prod-specs .ps-row:first-child{border-top:none}
   .prod-specs .ps-k{color:var(--muted)}
   .prod-specs .ps-v{font-weight:600;color:var(--txt)}
+  .vtbl tbody tr.inv-sep td{background:#262a63;color:#fff;font-weight:700;font-size:12px;letter-spacing:.05em;padding:8px 13px;text-transform:uppercase;position:static}
+  .vtbl tbody tr.inv-sep:hover td{background:#262a63}
   .dia-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
   .dia-chip{padding:8px 12px;border:1px solid var(--sep-strong);border-radius:20px;background:var(--bg);font-size:13px;cursor:pointer;font-family:inherit;color:var(--txt);min-width:46px}
   .dia-chip:hover{border-color:var(--accent)}
@@ -2301,7 +2303,7 @@ function renderInventario(){
   if(sel)h+='<div class="inv-bulk" id="inv-bulk" style="display:none"></div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, modelo, marca o color…" value="'+esc(_invQ)+'" oninput="_invQ=this.value.toLowerCase();_invRenderRows()">';
   h+='<div class="fin-tabs">'+[['todos','Todos'],['moto','Motos'],['triciclo','Triciclos'],['kit','Kits'],['inactivos','Inactivos']].map(t=>'<button class="fin-tab'+(_invFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_invSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
-  const cols=(sel?['✓']:[]).concat(['N°','Producto','Modelo','Categoría','Marca','Motor','Cil. CC','Watts','Kw','Colores','Precio','Mínimo','Comisión','Envío','Estado','']);
+  const cols=(sel?['✓']:[]).concat(['N°','Producto','Modelo','Categoría','Marca','Motor','Watts','Kw','Colores','Precio','Mínimo','Comisión','Envío','Estado','']);
   h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody id="inv-tbody"></tbody></table></div>';
   h+='<div class="sub" id="inv-foot" style="margin-top:8px"></div>';
   main.innerHTML=h+'</div>';
@@ -2313,11 +2315,14 @@ function _invRenderRows(){
   const tb=document.getElementById('inv-tbody');if(!tb)return;
   const ed=_canEditInv(),sel=ed&&_invSelMode;
   const rows=_invFiltrada();
+  const ncol=(sel?1:0)+15;
   const num=v=>(v==null||v===''||Number(v)===0)?'—':Number(v).toLocaleString('es-AR');
   const dash=v=>String(v||'').trim()||'—';
   const estBadge=p=>_invActivo(p)?'<span class="vt-badge ok">Activo</span>':'<span class="vt-badge">Inactivo</span>';
-  if(!rows.length){tb.innerHTML='<tr><td colspan="17" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron productos.</td></tr>';}
-  else tb.innerHTML=rows.map(({p,idx})=>{const nImg=(p.imagenes||[]).length;return '<tr>'
+  if(!rows.length){tb.innerHTML='<tr><td colspan="'+ncol+'" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron productos.</td></tr>';}
+  else{let lastCat=null,html='';rows.forEach(({p,idx})=>{const nImg=(p.imagenes||[]).length;
+    if(p.cat!==lastCat){lastCat=p.cat;html+='<tr class="inv-sep"><td colspan="'+ncol+'">'+esc((_CATLBL[p.cat]||p.cat||'').toUpperCase())+'</td></tr>';}
+    html+='<tr>'
     +(sel?'<td><input type="checkbox" class="inv-chk" '+(_invSel.has(idx)?'checked':'')+' onchange="_invToggleSel('+idx+',this.checked)"></td>':'')
     +'<td class="faint">'+(p.n||'')+'</td>'
     +'<td style="cursor:pointer" onclick="verProducto('+idx+')"><b>'+esc(p.nombre)+'</b>'+(nImg?' <span class="faint" style="font-size:11px">📷'+nImg+'</span>':'')+'</td>'
@@ -2325,7 +2330,6 @@ function _invRenderRows(){
     +'<td>'+esc(_CATLBL[p.cat]||p.cat||'—')+'</td>'
     +'<td>'+esc(dash(p.marca))+'</td>'
     +'<td>'+esc(dash(p.motor))+'</td>'
-    +'<td class="num">'+num(p.cc)+'</td>'
     +'<td class="num">'+num(p.watts)+'</td>'
     +'<td class="num">'+num(p.kw)+'</td>'
     +'<td>'+esc(dash(p.color))+'</td>'
@@ -2338,7 +2342,8 @@ function _invRenderRows(){
         ?'<button class="vt-ic" style="background:#007aff" title="Ver / fotos" onclick="verProducto('+idx+')">👁</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_invModal('+idx+')">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_invDel('+idx+')">🗑️</button>'
         :'<button class="vt-ic" style="background:#007aff" title="Ver / fotos" onclick="verProducto('+idx+')">👁</button>')
     +'</td>'
-    +'</tr>';}).join('');
+    +'</tr>';});
+    tb.innerHTML=html;}
   const foot=document.getElementById('inv-foot');if(foot)foot.textContent=rows.length?(rows.length+' producto(s)'):'Sin resultados';
 }
 /* ---- FICHA DE PRODUCTO (imágenes + info; ver todos, editar solo admin) ---- */
@@ -2448,7 +2453,6 @@ function _invExportCols(){
     {h:'Categoría',g:p=>_CATLBL[p.cat]||p.cat||''},
     {h:'Marca',g:p=>p.marca||''},
     {h:'Motor',g:p=>p.motor||''},
-    {h:'Cil. CC',g:p=>Number(p.cc)||0,n:1},
     {h:'Watts',g:p=>Number(p.watts)||0,n:1},
     {h:'Kw',g:p=>Number(p.kw)||0,n:1},
     {h:'Colores',g:p=>p.color||''},

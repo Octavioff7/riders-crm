@@ -73,7 +73,7 @@ const DEFAULT_INVENTARIO=[
   {n:35,nombre:'TRICICLO ELECTRICO',modelo:'TRICICLO ELECTRICO PASAJEROS / CARGA',cat:'triciclo',marca:'MZ',motor:'Eléctrico',color:'',precio:4500,comision:500,activo:true},
   {n:36,nombre:'KIT 2',modelo:'KIT 2 SAKO',cat:'kit',marca:'SAKO',color:'',precio:7200,comision:500,activo:true},
   {n:37,nombre:'KIT 1',modelo:'KIT 1 SAKO',cat:'kit',marca:'SAKO',color:'',precio:6350,comision:500,activo:true},
-  {n:38,nombre:'KIT RESIDENCIAL',modelo:'KIT RESIDENCIAL 6KW',cat:'kit',marca:'RIDERS',color:'',precio:5600,comision:500,activo:true},
+  {n:38,nombre:'KIT RESIDENCIAL',modelo:'KIT RESIDENCIAL 6KW',cat:'kit',color:'',precio:5600,comision:500,activo:true},
   {n:39,nombre:'KIT MUST',modelo:'KIT MUST',cat:'kit',marca:'MUST',color:'',precio:4600,comision:500,activo:true},
   {n:40,nombre:'BATERIA 15K',cat:'kit',color:'',precio:2500,comision:100,activo:true},
   {n:41,nombre:'INVERSOR 10K',cat:'kit',color:'',precio:2000,comision:0,activo:true},
@@ -82,7 +82,7 @@ const DEFAULT_INVENTARIO=[
   {n:44,nombre:'DELTA 3 CLASSIC',cat:'kit',color:'',precio:1250,comision:200,activo:true},
   {n:45,nombre:'DELTA 3 PLUS',cat:'kit',color:'',precio:1500,comision:200,activo:true},
   {n:46,nombre:'DELTA 2 MAX',cat:'kit',color:'',precio:1950,comision:250,activo:true},
-  {n:47,nombre:'DELTA PRO',modelo:'ECOFLOW DELTA PRO',cat:'kit',marca:'RIDERS',color:'',precio:2900,comision:300,activo:true}
+  {n:47,nombre:'DELTA PRO',modelo:'ECOFLOW DELTA PRO',cat:'kit',color:'',precio:2900,comision:300,activo:true}
 ];
 const DEFAULT_FINANCIERAS=[
   {n:'US BANK CARITAS',fee:0.04,tax:true,dias:'Todos los días'},{n:'US BANK EVERLY',fee:0.08,tax:true,dias:'Todos los días'},
@@ -107,6 +107,8 @@ function migrateInventario(){
         if((p[k]===undefined||p[k]===null||p[k]==='')&&d[k]!==undefined&&d[k]!==''){p[k]=d[k];changed=true;}
       });
       if(p.activo===undefined){p.activo=true;changed=true;}
+      // corrección puntual: KIT RESIDENCIAL y DELTA PRO no son RIDERS
+      if((norm(p.nombre)===norm('KIT RESIDENCIAL')||norm(p.nombre)===norm('DELTA PRO'))&&p.marca==='RIDERS'){p.marca='';changed=true;}
     });
     if(changed)saveInventario(inv);
   }catch(e){}
