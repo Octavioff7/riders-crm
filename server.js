@@ -595,7 +595,7 @@ http.createServer((req,res)=>{
     if(!imgs.length)return json(400,{error:'sin imagen'});
     const cubano=b.tipo==='cubano';
     const prompt=cubano
-      ? 'Estas son fotos de un documento de identidad de una persona (puede ser un carnet de identidad cubano, pasaporte u otro documento). Extraé los datos de la persona. Respondé SOLO un objeto JSON con estas claves exactas (usá string vacío "" si el dato no se ve): {"nombre":"","apellido":"","carnet":"","direccion":"","apt":"","ciudad":"","estado":""}. "nombre"=nombre de pila, "apellido"=apellido(s), "carnet"=número de identidad/documento. No inventes datos que no estén en la imagen.'
+      ? 'Estas son fotos de un documento de identidad cubano (carnet de identidad) u otro documento de la persona. Extraé TODOS los datos posibles. Respondé SOLO un objeto JSON con estas claves exactas (usá string vacío "" si el dato no se ve): {"nombre":"","apellido":"","carnet":"","telefono":"","direccion":"","municipio":"","provincia":""}. "nombre"=nombre(s) de pila, "apellido"=apellido(s), "carnet"=número de identidad (NI, 11 dígitos), "telefono"=teléfono si aparece, "direccion"=calle y número del domicilio, "municipio"=municipio, "provincia"=provincia de Cuba (ej: La Habana, Santiago de Cuba, Holguín). No inventes datos que no estén en la imagen.'
       : 'Estas son fotos (frente y dorso) de una licencia de conducir de Estados Unidos. Extraé los datos del titular. Respondé SOLO un objeto JSON con estas claves exactas (usá string vacío "" si el dato no se ve): {"nombre":"","apellido":"","direccion":"","apt":"","ciudad":"","estado":"","codigoPostal":""}. "nombre"=first name, "apellido"=last name, "direccion"=número y calle (street address, sin apt), "apt"=número de apartamento/unidad si hay, "ciudad"=city, "estado"=state en 2 letras (ej FL), "codigoPostal"=ZIP code (5 dígitos). No inventes datos que no estén en la imagen.';
     geminiVision(imgs,prompt).then(rv=>{
       if(!rv||!rv.ok||!rv.text){
@@ -609,7 +609,7 @@ http.createServer((req,res)=>{
       try{data=JSON.parse(raw);}catch(e){try{data=JSON.parse(String(raw).replace(/```json/gi,'').replace(/```/g,'').trim());}catch(e2){data=null;}}
       if(!data||typeof data!=='object')return json(200,{ok:false,reason:'No pude interpretar el documento. Cargá los datos a mano.'});
       const clean=k=>String(data[k]==null?'':data[k]).trim();
-      json(200,{ok:true,data:{nombre:clean('nombre'),apellido:clean('apellido'),carnet:clean('carnet'),direccion:clean('direccion'),apt:clean('apt'),ciudad:clean('ciudad'),estado:clean('estado'),codigoPostal:clean('codigoPostal')}});
+      json(200,{ok:true,data:{nombre:clean('nombre'),apellido:clean('apellido'),carnet:clean('carnet'),telefono:clean('telefono'),direccion:clean('direccion'),apt:clean('apt'),ciudad:clean('ciudad'),estado:clean('estado'),codigoPostal:clean('codigoPostal'),municipio:clean('municipio'),provincia:clean('provincia')}});
     }).catch(()=>json(200,{ok:false,reason:'Error escaneando el documento.'}));
   });
 

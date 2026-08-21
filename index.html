@@ -1182,6 +1182,7 @@ let INVENTARIO=[
   {n:45,nombre:'DELTA 3 PLUS',precio:1500,cat:'kit'},{n:46,nombre:'DELTA 2 MAX',precio:1950,cat:'kit'},{n:47,nombre:'DELTA PRO',precio:2900,cat:'kit'}
 ];
 const _PRODCAT={'Moto':'moto','Triciclo':'triciclo','Kit solar':'kit','Otro':null};
+const _PROV_CUBA=['Pinar del Río','Artemisa','La Habana','Mayabeque','Matanzas','Cienfuegos','Villa Clara','Sancti Spíritus','Ciego de Ávila','Camagüey','Las Tunas','Holguín','Granma','Santiago de Cuba','Guantánamo','Isla de la Juventud'];
 const _CATLBL={moto:'Motos',triciclo:'Triciclos',kit:'Kits y Ecoflows'};
 async function cargarCatalogos(){
   if(!SERVER)return;
@@ -1195,7 +1196,7 @@ function abrirCargarVenta(){
     comprador:{nombre:'',apellido:'',telefono:'+1 ',email:'',direccion:'',apt:'',ciudad:'',estado:'',codigoPostal:''},
     compradorImgs:[],
     receptorModo:'ahora',
-    receptor:{nombre:'',apellido:'',carnet:'',telefono:'',direccion:'',apt:'',ciudad:'',estado:''},
+    receptor:{nombre:'',apellido:'',carnet:'',telefono:'+53 ',direccion:'',municipio:'',provincia:'',pais:'Cuba'},
     receptorImgs:[],
     productos:[{producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:''}],
     pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null}]};
@@ -1254,7 +1255,7 @@ async function _scan(who){
     const j=await r.json();
     if(j&&j.ok&&j.data){
       const tgt=who==='receptor'?_venta.receptor:_venta.comprador;
-      const campos=who==='receptor'?['nombre','apellido','carnet','direccion','apt','ciudad','estado']:['nombre','apellido','direccion','apt','ciudad','estado','codigoPostal'];
+      const campos=who==='receptor'?['nombre','apellido','carnet','telefono','direccion','municipio','provincia']:['nombre','apellido','direccion','apt','ciudad','estado','codigoPostal'];
       campos.forEach(k=>{if(j.data[k])tgt[k]=j.data[k];});
       _ventaRender();
       const m2=document.getElementById('scan-msg-'+who);if(m2){m2.textContent='✅ Datos autocompletados — revisalos.';m2.className='scan-msg ok';}
@@ -1289,11 +1290,12 @@ function _ventaStep2(){
    +'<button class="btn scan-btn" id="scan-receptor" onclick="_scan(\'receptor\')" '+(has?'':'disabled')+'>✨ Escanear y autocompletar</button>'
    +'<div class="scan-msg" id="scan-msg-receptor"></div></div>'
    +'<div class="row2"><div><label>Nombre</label><input value="'+esc(c.nombre)+'" oninput="_venta.receptor.nombre=this.value"></div><div><label>Apellido</label><input value="'+esc(c.apellido)+'" oninput="_venta.receptor.apellido=this.value"></div></div>'
-   +'<div class="row2"><div><label>N° de carnet</label><input value="'+esc(c.carnet)+'" oninput="_venta.receptor.carnet=this.value"></div><div><label>Teléfono</label><input value="'+esc(c.telefono)+'" inputmode="tel" oninput="_venta.receptor.telefono=this.value"></div></div>'
+   +'<div class="row2"><div><label>N° de carnet</label><input value="'+esc(c.carnet)+'" oninput="_venta.receptor.carnet=this.value"></div><div><label>Teléfono</label><input value="'+esc(c.telefono||'+53 ')+'" inputmode="tel" oninput="_venta.receptor.telefono=this.value" onfocus="var v=this.value;this.setSelectionRange(v.length,v.length)"></div></div>'
    +'<label>Dirección</label><input value="'+esc(c.direccion)+'" oninput="_venta.receptor.direccion=this.value">'
-   +'<div class="row2"><div><label>Apt / Unidad</label><input value="'+esc(c.apt)+'" oninput="_venta.receptor.apt=this.value"></div><div><label>Ciudad</label><input value="'+esc(c.ciudad)+'" oninput="_venta.receptor.ciudad=this.value"></div></div>'
-   +'<label>Estado</label><input value="'+esc(c.estado)+'" oninput="_venta.receptor.estado=this.value">';
+   +'<div class="row2"><div><label>Municipio</label><input value="'+esc(c.municipio||'')+'" oninput="_venta.receptor.municipio=this.value"></div><div><label>Provincia</label>'+_vSelBtn('v-full',(c.provincia||'Elegí la provincia…'),!c.provincia,'_pickProvincia()')+'</div></div>'
+   +'<label>País</label><input value="'+esc(c.pais||'Cuba')+'" oninput="_venta.receptor.pais=this.value">';
 }
+function _pickProvincia(){appPick({titulo:'Provincia (Cuba)',search:true,actual:_venta.receptor.provincia||'',opciones:_PROV_CUBA.map(p=>({value:p,label:p})),onPick:v=>{_venta.receptor.provincia=v;_ventaRender();}});}
 function _ventaStep3(){
   let h='<div class="v-sec-t">🛒 Productos vendidos</div><div class="v-rows">';
   _venta.productos.forEach((p,i)=>{
@@ -1444,7 +1446,7 @@ async function guardarVenta(){
   const total=_ventaSum(prods,'precio'),cantidad=prods.length;
   const tel=(cmp.telefono&&cmp.telefono.replace(/\D/g,'').replace(/^1/,'').length>=7)?cmp.telefono:'';
   const rec=_venta.receptorModo==='ahora'?_venta.receptor:null;
-  const recVacio=rec&&!Object.keys(rec).some(k=>(rec[k]||'').trim());
+  const recVacio=rec&&!['nombre','apellido','carnet','direccion','municipio'].some(k=>(rec[k]||'').trim());
   // Guardar las fotos de los documentos como archivos (para verlas desde dueño/supervisor/admin)
   const compradorDocs=await _subirDocs(_venta.compradorImgs);
   const receptorDocs=(_venta.receptorModo==='ahora')?await _subirDocs(_venta.receptorImgs):[];
@@ -1458,7 +1460,7 @@ async function guardarVenta(){
   const venta={
     compradorDocs,receptorDocs,
     comprador:{nombre:cmp.nombre,apellido:cmp.apellido,telefono:cmp.telefono,email:cmp.email,direccion:cmp.direccion,apt:cmp.apt,ciudad:cmp.ciudad,estado:cmp.estado,codigoPostal:cmp.codigoPostal},
-    receptor:(rec&&!recVacio)?{nombre:rec.nombre,apellido:rec.apellido,carnet:rec.carnet,telefono:rec.telefono,direccion:rec.direccion,apt:rec.apt,ciudad:rec.ciudad,estado:rec.estado}:null,
+    receptor:(rec&&!recVacio)?{nombre:rec.nombre,apellido:rec.apellido,carnet:rec.carnet,telefono:rec.telefono,direccion:rec.direccion,municipio:rec.municipio,provincia:rec.provincia,pais:rec.pais||'Cuba'}:null,
     receptorPendiente:_venta.receptorModo==='despues'||recVacio,
     productos:prods.map(p=>({producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),listaPrecio:p.listaPrecio||null,precio:parseFloat(p.precio)||0})),
     pagos:pagosOut,
@@ -1481,7 +1483,7 @@ async function guardarVenta(){
 function ventaResumenHTML(c){
   const v=c.venta;if(!v)return '';
   const cmp=v.comprador||{},rec=v.receptor;
-  const linea=o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.estado,o.codigoPostal].filter(Boolean).join(', ');
+  const linea=o=>[o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.municipio,o.estado,o.provincia,o.codigoPostal,o.pais].filter(Boolean).join(', ');
   const docsHTML=arr=>{
     if(!arr||!arr.length)return '';
     return '<div class="vr-docs">'+arr.map(id=>'<img class="vr-doc" data-doc="'+esc(id)+'" alt="documento" onclick="verDoc(\''+esc(id)+'\')">').join('')+'</div>';
@@ -1679,7 +1681,7 @@ function _vfApply(){
 }
 /* ---- Exportar ventas a Excel (.xls vía tabla HTML, sin dependencias) ---- */
 function _gv(c,who,k){return (c.venta&&c.venta[who]&&c.venta[who][k])?c.venta[who][k]:'';}
-function _dirExport(c,who){const o=c.venta&&c.venta[who];if(!o)return '';return [o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.estado,o.codigoPostal].filter(Boolean).join(', ');}
+function _dirExport(c,who){const o=c.venta&&c.venta[who];if(!o)return '';return [o.direccion,o.apt?'Apt '+o.apt:'',o.ciudad,o.municipio,o.estado,o.provincia,o.codigoPostal,o.pais].filter(Boolean).join(', ');}
 function _prodExport(c){if(!(c.venta&&c.venta.productos&&c.venta.productos.length))return c.ventaDetalle||c.producto||'';return c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')+(p.color?' ('+p.color+')':'')+' $'+(p.precio||0)).join(' ; ');}
 function _pagosExport(c){if(!(c.venta&&c.venta.pagos&&c.venta.pagos.length))return '';return c.venta.pagos.map(p=>(_VMETLBL[p.metodo]||p.metodo)+(p.financiera?' '+p.financiera:'')+' $'+(p.monto||0)+(p.fecha?' ('+fmtFecha(p.fecha)+')':'')).join(' ; ');}
 function _exportarVentas(){
