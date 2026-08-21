@@ -568,6 +568,16 @@ http.createServer((req,res)=>{
   if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
 
+  // Actualizar un cliente/venta completo: admin/supervisor/dueño (editar ventas, acreditar pagos, fondeo)
+  if(u==='/api/cliente-save'&&req.method==='POST'){
+    if(!esAdminRol)return json(403,{error:'Sin permiso'});
+    return readBody(b=>{
+      if(!b||!b.cliente||!b.cliente.id)return json(400,{error:'cliente'});
+      const arr=loadClientes();const i=arr.findIndex(x=>x.id===b.cliente.id);
+      if(i<0)return json(404,{error:'no existe'});
+      arr[i]=b.cliente;saveClientes(arr);json(200,{ok:true});
+    });
+  }
   // Seguimiento de un cliente: admin/supervisor/dueño pueden escribirlo aunque sean solo-lectura del resto
   if(u==='/api/cliente-seg'&&req.method==='POST'){
     if(!esAdminRol)return json(403,{error:'Sin permiso'});

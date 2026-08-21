@@ -1518,7 +1518,8 @@ async function _subirDocs(imgs){
   return out;
 }
 async function guardarVenta(){
-  if(RO()||!_venta||_venta.guardando)return;
+  if(!_venta||_venta.guardando)return;
+  if(!_venta.editId&&RO())return; // crear: bloqueado para solo-lectura; editar: permitido a admin/supervisor/dueño
   const cmp=_venta.compradores[0]||{};
   const nombre=((cmp.nombre||'')+' '+(cmp.apellido||'')).trim();
   if(!nombre){alert('Falta el nombre del cliente que compra.');return;}
@@ -1568,7 +1569,7 @@ async function guardarVenta(){
       c.vendidoFecha=M.fecha||c.vendidoFecha;if(M.vendedorId)c.vendedorId=M.vendedorId;c.comision=Number(M.comision)||0;
       c.fondeada=(_pagoEstado(c).estado==='PAGADO');
       c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:'✏️ Venta editada'});
-      save();
+      _savCliente(c);
     }
     cerrarVenta();view='ventas';render();
     return;
@@ -1854,7 +1855,7 @@ function _ventasTablaHTML(list){
 function _recIdxByName(v,name){if(!name)return 0;const l=_entList(v,'receptor');const i=l.findIndex(r=>_entNom(r)===name);return i>=0?i:0;}
 function _compIdxByName(v,name){if(!name)return 0;const l=_entList(v,'comprador');const i=l.findIndex(cm=>_entNom(cm)===name);return i>=0?i:0;}
 function editarVenta(id){
-  const c=clientes.find(x=>x.id===id);if(!c||!c.venta||RO())return;
+  const c=clientes.find(x=>x.id===id);if(!c||!c.venta||!_esAdminRol())return;
   const v=c.venta;cerrarModal();cerrarVenta();
   const comps=_entList(v,'comprador'),recs=_entList(v,'receptor');
   _venta={step:1,editId:id,
@@ -1921,7 +1922,10 @@ function _pdfVenta(id){
 const _SEG_EST=['PENDIENTE','EN REVISIÓN','RESUELTO'];
 const _SEG_PRI=['NORMAL','ALTA'];
 let _segNew=null;
-function _canSeg(){return !!(me&&(me.rol==='admin'||me.rol==='supervisor'||me.rol==='dueno'));}
+function _esAdminRol(){return !!(me&&(me.rol==='admin'||me.rol==='supervisor'||me.rol==='dueno'));}
+function _canSeg(){return _esAdminRol();}
+// Persiste UN cliente/venta (para roles admin, incluidos supervisor/dueño solo-lectura)
+function _savCliente(c){if(!c)return;if(SERVER)api('/api/cliente-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cliente:c})}).catch(()=>{});else save();}
 function _segPersist(id){const c=clientes.find(x=>x.id===id);if(!c)return;if(SERVER)api('/api/cliente-seg',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:c.id,seg:c.seg||[]})}).catch(()=>{});else save();}
 function _segPend(c){return (c.seg||[]).filter(s=>s.estado==='PENDIENTE').length;}
 function _segEstBadge(e){const cls=e==='RESUELTO'?'ok':(e==='EN REVISIÓN'?'rev':'warn');return '<span class="vt-badge '+cls+'">'+esc(e)+'</span>';}
@@ -1979,7 +1983,7 @@ function abrirPagosVenta(id){
 function cerrarPagosV(){const m=document.getElementById('modal-pv');if(m)m.remove();}
 function _pvRender(id){
   const c=clientes.find(x=>x.id===id);const b=document.getElementById('pv-body');if(!c||!b)return;
-  const ep=_pagoEstado(c);const pagos=c.venta.pagos||[];const ro=RO();
+  const ep=_pagoEstado(c);const pagos=c.venta.pagos||[];const ro=!_esAdminRol();
   const comps=_entList(c.venta,'comprador').map(_entNom).filter(Boolean);
   let h='<div class="pv-sum">'
     +'<div><div class="pv-l">Cliente</div><div class="pv-v">'+esc(c.nombre)+'</div></div>'
@@ -2002,14 +2006,14 @@ function _pvRender(id){
   }
   b.innerHTML=h;
 }
-function _pvSave(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.fondeada=(_pagoEstado(c).estado==='PAGADO');save();_pvRender(id);if(view==='ventas')_vfApply();if(view==='inicioAdmin')renderInicioAdmin();}
-function _pvToggle(id,i){const c=clientes.find(x=>x.id===id);if(!c||RO())return;const p=c.venta.pagos[i];if(!p)return;p.acreditado=!p.acreditado;p.acredFecha=p.acreditado?hoy():'';_pvSave(id);}
-function _pvDel(id,i){const c=clientes.find(x=>x.id===id);if(!c||RO())return;appModal({titulo:'Eliminar pago',texto:'¿Eliminar este pago?',okLabel:'Eliminar',okDanger:true,onOk:()=>{c.venta.pagos.splice(i,1);_pvSave(id);}});}
+function _pvSave(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.fondeada=(_pagoEstado(c).estado==='PAGADO');_savCliente(c);_pvRender(id);if(view==='ventas')_vfApply();if(view==='inicioAdmin')renderInicioAdmin();}
+function _pvToggle(id,i){const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())return;const p=c.venta.pagos[i];if(!p)return;p.acreditado=!p.acreditado;p.acredFecha=p.acreditado?hoy():'';_pvSave(id);}
+function _pvDel(id,i){const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())return;appModal({titulo:'Eliminar pago',texto:'¿Eliminar este pago?',okLabel:'Eliminar',okDanger:true,onOk:()=>{c.venta.pagos.splice(i,1);_pvSave(id);}});}
 function _pvPickMetodo(id){appPick({titulo:'Medio de pago',actual:_pvNew.metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_pvNew.metodo=v;if(v!=='financiado')_pvNew.financiera='';_pvRender(id);}});}
 function _pvPickFin(id){appPick({titulo:'Financiera',actual:_pvNew.financiera||'',opciones:_FINANCIERAS.map(f=>({value:f,label:f})),onPick:v=>{_pvNew.financiera=v;_pvRender(id);}});}
 function _pvPickComp(id){const c=clientes.find(x=>x.id===id);const comps=_entList(c.venta,'comprador').map(_entNom).filter(Boolean);appPick({titulo:'A nombre de',actual:_pvNew.comprador||comps[0]||'',opciones:comps.map(x=>({value:x,label:x})),onPick:v=>{_pvNew.comprador=v;_pvRender(id);}});}
 function _pvAdd(id){
-  const c=clientes.find(x=>x.id===id);if(!c||RO())return;const n=_pvNew;
+  const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())return;const n=_pvNew;
   const monto=parseFloat(n.monto)||0;if(monto<=0){alert('Poné un monto mayor a 0.');return;}
   const comps=_entList(c.venta,'comprador').map(_entNom).filter(Boolean);
   c.venta.pagos=c.venta.pagos||[];
@@ -2062,7 +2066,7 @@ function verVentaDetalle(id){
   if(c.venta){body=ventaResumenHTML(c);}
   else{body='<div class="vr-card"><div class="vr-t">Venta marcada a mano</div><div class="vr-ln">'+esc(c.ventaDetalle||c.producto||'Sin detalle cargado')+'</div>'+(c.comision?'<div class="vr-ln">Comisión: <b>$'+Number(c.comision).toLocaleString('es-AR')+'</b></div>':'')+(c.vendidoFecha?'<div class="vr-ln">Fecha: '+fmtFecha(c.vendidoFecha)+'</div>':'')+'</div>';}
   const fondBadge=c.fondeada?'<span class="fond-badge on">💰 Fondeada</span>':'<span class="fond-badge">⏳ No fondeada</span>';
-  const fondBtn=!RO()?('<button class="btn '+(c.fondeada?'ghost':'')+'" style="width:100%;margin-top:6px" onclick="toggleFondeada(\''+c.id+'\')">'+(c.fondeada?'↩ Marcar como NO fondeada':'💰 Marcar como fondeada (ya entró la plata)')+'</button>'):'';
+  const fondBtn=_esAdminRol()?('<button class="btn '+(c.fondeada?'ghost':'')+'" style="width:100%;margin-top:6px" onclick="toggleFondeada(\''+c.id+'\')">'+(c.fondeada?'↩ Marcar como NO fondeada':'💰 Marcar como fondeada (ya entró la plata)')+'</button>'):'';
   wrap.innerHTML='<div class="modal" style="width:min(480px,calc(100vw - 32px));max-height:92vh;display:flex;flex-direction:column">'
     +'<div class="modal-h"><b>🧾 Ficha de venta'+(c.ventaNum?' · N° '+_padNum(c.ventaNum):'')+'</b><button class="mini" onclick="cerrarVentaDet()">✕</button></div>'
     +'<div class="modal-b" style="overflow-y:auto">'
@@ -2076,7 +2080,7 @@ function verVentaDetalle(id){
   hydrateVentaDocs();
 }
 function cerrarVentaDet(){const m=document.getElementById('modal-vdet');if(m)m.remove();}
-function toggleFondeada(id){const c=clientes.find(x=>x.id===id);if(!c||RO())return;c.fondeada=!c.fondeada;save();verVentaDetalle(id);if(view==='inicioAdmin')renderInicioAdmin();}
+function toggleFondeada(id){const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())return;c.fondeada=!c.fondeada;_savCliente(c);verVentaDetalle(id);if(view==='inicioAdmin')renderInicioAdmin();}
 /* ---- GESTIÓN DE INVENTARIO (admin) ---- */
 function _invPersist(){if(SERVER)api('/api/inventario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(INVENTARIO)}).catch(()=>{});}
 function _invRenum(){const order={moto:0,triciclo:1,kit:2};INVENTARIO.sort((a,b)=>(order[a.cat]||0)-(order[b.cat]||0));INVENTARIO.forEach((p,i)=>p.n=i+1);}
