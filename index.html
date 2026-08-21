@@ -2275,9 +2275,9 @@ function applyRoleUI(){
   // Menú por rol. Supervisión (dueño/supervisor) = menú acotado a herramientas de equipo, sin las
   // secciones de tarea diaria de vendedor (Hoy/Calientes/Atrasados/etc.) que aparecían como listas sueltas.
   const nav=document.querySelectorAll('#nav button');
-  if(owner){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
-  else if(sup){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
-  else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});}
+  if(owner){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','equipo']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
+  else if(sup){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','equipo','cuentas']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
+  else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only')&&!b.classList.contains('vend-only'))b.style.display='';});}
   const av=document.getElementById('nav-avisos');if(av)av.style.display=''; // "Avisos por Telegram" siempre visible, para todos los roles
 }
 function startApp(){
