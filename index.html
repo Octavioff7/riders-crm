@@ -1305,7 +1305,6 @@ function _ventaStep3(){
   h+='</div><button class="v-add" onclick="_ventaAddProd()">＋ Agregar producto</button>';
   h+='<div class="v-sec-t" style="margin-top:15px">💳 Pagos <span>(se pueden dividir)</span></div><div class="v-rows">';
   _venta.pagos.forEach((p,i)=>{
-    const adjuntable=['zelle','debito','credito'].indexOf(p.metodo)>=0;
     const esFin=p.metodo==='financiado';
     h+='<div class="v-card">'
       +'<div class="v-prow">'+_vSelBtn('',_VMETLBL[p.metodo]||'Medio de pago',false,'_pickMetodo('+i+')')
@@ -1315,12 +1314,10 @@ function _ventaStep3(){
       h+=_vSelBtn('v-full',p.financiera||'— Elegí la financiera —',!p.financiera,'_pickFinanciera('+i+')');
     }
     h+='<label class="v-lbl-sm">📅 Fecha del pago</label><input type="date" class="v-full" value="'+esc(p.fecha||'')+'" oninput="_venta.pagos['+i+'].fecha=this.value">';
-    if(adjuntable){
-      if(p.comprobante){
-        h+='<div class="v-comp has"><img src="data:'+p.comprobante.mime+';base64,'+p.comprobante.data+'"><span>✅ Comprobante adjunto</span><button class="v-comp-x" onclick="_pagoCompDel('+i+')">✕</button></div>';
-      }else{
-        h+='<label class="v-comp"><input type="file" accept="image/*" style="display:none" onchange="_pagoCompPick('+i+',this)">📎 Adjuntar comprobante</label>';
-      }
+    if(p.comprobante){
+      h+='<div class="v-comp has"><img src="data:'+p.comprobante.mime+';base64,'+p.comprobante.data+'"><span>✅ Comprobante adjunto</span><button class="v-comp-x" onclick="_pagoCompDel('+i+')">✕</button></div>';
+    }else{
+      h+='<label class="v-comp"><input type="file" accept="image/*" style="display:none" onchange="_pagoCompPick('+i+',this)">📎 Adjuntar comprobante</label>';
     }
     h+='</div>';
   });
