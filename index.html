@@ -210,6 +210,8 @@
   .scan-slot.has{cursor:default;border-style:solid}
   .scan-slot.has img{width:100%;height:100%;object-fit:cover}
   .scan-x{position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:12px;line-height:1;display:grid;place-items:center}
+  .scan-keep{margin-bottom:9px}
+  .scan-keep-l{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px}
   .scan-btn{width:100%;font-size:13px}
   .scan-btn:disabled{opacity:.5;cursor:default}
   .scan-msg{font-size:12px;margin-top:7px;text-align:center;min-height:0}
@@ -1222,8 +1224,11 @@ function abrirCargarVenta(){
     receptores:[_nuevoReceptor()],
     productos:[{producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0}],
     pagos:[{metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null,compradorIdx:0}]};
+  _ventaModalOpen('Cargar venta');
+}
+function _ventaModalOpen(titulo){
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-venta';
-  wrap.innerHTML='<div class="modal venta-modal"><div class="modal-h"><b>Cargar venta</b><button class="mini" onclick="cerrarVenta()">✕</button></div><div class="venta-steps" id="venta-steps"></div><div class="modal-b" id="venta-body"></div><div class="modal-f" id="venta-foot"></div></div>';
+  wrap.innerHTML='<div class="modal venta-modal"><div class="modal-h"><b>'+esc(titulo)+'</b><button class="mini" onclick="cerrarVenta()">✕</button></div><div class="venta-steps" id="venta-steps"></div><div class="modal-b" id="venta-body"></div><div class="modal-f" id="venta-foot"></div></div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarVenta();};
   document.body.appendChild(wrap);
   _ventaRender();
@@ -1240,8 +1245,9 @@ function _ventaRender(){
   }).join('<span class="vsep"></span>');
   body.innerHTML=st===1?_ventaStep1():st===2?_ventaStep2():_ventaStep3();
   let f=st>1?'<button class="btn ghost" onclick="_ventaBack()">Atrás</button>':'<button class="btn ghost" onclick="cerrarVenta()">Cancelar</button>';
-  f+=st<3?'<button class="btn" onclick="_ventaNext()">Siguiente →</button>':'<button class="btn" onclick="guardarVenta()">✅ Guardar venta</button>';
+  f+=st<3?'<button class="btn" onclick="_ventaNext()">Siguiente →</button>':'<button class="btn" onclick="guardarVenta()">'+(_venta.editId?'✅ Guardar cambios':'✅ Guardar venta')+'</button>';
   foot.innerHTML=f;
+  if(_venta.editId)hydrateVentaDocs();
 }
 function _ventaBack(){if(_venta.step>1){_venta.step--;_ventaRender();}}
 function _ventaNext(){
@@ -1302,7 +1308,7 @@ function _ventaStep1(){
     const has=(c.imgs||[]).filter(Boolean).length,P='_venta.compradores['+ei+']';
     h+='<div class="ent-card">'+(_venta.compradores.length>1?'<div class="ent-head"><b>Comprador '+(ei+1)+'</b><button class="ent-del" onclick="_delComprador('+ei+')">✕ Quitar</button></div>':'')
      +'<div class="scan-box"><div class="scan-title">📷 Licencia del cliente <span>(opcional — la IA autocompleta)</span></div>'
-     +'<div class="scan-imgs">'+_imgSlot('comprador',ei,0,'Frente')+_imgSlot('comprador',ei,1,'Dorso')+'</div>'
+     +'<div class="scan-imgs">'+_imgSlot('comprador',ei,0,'Frente')+_imgSlot('comprador',ei,1,'Dorso')+'</div>'+_docsKeepHTML('comprador',ei)
      +'<button class="btn scan-btn" id="scan-comprador-'+ei+'" onclick="_scan(\'comprador\','+ei+')" '+(has?'':'disabled')+'>✨ Escanear y autocompletar</button>'
      +'<div class="scan-msg" id="scan-msg-comprador-'+ei+'"></div></div>'
      +'<div class="row2"><div><label>Nombre</label><input value="'+esc(c.nombre)+'" oninput="'+P+'.nombre=this.value"></div><div><label>Apellido</label><input value="'+esc(c.apellido)+'" oninput="'+P+'.apellido=this.value"></div></div>'
@@ -1324,7 +1330,7 @@ function _ventaStep2(){
     const has=(c.imgs||[]).filter(Boolean).length,R='_venta.receptores['+ei+']';
     h+='<div class="ent-card">'+(_venta.receptores.length>1?'<div class="ent-head"><b>Recibe '+(ei+1)+'</b><button class="ent-del" onclick="_delReceptor('+ei+')">✕ Quitar</button></div>':'')
      +'<div class="scan-box"><div class="scan-title">📷 Documento de quien recibe <span>(opcional — la IA autocompleta)</span></div>'
-     +'<div class="scan-imgs">'+_imgSlot('receptor',ei,0,'Frente')+_imgSlot('receptor',ei,1,'Dorso')+'</div>'
+     +'<div class="scan-imgs">'+_imgSlot('receptor',ei,0,'Frente')+_imgSlot('receptor',ei,1,'Dorso')+'</div>'+_docsKeepHTML('receptor',ei)
      +'<button class="btn scan-btn" id="scan-receptor-'+ei+'" onclick="_scan(\'receptor\','+ei+')" '+(has?'':'disabled')+'>✨ Escanear y autocompletar</button>'
      +'<div class="scan-msg" id="scan-msg-receptor-'+ei+'"></div></div>'
      +'<div class="row2"><div><label>Nombre</label><input value="'+esc(c.nombre)+'" oninput="'+R+'.nombre=this.value"></div><div><label>Apellido</label><input value="'+esc(c.apellido)+'" oninput="'+R+'.apellido=this.value"></div></div>'
@@ -1512,21 +1518,20 @@ async function guardarVenta(){
   // Compradores (subo docs de cada uno). Se descartan los extra vacíos.
   const compsIn=_venta.compradores.filter((b,i)=>i===0||(b.nombre||'').trim()||(b.apellido||'').trim());
   const compradores=[];
-  for(const b of compsIn){const docs=await _subirDocs((b.imgs||[]).filter(Boolean));compradores.push({nombre:b.nombre,apellido:b.apellido,telefono:b.telefono,email:b.email,direccion:b.direccion,apt:b.apt,ciudad:b.ciudad,estado:b.estado,codigoPostal:b.codigoPostal,docs});}
+  for(const b of compsIn){const docs=(b.docsKeep||[]).concat(await _subirDocs((b.imgs||[]).filter(Boolean)));compradores.push({nombre:b.nombre,apellido:b.apellido,telefono:b.telefono,email:b.email,direccion:b.direccion,apt:b.apt,ciudad:b.ciudad,estado:b.estado,codigoPostal:b.codigoPostal,docs});}
   // Receptores (solo si "cargar ahora"). Se descartan los vacíos.
   let receptores=[],receptorPendiente=(_venta.receptorModo==='despues');
   if(_venta.receptorModo==='ahora'){
     const recsIn=_venta.receptores.filter(r=>['nombre','apellido','carnet','direccion','municipio'].some(k=>(r[k]||'').trim()));
     if(!recsIn.length)receptorPendiente=true;
-    for(const r of recsIn){const docs=await _subirDocs((r.imgs||[]).filter(Boolean));receptores.push({nombre:r.nombre,apellido:r.apellido,carnet:r.carnet,telefono:r.telefono,direccion:r.direccion,municipio:r.municipio,provincia:r.provincia,pais:r.pais||'Cuba',docs});}
+    for(const r of recsIn){const docs=(r.docsKeep||[]).concat(await _subirDocs((r.imgs||[]).filter(Boolean)));receptores.push({nombre:r.nombre,apellido:r.apellido,carnet:r.carnet,telefono:r.telefono,direccion:r.direccion,municipio:r.municipio,provincia:r.provincia,pais:r.pais||'Cuba',docs});}
   }
-  // Subir comprobantes de pago
+  // Subir comprobantes de pago (o conservar el existente al editar)
   const pagosOut=[];
   for(const p of pagos){
-    let compId=null;
-    if(p.comprobante&&p.comprobante.data){const ids=await _subirDocs([p.comprobante]);compId=ids[0]||null;}
+    let compId=(p.comprobante&&p.comprobante.data)?((await _subirDocs([p.comprobante]))[0]||null):(p.comprobanteKeep||null);
     const pagoComp=_venta.compradores[p.compradorIdx||0]?_entNom(_venta.compradores[p.compradorIdx||0]):'';
-    pagosOut.push({metodo:p.metodo,monto:parseFloat(p.monto)||0,fecha:p.fecha||'',financiera:(p.metodo==='financiado'?(p.financiera||''):''),comprobante:compId,comprador:pagoComp});
+    pagosOut.push({metodo:p.metodo,monto:parseFloat(p.monto)||0,fecha:p.fecha||'',financiera:(p.metodo==='financiado'?(p.financiera||''):''),comprobante:compId,comprador:pagoComp,acreditado:!!p.acreditado,acredFecha:p.acredFecha||''});
   }
   const venta={
     compradores,receptores,receptorPendiente,
@@ -1537,10 +1542,24 @@ async function guardarVenta(){
   venta.cobro={base:_calc.base,tax:_calc.tax,fee:_calc.fee,total:_calc.total};
   const resumen=venta.productos.map(p=>'• '+p.producto+(p.color?' ('+p.color+')':'')+' — $'+_money(p.precio)).join('\n')
     +(venta.pagos.length?('\nPagos: '+venta.pagos.map(p=>_VMETLBL[p.metodo]+' $'+_money(p.monto)).join(' + ')):'');
+  const ventaDetalle=venta.productos.map(p=>p.producto+(p.color?' '+p.color:'')+' $'+_money(p.precio)).join(', ');
+  const ubic=[cmp.ciudad,cmp.estado].filter(Boolean).join(', ');
+  if(_venta.editId){ // EDITAR una venta existente (no crear otra)
+    const c=clientes.find(x=>x.id===_venta.editId);
+    if(c){
+      c.nombre=nombre;c.whatsapp=tel;c.email=cmp.email||'';c.venta=venta;c.valor=total;c.cantidad=cantidad;
+      c.producto=venta.productos[0].producto;c.ubicacion=ubic;c.ventaDetalle=ventaDetalle;
+      c.fondeada=(_pagoEstado(c).estado==='PAGADO');
+      c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:'✏️ Venta editada'});
+      save();
+    }
+    cerrarVenta();view='ventas';render();
+    return;
+  }
   const ventaNum=clientes.reduce((m,x)=>Math.max(m,x.ventaNum||0),0)+1;
   const c={id:uid(),nombre,whatsapp:tel,email:cmp.email||'',ventaNum,
-    producto:venta.productos[0].producto,operacion:'',ubicacion:[cmp.ciudad,cmp.estado].filter(Boolean).join(', '),
-    etapa:'vendido',valor:total,cantidad,venta,ventaDetalle:venta.productos.map(p=>p.producto+(p.color?' '+p.color:'')+' $'+_money(p.precio)).join(', '),
+    producto:venta.productos[0].producto,operacion:'',ubicacion:ubic,
+    etapa:'vendido',valor:total,cantidad,venta,ventaDetalle,
     vendidoFecha:hoy(),vendedorId:filtroVend||(me&&me.id)||'',
     proximo:'',proximoTipo:'',proximoHora:'',
     creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',tags:[],
@@ -1812,7 +1831,25 @@ function _ventasTablaHTML(list){
   h+='</tbody></table></div>';
   return h;
 }
-function editarVenta(id){appModal({titulo:'Editar venta',texto:'La edición completa de la venta está en camino (próxima actualización). Por ahora podés gestionar los pagos con el botón 💵 y ver la ficha con 👁.',okLabel:'Entendido'});}
+function _recIdxByName(v,name){if(!name)return 0;const l=_entList(v,'receptor');const i=l.findIndex(r=>_entNom(r)===name);return i>=0?i:0;}
+function _compIdxByName(v,name){if(!name)return 0;const l=_entList(v,'comprador');const i=l.findIndex(cm=>_entNom(cm)===name);return i>=0?i:0;}
+function editarVenta(id){
+  const c=clientes.find(x=>x.id===id);if(!c||!c.venta||RO())return;
+  const v=c.venta;cerrarModal();cerrarVenta();
+  const comps=_entList(v,'comprador'),recs=_entList(v,'receptor');
+  _venta={step:1,editId:id,
+    compradores:(comps.length?comps:[{}]).map(cm=>({nombre:cm.nombre||'',apellido:cm.apellido||'',telefono:cm.telefono||'+1 ',email:cm.email||'',direccion:cm.direccion||'',apt:cm.apt||'',ciudad:cm.ciudad||'',estado:cm.estado||'',codigoPostal:cm.codigoPostal||'',imgs:[],docsKeep:(cm.docs||[]).slice()})),
+    receptorModo:(recs.length?'ahora':(v.receptorPendiente?'despues':'ahora')),
+    receptores:(recs.length?recs:[{}]).map(r=>({nombre:r.nombre||'',apellido:r.apellido||'',carnet:r.carnet||'',telefono:r.telefono||'+53 ',direccion:r.direccion||'',municipio:r.municipio||'',provincia:r.provincia||'',pais:r.pais||'Cuba',imgs:[],docsKeep:(r.docs||[]).slice()})),
+    productos:(v.productos&&v.productos.length?v.productos:[{producto:'Moto'}]).map(p=>({producto:p.producto||'Moto',color:p.color||'',detalle:p.detalle||'',listaPrecio:p.listaPrecio||null,precio:String(p.precio||''),receptorIdx:_recIdxByName(v,p.receptor)})),
+    pagos:(v.pagos&&v.pagos.length?v.pagos:[{metodo:'cash'}]).map(p=>({metodo:p.metodo||'cash',monto:String(p.monto||''),fecha:p.fecha||hoy(),financiera:p.financiera||'',comprobante:null,comprobanteKeep:p.comprobante||null,compradorIdx:_compIdxByName(v,p.comprador),acreditado:!!p.acreditado,acredFecha:p.acredFecha||''}))};
+  _ventaModalOpen('Editar venta N° '+_padNum(c.ventaNum));
+}
+function _docsKeepHTML(who,ei){
+  const e=_entArr(who)[ei];const keep=e.docsKeep||[];if(!keep.length)return '';
+  return '<div class="scan-keep"><div class="scan-keep-l">Ya cargadas:</div><div class="scan-imgs">'+keep.map(idd=>'<div class="scan-slot has"><img class="vr-doc" data-doc="'+esc(idd)+'" onclick="verDoc(\''+esc(idd)+'\')"><button class="scan-x" onclick="_docKeepDel(\''+who+'\','+ei+',\''+esc(idd)+'\')">✕</button></div>').join('')+'</div></div>';
+}
+function _docKeepDel(who,ei,idd){const e=_entArr(who)[ei];e.docsKeep=(e.docsKeep||[]).filter(x=>x!==idd);_ventaRender();}
 /* ---- FICHA DE VENTA en PDF (ventana de impresión → Guardar como PDF) ---- */
 function _pdfVenta(id){
   const c=clientes.find(x=>x.id===id);if(!c)return;
