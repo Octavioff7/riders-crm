@@ -279,6 +279,15 @@
   .vr-blk:first-of-type{border-top:none;padding-top:0}
   .vr-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
   .vr-nm{font-size:14px;font-weight:600}
+  .vf-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .vf-search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt)}
+  .vf-sel{padding:10px 12px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt);font-family:inherit}
+  .vf-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .vf-chip{padding:7px 13px;border:1px solid var(--sep-strong);border-radius:20px;background:var(--card);font-size:12.5px;cursor:pointer;font-family:inherit;color:var(--txt)}
+  .vf-chip:hover{border-color:var(--accent)}
+  .vf-chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .vf-dates{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .vf-dates input{padding:8px 10px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13px;background:var(--card);color:var(--txt);font-family:inherit}
   .vdet-head{display:flex;align-items:center;gap:11px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--sep)}
   .vdet-head .nm{font-size:16px;font-weight:700}
   .vrow .av{flex:none}
@@ -1607,27 +1616,58 @@ function renderVendidos(){
 /* ---- VENTAS (vista administrativa: supervisor/dueño/admin) ---- */
 function _ventasList(){return clientes.filter(c=>!c.borrado&&!c.descartado&&(c.etapa==='vendido'||c.etapa==='posventa')).sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));}
 function _tieneDocs(c){const v=c.venta;return !!(v&&((v.compradorDocs&&v.compradorDocs.length)||(v.receptorDocs&&v.receptorDocs.length)||(v.pagos&&v.pagos.some(p=>p.comprobante))));}
+function _ventaProdStr(c){return (c.venta&&c.venta.productos&&c.venta.productos.length)?c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')).join(', '):(c.ventaDetalle||c.producto||'');}
+function _ventaTotal(c){return Number((c.venta&&c.venta.cobro&&c.venta.cobro.total)||c.valor||0);}
 function _ventasRow(c){
-  const total=Number((c.venta&&c.venta.cobro&&c.venta.cobro.total)||c.valor||0);
-  const prods=(c.venta&&c.venta.productos&&c.venta.productos.length)?c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')).join(', '):(c.ventaDetalle||c.producto||'');
-  const vend=nombreVend(c.vendedorId);
-  return `<div class="frow vrow" style="cursor:pointer" onclick="verVentaDetalle('${c.id}')" data-s="${esc((c.nombre+' '+vend+' '+prods).toLowerCase())}">
+  const total=_ventaTotal(c),prods=_ventaProdStr(c),vend=nombreVend(c.vendedorId);
+  return `<div class="frow vrow" style="cursor:pointer" onclick="verVentaDetalle('${c.id}')">
     <div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div>
     <div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(prods)}</div><div style="font-size:11.5px;color:var(--muted)">👤 ${esc(vend)}${c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):''}</div></div>
     <div style="text-align:right;flex:none"><b style="color:#34c759">$${total.toLocaleString('es-AR')}</b>${_tieneDocs(c)?'<div style="font-size:15px" title="Tiene documentos">📷</div>':''}</div>
   </div>`;
 }
-function renderVentasAdmin(){
-  const list=_ventasList();
-  const totalVal=list.reduce((s,c)=>s+Number((c.venta&&c.venta.cobro&&c.venta.cobro.total)||c.valor||0),0);
-  const conDocs=list.filter(_tieneDocs).length;
-  let h=`<div class="page"><h1>🧾 Ventas</h1><div class="sub">${list.length} venta(s) · $${totalVal.toLocaleString('es-AR')} · ${conDocs} con documentos</div>`;
-  if(!list.length){main.innerHTML=h+'<div class="empty">Todavía no hay ventas cargadas.</div></div>';return;}
-  h+=`<input id="ventas-search" aria-label="Buscar ventas" placeholder="🔎 Buscar por cliente, vendedor o producto…" oninput="_filtVentas(this.value)" style="width:100%;max-width:440px;padding:11px 14px;border:1px solid var(--sep-strong);border-radius:8px;margin-bottom:16px;font-size:13.5px;background:var(--card)">`;
-  h+='<div class="panelcard" id="ventas-list">'+list.map(_ventasRow).join('')+'</div></div>';
-  main.innerHTML=h;
+let _vf={q:'',vend:'',desde:'',hasta:'',preset:''};
+function _vfReset(){_vf={q:'',vend:'',desde:'',hasta:'',preset:''};}
+function _dMinus(days){const d=new Date();d.setDate(d.getDate()-days);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _vfMatch(c){
+  const v=_vf;
+  if(v.q){const s=(c.nombre+' '+nombreVend(c.vendedorId)+' '+_ventaProdStr(c)).toLowerCase();if(s.indexOf(v.q)<0)return false;}
+  if(v.vend&&c.vendedorId!==v.vend)return false;
+  const f=c.vendidoFecha||'';
+  if(v.desde&&(!f||f<v.desde))return false;
+  if(v.hasta&&(!f||f>v.hasta))return false;
+  return true;
 }
-function _filtVentas(q){q=(q||'').toLowerCase().trim();document.querySelectorAll('#ventas-list .vrow').forEach(r=>{const s=r.getAttribute('data-s')||'';r.style.display=(!q||s.indexOf(q)>=0)?'':'none';});}
+function renderVentasAdmin(){
+  if(_lastView!=='ventas')_vfReset();
+  const all=_ventasList();
+  if(!all.length){main.innerHTML='<div class="page"><h1>🧾 Ventas</h1><div class="sub">Todavía no hay ventas cargadas.</div></div>';return;}
+  const vendIds=[...new Set(all.map(c=>c.vendedorId).filter(Boolean))].sort((a,b)=>String(nombreVend(a)).localeCompare(String(nombreVend(b))));
+  const vendOpts='<option value="">Todos los vendedores</option>'+vendIds.map(id=>'<option value="'+id+'"'+(_vf.vend===id?' selected':'')+'>'+esc(nombreVend(id))+'</option>').join('');
+  let h='<div class="page"><h1>🧾 Ventas</h1>';
+  h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar cliente, vendedor o producto…" value="'+esc(_vf.q)+'" oninput="_vf.q=this.value.toLowerCase();_vfApply()"><select class="vf-sel" onchange="_vf.vend=this.value;_vfApply()">'+vendOpts+'</select></div>';
+  h+='<div class="vf-bar"><div class="vf-chips">'+[['Hoy','hoy'],['7 días','7d'],['Este mes','mes'],['Todas','todas']].map(x=>'<button class="vf-chip" data-k="'+x[1]+'" onclick="_vfPreset(\''+x[1]+'\')">'+x[0]+'</button>').join('')+'</div><div class="vf-dates"><label>Desde</label><input type="date" id="vf-desde" value="'+_vf.desde+'" onchange="_vf.desde=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"><label>Hasta</label><input type="date" id="vf-hasta" value="'+_vf.hasta+'" onchange="_vf.hasta=this.value;_vf.preset=\'\';_vfChipHi();_vfApply()"></div></div>';
+  h+='<div class="sub" id="ventas-sub"></div>';
+  h+='<div class="panelcard" id="ventas-list"></div></div>';
+  main.innerHTML=h;
+  _vfChipHi();_vfApply();
+}
+function _vfChipHi(){document.querySelectorAll('.vf-chip').forEach(b=>b.classList.toggle('on',b.dataset.k===_vf.preset));}
+function _vfPreset(k){const t=hoy();_vf.preset=k;
+  if(k==='hoy'){_vf.desde=t;_vf.hasta=t;}
+  else if(k==='7d'){_vf.desde=_dMinus(6);_vf.hasta=t;}
+  else if(k==='mes'){_vf.desde=t.slice(0,8)+'01';_vf.hasta=t;}
+  else{_vf.desde='';_vf.hasta='';}
+  const d=document.getElementById('vf-desde');if(d)d.value=_vf.desde;
+  const hh=document.getElementById('vf-hasta');if(hh)hh.value=_vf.hasta;
+  _vfChipHi();_vfApply();
+}
+function _vfApply(){
+  const list=_ventasList().filter(_vfMatch);
+  const totalVal=list.reduce((s,c)=>s+_ventaTotal(c),0);
+  const sub=document.getElementById('ventas-sub');if(sub)sub.textContent=list.length+' venta(s) · $'+totalVal.toLocaleString('es-AR')+(_vf.vend?' · '+nombreVend(_vf.vend):'');
+  const el=document.getElementById('ventas-list');if(el)el.innerHTML=list.length?list.map(_ventasRow).join(''):'<div class="empty" style="padding:22px">No hay ventas con esos filtros.</div>';
+}
 function verVentaDetalle(id){
   const c=clientes.find(x=>x.id===id);if(!c)return;
   const vend=nombreVend(c.vendedorId);
