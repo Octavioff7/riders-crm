@@ -2725,16 +2725,6 @@ async function renderInicioAdmin(){
     mini('💰',money(T.comision),'Comisiones del mes')+
     mini('👨‍💼',T.vend,'Vendedores')+
   '</div>';
-  // Resumen por vendedor (liviano, sin notas ni alertas): cuántos clientes, cuántos cierran
-  const rank=data.slice().sort((a,b)=>b.metrics.ventasMes-a.metrics.ventasMes||b.metrics.facturadoMes-a.metrics.facturadoMes);
-  h+='<div class="panelcard"><h3>Por vendedor <span class="muted" style="font-weight:500">· clientes y cierres del mes</span></h3>';
-  if(!rank.length)h+='<div class="faint" style="padding:6px 0 10px">Todavía no hay vendedores. Creá cuentas desde Equipo.</div>';
-  rank.forEach(d=>{const m=d.metrics;
-    h+=`<div class="frow" style="cursor:pointer" onclick="verVendedor('${d.user.id}')"><span class="av" style="width:34px;height:34px;background:${avColor(d.user.id)};font-size:12px">${iniciales(d.user.nombre)}</span>
-      <div style="flex:1;min-width:0"><b>${esc(d.user.nombre)}</b> <span class="faint" style="font-size:11px">${roleLabel(d.user.rol)}</span><div class="faint" style="font-size:12px">${m.total} cliente(s) · ${m.nuevosMes} nuevo(s) este mes</div></div>
-      <div style="text-align:right;flex:none"><b style="color:#248a3d">${m.ventasMes} venta(s)</b><div class="faint" style="font-size:12px">${money(m.facturadoMes)}</div></div></div>`;
-  });
-  h+='</div>';
   h+='</div>';
   main.innerHTML=h;
 }
