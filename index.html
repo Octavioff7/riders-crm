@@ -279,6 +279,9 @@
   .vr-blk:first-of-type{border-top:none;padding-top:0}
   .vr-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
   .vr-nm{font-size:14px;font-weight:600}
+  .vdet-head{display:flex;align-items:center;gap:11px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--sep)}
+  .vdet-head .nm{font-size:16px;font-weight:700}
+  .vrow .av{flex:none}
   .vr-ln{font-size:13px;color:var(--txt);line-height:1.5}
   .vr-sub{font-size:12px;color:var(--muted);margin-left:12px;line-height:1.4}
   .vr-docs{display:flex;gap:8px;margin-top:7px;flex-wrap:wrap}
@@ -482,6 +485,7 @@
         <button data-view="vendidos"><span class="ic" aria-hidden="true">✅</span><span class="lbl">Vendidos</span><span class="count" id="cnt-vendidos"></span></button>
         <button data-view="papelera"><span class="ic" aria-hidden="true">🗑️</span><span class="lbl">Papelera</span><span class="count" id="cnt-papelera"></span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
+        <button class="admin-only" data-view="ventas"><span class="ic" aria-hidden="true">🧾</span><span class="lbl">Ventas</span></button>
         <button class="admin-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
         <button class="sv-only" data-view="cuentas"><span class="ic" aria-hidden="true">⚙️</span><span class="lbl">Cuentas</span></button>
         <button id="nav-avisos" onclick="conectarTelegram()"><span class="ic" aria-hidden="true" style="background:#ff9500">🔔</span><span class="lbl">Notificaciones</span></button>
@@ -644,7 +648,7 @@ function render(){
   const navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
@@ -665,6 +669,7 @@ function render(){
   else if(view==='equipo')renderEquipo();
   else if(view==='cuentas')renderCuentas();
   else if(view==='vendidos')renderVendidos();
+  else if(view==='ventas')renderVentasAdmin();
   else renderSeg();
   if(view!==_lastView){const el=main.firstElementChild;if(el)el.classList.add('anim-in');_lastView=view;}
 }
@@ -1569,6 +1574,50 @@ function renderVendidos(){
   for(const c of list){const sub=(c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto))+((c.cantidad&&c.cantidad>1)?' · '+c.cantidad+' u.':'')+(c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','vendidos')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${sub}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
+/* ---- VENTAS (vista administrativa: supervisor/dueño/admin) ---- */
+function _ventasList(){return clientes.filter(c=>!c.borrado&&!c.descartado&&(c.etapa==='vendido'||c.etapa==='posventa')).sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));}
+function _tieneDocs(c){const v=c.venta;return !!(v&&((v.compradorDocs&&v.compradorDocs.length)||(v.receptorDocs&&v.receptorDocs.length)||(v.pagos&&v.pagos.some(p=>p.comprobante))));}
+function _ventasRow(c){
+  const total=Number((c.venta&&c.venta.cobro&&c.venta.cobro.total)||c.valor||0);
+  const prods=(c.venta&&c.venta.productos&&c.venta.productos.length)?c.venta.productos.map(p=>p.producto+(p.detalle?' '+p.detalle:'')).join(', '):(c.ventaDetalle||c.producto||'');
+  const vend=nombreVend(c.vendedorId);
+  return `<div class="frow vrow" style="cursor:pointer" onclick="verVentaDetalle('${c.id}')" data-s="${esc((c.nombre+' '+vend+' '+prods).toLowerCase())}">
+    <div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div>
+    <div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(prods)}</div><div style="font-size:11.5px;color:var(--muted)">👤 ${esc(vend)}${c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):''}</div></div>
+    <div style="text-align:right;flex:none"><b style="color:#34c759">$${total.toLocaleString('es-AR')}</b>${_tieneDocs(c)?'<div style="font-size:15px" title="Tiene documentos">📷</div>':''}</div>
+  </div>`;
+}
+function renderVentasAdmin(){
+  const list=_ventasList();
+  const totalVal=list.reduce((s,c)=>s+Number((c.venta&&c.venta.cobro&&c.venta.cobro.total)||c.valor||0),0);
+  const conDocs=list.filter(_tieneDocs).length;
+  let h=`<div class="page"><h1>🧾 Ventas</h1><div class="sub">${list.length} venta(s) · $${totalVal.toLocaleString('es-AR')} · ${conDocs} con documentos</div>`;
+  if(!list.length){main.innerHTML=h+'<div class="empty">Todavía no hay ventas cargadas.</div></div>';return;}
+  h+=`<input id="ventas-search" aria-label="Buscar ventas" placeholder="🔎 Buscar por cliente, vendedor o producto…" oninput="_filtVentas(this.value)" style="width:100%;max-width:440px;padding:11px 14px;border:1px solid var(--sep-strong);border-radius:8px;margin-bottom:16px;font-size:13.5px;background:var(--card)">`;
+  h+='<div class="panelcard" id="ventas-list">'+list.map(_ventasRow).join('')+'</div></div>';
+  main.innerHTML=h;
+}
+function _filtVentas(q){q=(q||'').toLowerCase().trim();document.querySelectorAll('#ventas-list .vrow').forEach(r=>{const s=r.getAttribute('data-s')||'';r.style.display=(!q||s.indexOf(q)>=0)?'':'none';});}
+function verVentaDetalle(id){
+  const c=clientes.find(x=>x.id===id);if(!c)return;
+  const vend=nombreVend(c.vendedorId);
+  cerrarVentaDet();
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-vdet';wrap.style.zIndex=300;
+  let body;
+  if(c.venta){body=ventaResumenHTML(c);}
+  else{body='<div class="vr-card"><div class="vr-t">Venta marcada a mano</div><div class="vr-ln">'+esc(c.ventaDetalle||c.producto||'Sin detalle cargado')+'</div>'+(c.comision?'<div class="vr-ln">Comisión: <b>$'+Number(c.comision).toLocaleString('es-AR')+'</b></div>':'')+(c.vendidoFecha?'<div class="vr-ln">Fecha: '+fmtFecha(c.vendidoFecha)+'</div>':'')+'</div>';}
+  wrap.innerHTML='<div class="modal" style="width:min(480px,calc(100vw - 32px));max-height:92vh;display:flex;flex-direction:column">'
+    +'<div class="modal-h"><b>Detalle de la venta</b><button class="mini" onclick="cerrarVentaDet()">✕</button></div>'
+    +'<div class="modal-b" style="overflow-y:auto">'
+    +'<div class="vdet-head"><div class="av" style="width:40px;height:40px;background:'+avColor(c.id)+'">'+iniciales(c.nombre)+'</div><div><div class="nm">'+esc(c.nombre)+'</div><div style="font-size:12.5px;color:var(--muted)">'+esc(c.whatsapp||'sin número')+' · 👤 '+esc(vend)+'</div></div></div>'
+    +body
+    +(c.whatsapp?'<a class="btn" style="width:100%;margin-top:6px;text-align:center;text-decoration:none;display:block" href="'+waHref(c)+'" target="_blank" rel="noopener">Abrir WhatsApp</a>':'')
+    +'</div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarVentaDet();};
+  document.body.appendChild(wrap);
+  hydrateVentaDocs();
+}
+function cerrarVentaDet(){const m=document.getElementById('modal-vdet');if(m)m.remove();}
 async function renderEquipo(){
   main.innerHTML='<div class="page"><h1>📈 Equipo</h1><div class="sub">Cargando métricas…</div></div>';
   let data=[];try{data=await (await api('/api/metrics')).json();}catch(e){return;}
@@ -1956,8 +2005,8 @@ function applyRoleUI(){
   // Menú por rol. Supervisión (dueño/supervisor) = menú acotado a herramientas de equipo, sin las
   // secciones de tarea diaria de vendedor (Hoy/Calientes/Atrasados/etc.) que aparecían como listas sueltas.
   const nav=document.querySelectorAll('#nav button');
-  if(owner){const allow=new Set(['dueno','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
-  else if(sup){const allow=new Set(['dueno','list','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
+  if(owner){const allow=new Set(['dueno','ventas','equipo']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
+  else if(sup){const allow=new Set(['dueno','ventas','list','equipo','cuentas']);nav.forEach(b=>b.style.display=allow.has(b.dataset.view)?'':'none');}
   else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only'))b.style.display='';});}
   const av=document.getElementById('nav-avisos');if(av)av.style.display=''; // "Avisos por Telegram" siempre visible, para todos los roles
 }
