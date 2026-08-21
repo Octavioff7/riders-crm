@@ -568,6 +568,17 @@ http.createServer((req,res)=>{
   if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
 
+  // Seguimiento de un cliente: admin/supervisor/dueño pueden escribirlo aunque sean solo-lectura del resto
+  if(u==='/api/cliente-seg'&&req.method==='POST'){
+    if(!esAdminRol)return json(403,{error:'Sin permiso'});
+    return readBody(b=>{
+      if(!b||!b.id)return json(400,{error:'id'});
+      const arr=loadClientes();const c=arr.find(x=>x.id===b.id);if(!c)return json(404,{error:'no existe'});
+      c.seg=Array.isArray(b.seg)?b.seg.slice(0,500):[];
+      saveClientes(arr);json(200,{ok:true});
+    });
+  }
+
   // Importar inventario desde un archivo (PDF / Excel / CSV / foto) usando IA
   if(u==='/api/import-inventario'&&req.method==='POST'){
     if(!esAdminRol)return json(403,{error:'Sin permiso'});
