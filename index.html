@@ -1224,7 +1224,7 @@ function _ventaNext(){
 function _imgSlot(who,idx,label){
   const im=(_venta[who+'Imgs']||[])[idx];
   if(im)return '<div class="scan-slot has"><img src="data:'+im.mime+';base64,'+im.data+'"><button class="scan-x" onclick="_imgDel(\''+who+'\','+idx+')">✕</button></div>';
-  return '<label class="scan-slot"><input type="file" accept="image/*" capture="environment" style="display:none" onchange="_imgPick(\''+who+'\','+idx+',this)"><span class="scan-plus">＋</span><span class="scan-cap">'+label+'</span></label>';
+  return '<label class="scan-slot"><input type="file" accept="image/*" style="display:none" onchange="_imgPick(\''+who+'\','+idx+',this)"><span class="scan-plus">＋</span><span class="scan-cap">'+label+'</span></label>';
 }
 function _imgDel(who,idx){_venta[who+'Imgs'][idx]=undefined;_ventaRender();}
 async function _imgPick(who,idx,input){
