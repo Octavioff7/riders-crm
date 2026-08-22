@@ -371,6 +371,18 @@
   .pi-inp{width:110px;border:1px solid var(--sep-strong);background:var(--bg);color:var(--txt);border-radius:6px;padding:4px 7px;font-size:11px;font-family:inherit}
   .pi-inp:focus{outline:none;border-color:var(--accent)}
   .pi-tbl .v-selbtn.pi-zona{min-width:110px;width:auto;padding:5px 9px;font-size:11px;background:var(--bg)}
+  .pa-groups{display:flex;flex-wrap:wrap;gap:8px}
+  .pa-gbtn{border:1px solid var(--sep-strong);background:var(--bg);color:var(--txt);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  .pa-gbtn:hover{border-color:var(--accent)}
+  .pa-gbtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .pa-tree td{vertical-align:middle}
+  .pa-tree .pa-tri{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:11px;width:16px;padding:0;margin-right:5px;font-family:inherit}
+  .pa-tree .pa-bullet{color:var(--muted);margin-right:6px;font-size:10px}
+  .pa-tree tr.pa-l0 td{font-weight:700;color:var(--accent);background:var(--hover)}
+  .pa-tree tr.pa-l1 td{font-weight:600}
+  .pa-tree tr.pa-l2 td{color:var(--txt)}
+  .pa-tree tr.pa-total td{font-weight:800;background:#262a63;color:#fff;border-top:2px solid var(--sep-strong)}
+  .pa-tree .pa-lbl{vertical-align:middle}
   .vf-search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt)}
   .vf-selbtn{width:auto;min-width:190px;flex:none;background:var(--card);padding:10px 14px}
   .vf-clear{flex:none;border:1px solid var(--sep-strong);background:var(--card);color:var(--muted);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -871,7 +883,8 @@ function render(){
   else if(view==='finanzas')renderFinanzas();
   else if(view==='pedidos')renderPedidosMenu();
   else if(view==='pedInforme')renderInformePedidos();
-  else if(view==='pedAgrupado'||view==='pedOrganizar'||view==='pedOrdenes')renderPedidosPlaceholder(view);
+  else if(view==='pedAgrupado')renderPedidosAgrupado();
+  else if(view==='pedOrganizar'||view==='pedOrdenes')renderPedidosPlaceholder(view);
   else renderSeg();
   if(view!==_lastView){const el=main.firstElementChild;if(el)el.classList.add('anim-in');_lastView=view;}
 }
@@ -3242,65 +3255,132 @@ function _pedPickZona(clientId,recIdx){
 function _pedSetZona(clientId,recIdx,val){const c=clientes.find(x=>x.id===clientId);if(!c||!c.venta||!_esAdminRol())return;const recs=_entList(c.venta,'receptor');if(!recs[recIdx])return;recs[recIdx].zona=(val||'').trim();_savCliente(c);_piBuild();}
 function _piKpi(label,val,warn){return '<div class="pi-kpi"><div class="pi-kl">'+esc(label)+'</div><div class="pi-kv"'+(warn&&Number(val)>0?' style="color:#e67e22"':'')+'>'+esc(String(val))+'</div></div>';}
 function renderInformePedidos(){_piBuild();}
-function _piBuild(){
-  const rows=_pedSort(_pedFiltered());const ro=!_esAdminRol();
+function _pedSummaryHTML(rows){
   const ships=new Set(rows.map(r=>r.ship));
   const shipData={};rows.forEach(r=>{if(!shipData[r.ship])shipData[r.ship]={track:r.track,tel:r.telefono};});
   const prov=new Set(),zon=new Set();rows.forEach(r=>{if(r.provincia)prov.add(r.provincia);if(r.zona)zon.add(r.zona);});
   let sinTrack=0,sinTel=0;Object.values(shipData).forEach(s=>{if(!String(s.track||'').trim())sinTrack++;if(!String(s.tel||'').trim())sinTel++;});
   const grp=(key)=>{const m={};rows.forEach(r=>{const k=String(r[key]||'').trim()||'(sin dato)';const g=m[k]||(m[k]={ped:new Set(),uni:0});g.ped.add(r.ship);g.uni++;});return Object.keys(m).map(k=>({k,ped:m[k].ped.size,uni:m[k].uni})).sort((a,b)=>b.ped-a.ped||b.uni-a.uni);};
-  const totProd=grp('articulo'),totProv=grp('provincia'),totZona=grp('zona');
-  let h='<div class="page page-wide">';
-  h+='<div class="conv-head-row" style="align-items:flex-start"><div><h1 style="margin:0">Informe de Pedidos</h1><div class="sub" style="margin:3px 0 0">Ventas, receptores, productos y datos de logística inicial.</div></div><div class="xbtn-row"><button class="btn ghost" onclick="history.back()">← Volver</button><button class="xbtn excel" onclick="_piCSV()">⬇ CSV/Excel</button><button class="xbtn pdf" onclick="_piPDF()">⬇ PDF</button></div></div>';
-  // filtros
+  let h='<div class="pi-kpis">'+_piKpi('Pedidos',ships.size)+_piKpi('Unidades',rows.length)+_piKpi('Provincias',prov.size)+_piKpi('Zonas',zon.size)+_piKpi('Sin track',sinTrack,1)+_piKpi('Sin teléfono',sinTel,1)+'</div>';
+  const totTbl=(titulo,arr)=>{let t='<div class="pv-card"><h3>'+titulo+'</h3><div class="vtbl-wrap" style="max-height:300px;overflow:auto"><table class="vtbl fz-tbl"><thead><tr><th>Concepto</th><th class="num">Pedidos</th><th class="num">Unidades</th></tr></thead><tbody>';if(!arr.length)t+='<tr><td colspan="3" class="faint" style="text-align:center;padding:14px">Sin datos.</td></tr>';arr.forEach(x=>{t+='<tr><td>'+esc(x.k)+'</td><td class="num">'+x.ped+'</td><td class="num">'+x.uni+'</td></tr>';});t+='</tbody></table></div></div>';return t;};
+  h+='<div class="pi-tot">'+totTbl('Totales por producto',grp('articulo'))+totTbl('Totales por provincia',grp('provincia'))+totTbl('Totales por zona logística',grp('zona'))+'</div>';
+  return h;
+}
+function _pedFiltrosHTML(rebuildFn){
   const pk=(label,key,srcKey,todos)=>'<div class="vf-field"><label>'+label+'</label>'+_vSelBtn('vf-fld',_pf[key]||todos,!_pf[key],'_pfPick(\''+key+'\',\''+srcKey+'\',\''+todos+'\')')+'</div>';
-  h+='<div class="vf-grid">'
+  return '<div class="vf-grid">'
     +'<div class="vf-field"><label>Desde</label>'+_dateBtn('vf-fld',_pf.desde,'📅 Cualquiera','_pfPickFecha(\'desde\')')+'</div>'
     +'<div class="vf-field"><label>Hasta</label>'+_dateBtn('vf-fld',_pf.hasta,'📅 Cualquiera','_pfPickFecha(\'hasta\')')+'</div>'
-    +'<div class="vf-field grow"><label>Buscar</label><input class="vf-search" placeholder="Nombre, CI, teléfono, track…" value="'+esc(_pf.q)+'" oninput="_pf.q=this.value" onkeydown="if(event.key===\'Enter\')_piBuild()"></div>'
-    +pk('Provincia','provincia','provincia','Todas')
-    +pk('Municipio','municipio','municipio','Todos')
-    +pk('Zona logística','zona','zona','Todas')
-    +pk('Producto','producto','articulo','Todos')
+    +'<div class="vf-field grow"><label>Buscar</label><input class="vf-search" placeholder="Nombre, CI, teléfono, track…" value="'+esc(_pf.q)+'" oninput="_pf.q=this.value" onkeydown="if(event.key===\'Enter\')'+rebuildFn+'()"></div>'
+    +pk('Provincia','provincia','provincia','Todas')+pk('Municipio','municipio','municipio','Todos')+pk('Zona logística','zona','zona','Todas')+pk('Producto','producto','articulo','Todos')
     +'<div class="vf-field"><label>&nbsp;</label><button class="vf-clear" onclick="_pfClear()">✕ Limpiar filtros</button></div>'
     +'</div>';
-  // orden combinado
-  const OC=[['zona','Zona logística'],['provincia','Provincia'],['municipio','Municipio'],['producto','Producto'],['receptor','Nombre receptor'],['fecha','Fecha']];
-  h+='<div class="oc-box"><div class="oc-head"><b>Orden combinado</b> <span class="faint" style="font-size:12px">Tildá en el orden que querés ordenar. Ej: Zona → Provincia → Municipio.</span><button class="vf-clear" style="margin-left:auto" onclick="_pfOrdenClear()">Limpiar orden</button></div><div class="oc-chks">';
-  OC.forEach(o=>{const idx=_pf.orden.indexOf(o[0]);h+='<label class="oc-chk'+(idx>=0?' on':'')+'"><input type="checkbox" '+(idx>=0?'checked':'')+' onchange="_pfOrdenToggle(\''+o[0]+'\')"> '+o[1]+(idx>=0?' <b>('+(idx+1)+')</b>':'')+'</label>';});
-  h+='</div></div>';
-  // KPIs
-  h+='<div class="pi-kpis">'+_piKpi('Pedidos',ships.size)+_piKpi('Unidades',rows.length)+_piKpi('Provincias',prov.size)+_piKpi('Zonas',zon.size)+_piKpi('Sin track',sinTrack,1)+_piKpi('Sin teléfono',sinTel,1)+'</div>';
-  // totales
-  const totTbl=(titulo,arr)=>{let t='<div class="pv-card"><h3>'+titulo+'</h3><div class="vtbl-wrap" style="max-height:300px;overflow:auto"><table class="vtbl fz-tbl"><thead><tr><th>Concepto</th><th class="num">Pedidos</th><th class="num">Unidades</th></tr></thead><tbody>';if(!arr.length)t+='<tr><td colspan="3" class="faint" style="text-align:center;padding:14px">Sin datos.</td></tr>';arr.forEach(x=>{t+='<tr><td>'+esc(x.k)+'</td><td class="num">'+x.ped+'</td><td class="num">'+x.uni+'</td></tr>';});t+='</tbody></table></div></div>';return t;};
-  h+='<div class="pi-tot">'+totTbl('Totales por producto',totProd)+totTbl('Totales por provincia',totProv)+totTbl('Totales por zona logística',totZona)+'</div>';
-  // tabla detalle
+}
+function _pedDetailTableHTML(rows){
+  const ro=!_esAdminRol();
   const cols=['Fecha','Artículo','Cant.','Cliente USA','Nombre receptor','Identificación','Provincia','Municipio','Zona logística','Dirección completa','Teléfono','Track','Orden'];
-  h+='<div class="pv-card" style="margin-top:12px"><h3>Detalle de pedidos <span class="faint" style="font-weight:400;font-size:12px">· '+rows.length+' unidad(es)</span></h3>';
+  let h='<div class="pv-card" style="margin-top:12px"><h3>Detalle de pedidos <span class="faint" style="font-weight:400;font-size:12px">· '+rows.length+' unidad(es)</span></h3>';
   h+='<div class="vtbl-wrap"><table class="vtbl pi-tbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
   if(!rows.length)h+='<tr><td colspan="13" class="faint" style="text-align:center;padding:22px">No hay pedidos con esos filtros.</td></tr>';
   rows.forEach(r=>{
     const zonaCell=ro?esc(r.zona||'—'):_vSelBtn('pi-zona',r.zona||'—',!r.zona,'_pedPickZona(\''+r.clientId+'\','+r.recIdx+')');
     const trackCell=ro?esc(r.track||'—'):'<input class="pi-inp" value="'+esc(r.track)+'" placeholder="—" onchange="_pedSetTrack(\''+r.clientId+'\','+r.recIdx+',this.value)">';
-    h+='<tr>'
-      +'<td>'+esc(r.fecha?fmtFecha(r.fecha):'')+'</td>'
-      +'<td><b>'+esc(r.articulo)+'</b></td>'
-      +'<td class="num">'+r.cantidad+'</td>'
-      +'<td>'+esc(r.clienteUSA)+'</td>'
-      +'<td>'+esc(r.receptor||'—')+'</td>'
-      +'<td>'+esc(r.ci||'—')+'</td>'
-      +'<td>'+esc(r.provincia||'—')+'</td>'
-      +'<td>'+esc(r.municipio||'—')+'</td>'
-      +'<td>'+zonaCell+'</td>'
-      +'<td class="pi-dir">'+esc(r.direccion||'—')+'</td>'
-      +'<td>'+esc(r.telefono||'—')+'</td>'
-      +'<td>'+trackCell+'</td>'
-      +'<td>'+esc(r.orden||'—')+'</td>'
-      +'</tr>';
+    h+='<tr><td>'+esc(r.fecha?fmtFecha(r.fecha):'')+'</td><td><b>'+esc(r.articulo)+'</b></td><td class="num">'+r.cantidad+'</td><td>'+esc(r.clienteUSA)+'</td><td>'+esc(r.receptor||'—')+'</td><td>'+esc(r.ci||'—')+'</td><td>'+esc(r.provincia||'—')+'</td><td>'+esc(r.municipio||'—')+'</td><td>'+zonaCell+'</td><td class="pi-dir">'+esc(r.direccion||'—')+'</td><td>'+esc(r.telefono||'—')+'</td><td>'+trackCell+'</td><td>'+esc(r.orden||'—')+'</td></tr>';
   });
-  h+='</tbody></table></div></div>';
+  h+='</tbody></table></div></div>';return h;
+}
+function _piBuild(){
+  const rows=_pedSort(_pedFiltered());
+  let h='<div class="page page-wide">';
+  h+='<div class="conv-head-row" style="align-items:flex-start"><div><h1 style="margin:0">Informe de Pedidos</h1><div class="sub" style="margin:3px 0 0">Ventas, receptores, productos y datos de logística inicial.</div></div><div class="xbtn-row"><button class="btn ghost" onclick="history.back()">← Volver</button><button class="xbtn excel" onclick="_piCSV()">⬇ CSV/Excel</button><button class="xbtn pdf" onclick="_piPDF()">⬇ PDF</button></div></div>';
+  h+=_pedFiltrosHTML('_piBuild');
+  const OC=[['zona','Zona logística'],['provincia','Provincia'],['municipio','Municipio'],['producto','Producto'],['receptor','Nombre receptor'],['fecha','Fecha']];
+  h+='<div class="oc-box"><div class="oc-head"><b>Orden combinado</b> <span class="faint" style="font-size:12px">Tildá en el orden que querés ordenar. Ej: Zona → Provincia → Municipio.</span><button class="vf-clear" style="margin-left:auto" onclick="_pfOrdenClear()">Limpiar orden</button></div><div class="oc-chks">';
+  OC.forEach(o=>{const idx=_pf.orden.indexOf(o[0]);h+='<label class="oc-chk'+(idx>=0?' on':'')+'"><input type="checkbox" '+(idx>=0?'checked':'')+' onchange="_pfOrdenToggle(\''+o[0]+'\')"> '+o[1]+(idx>=0?' <b>('+(idx+1)+')</b>':'')+'</label>';});
+  h+='</div></div>';
+  h+=_pedSummaryHTML(rows);
+  h+=_pedDetailTableHTML(rows);
   h+='</div>';
   main.innerHTML=h;
+}
+/* ---- PEDIDOS AGRUPADO ---- */
+const _PA_GROUPS=[['provincia','producto'],['producto','provincia'],['provincia','municipio','producto'],['producto','provincia','municipio']];
+let _pa={vista:'agrupado',group:['provincia','municipio','producto']};
+function _paLabel(k){return {provincia:'Provincia',municipio:'Municipio',producto:'Producto',zona:'Zona'}[k]||k;}
+function _paSinLabel(k){return {provincia:'SIN PROVINCIA',municipio:'SIN MUNICIPIO',producto:'SIN PRODUCTO',zona:'SIN ZONA'}[k]||('SIN '+k.toUpperCase());}
+function _paSetVista(v){_pa.vista=v;_paBuild();}
+function _paSetGroup(i){_pa.group=_PA_GROUPS[i].slice();_pa.vista='agrupado';_paBuild();}
+function _paSameGroup(g){return g.length===_pa.group.length&&g.every((k,i)=>k===_pa.group[i]);}
+function _paTree(rows,keys){
+  if(!keys.length)return null;
+  const [k,...rest]=keys;const kk=_ocKey(k);
+  const m={};rows.forEach(r=>{const lbl=String(r[kk]||'').trim()||_paSinLabel(k);(m[lbl]||(m[lbl]={rows:[]})).rows.push(r);});
+  return Object.keys(m).sort((a,b)=>a.localeCompare(b,'es')).map(lbl=>{const gr=m[lbl];return {label:lbl,ped:new Set(gr.rows.map(r=>r.ship)).size,uni:gr.rows.length,children:rest.length?_paTree(gr.rows,rest):null};});
+}
+function _paFlatten(nodes,level,prefix,out){nodes.forEach((n,i)=>{const path=prefix?prefix+'.'+i:''+i;out.push({level,path,label:n.label,ped:n.ped,uni:n.uni,hasCh:!!(n.children&&n.children.length)});if(n.children)_paFlatten(n.children,level+1,path,out);});}
+function _paToggle(path){
+  const tri=document.querySelector('.pa-tree tr[data-path="'+path+'"] .pa-tri');if(!tri)return;
+  const collapse=tri.dataset.col!=='1';
+  document.querySelectorAll('.pa-tree tr[data-path]').forEach(tr=>{const p=tr.getAttribute('data-path');if(p!==path&&p.indexOf(path+'.')===0){tr.style.display=collapse?'none':'';if(!collapse){const t=tr.querySelector('.pa-tri');if(t){t.dataset.col='0';t.textContent='▾';}}}});
+  tri.dataset.col=collapse?'1':'0';tri.textContent=collapse?'▸':'▾';
+}
+function renderPedidosAgrupado(){_paBuild();}
+function _paBuild(){
+  const rows=_pedSort(_pedFiltered());
+  let h='<div class="page page-wide">';
+  h+='<div class="conv-head-row" style="align-items:flex-start"><div><h1 style="margin:0">Informe de Pedidos Agrupado</h1><div class="sub" style="margin:3px 0 0">Vista logística agrupada por provincia, municipio y producto.</div></div><div class="xbtn-row"><button class="btn ghost" onclick="history.back()">← Volver</button><button class="xbtn excel" onclick="_paCSV()">⬇ CSV/Excel</button><button class="xbtn pdf" onclick="_paPDF()">⬇ PDF</button><button class="xbtn pdf" onclick="_paPDFReceptor()">📄 PDF con receptor</button></div></div>';
+  h+=_pedFiltrosHTML('_paBuild');
+  // vista + agrupar por
+  h+='<div class="oc-box" style="display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start">';
+  h+='<div><div class="faint" style="font-size:11px;font-weight:600;margin-bottom:5px">Vista del informe</div><div class="fin-tabs"><button class="fin-tab'+(_pa.vista==='detalle'?' on':'')+'" onclick="_paSetVista(\'detalle\')">Detalle</button><button class="fin-tab'+(_pa.vista==='agrupado'?' on':'')+'" onclick="_paSetVista(\'agrupado\')">Agrupado</button></div></div>';
+  h+='<div style="flex:1;min-width:260px"><div class="faint" style="font-size:11px;font-weight:600;margin-bottom:5px">Agrupar por</div><div class="pa-groups">'+_PA_GROUPS.map((g,i)=>'<button class="pa-gbtn'+(_paSameGroup(g)?' on':'')+'" onclick="_paSetGroup('+i+')">'+g.map(_paLabel).join(' → ')+'</button>').join('')+'</div></div>';
+  h+='<div class="faint" style="max-width:230px;font-size:11.5px;line-height:1.5">Los filtros se aplican primero y luego se organiza el resultado según la agrupación seleccionada.</div>';
+  h+='</div>';
+  h+=_pedSummaryHTML(rows);
+  if(_pa.vista==='detalle'){h+=_pedDetailTableHTML(rows);}
+  else{
+    const tree=_paTree(rows,_pa.group)||[];const flat=[];_paFlatten(tree,0,'',flat);
+    const totPed=new Set(rows.map(r=>r.ship)).size,totUni=rows.length;
+    h+='<div class="pv-card" style="margin-top:12px"><h3>Resultado agrupado <span class="faint" style="font-weight:400;font-size:12px">('+_pa.group.map(_paLabel).join(' → ')+')</span></h3>';
+    h+='<div class="vtbl-wrap"><table class="vtbl pa-tree"><thead><tr><th>Concepto</th><th class="num">Pedidos</th><th class="num">Unidades</th></tr></thead><tbody>';
+    if(!flat.length)h+='<tr><td colspan="3" class="faint" style="text-align:center;padding:22px">No hay pedidos con esos filtros.</td></tr>';
+    flat.forEach(n=>{const pad=10+n.level*22;const tri=n.hasCh?'<button class="pa-tri" data-col="0" onclick="_paToggle(\''+n.path+'\')">▾</button>':'<span class="pa-bullet">▫</span>';
+      h+='<tr data-path="'+n.path+'" class="pa-l'+n.level+'"><td style="padding-left:'+pad+'px">'+tri+'<span class="pa-lbl">'+esc(n.label)+'</span></td><td class="num">'+n.ped+'</td><td class="num">'+n.uni+'</td></tr>';});
+    h+='<tr class="pa-total"><td>TOTAL</td><td class="num">'+totPed+'</td><td class="num">'+totUni+'</td></tr>';
+    h+='</tbody></table></div></div>';
+  }
+  h+='</div>';
+  main.innerHTML=h;
+}
+function _paCSV(){
+  const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}
+  const tree=_paTree(rows,_pa.group)||[];const flat=[];_paFlatten(tree,0,'',flat);
+  const esc2=v=>{v=String(v==null?'':v);return /[",;\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  let csv='Nivel;Concepto;Pedidos;Unidades\n';
+  flat.forEach(n=>{csv+=[n.level+1,esc2(('   '.repeat(n.level))+n.label),n.ped,n.uni].join(';')+'\n';});
+  csv+=['','TOTAL',new Set(rows.map(r=>r.ship)).size,rows.length].join(';')+'\n';
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='pedidos-agrupado-'+hoy()+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function _paPDF(){
+  const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}
+  const tree=_paTree(rows,_pa.group)||[];const flat=[];_paFlatten(tree,0,'',flat);
+  const body=flat.map(n=>'<tr class="l'+n.level+'"><td style="padding-left:'+(6+n.level*20)+'px">'+esc(n.label)+'</td><td class="n">'+n.ped+'</td><td class="n">'+n.uni+'</td></tr>').join('');
+  const tot='<tr class="tot"><td>TOTAL</td><td class="n">'+new Set(rows.map(r=>r.ship)).size+'</td><td class="n">'+rows.length+'</td></tr>';
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>Pedidos Agrupado</title><style>@page{size:portrait;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:10px}h1{font-size:16px;margin:0 0 2px}.sub{color:#555;font-size:11px;margin-bottom:10px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 7px;font-size:10px;text-align:left}th{background:#1f2450;color:#fff}td.n,th.n{text-align:right}tr.l0 td{font-weight:bold;background:#eef1f8}tr.l1 td{font-weight:600}tr.tot td{font-weight:bold;background:#e6e9f5;border-top:2px solid #1f2450}</style></head><body><h1>📦 Pedidos Agrupado</h1><div class="sub">'+_pa.group.map(_paLabel).join(' → ')+' · generado '+fmtFecha(hoy())+'</div><table><thead><tr><th>Concepto</th><th class="n">Pedidos</th><th class="n">Unidades</th></tr></thead><tbody>'+body+tot+'</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>';
+  const w=window.open('','_blank');if(!w){alert('Permití las ventanas emergentes.');return;}w.document.open();w.document.write(html);w.document.close();
+}
+function _paPDFReceptor(){
+  const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}
+  // ordenado por la agrupación elegida, con encabezados de grupo (nivel superior) y detalle de receptor
+  const gkeys=_pa.group.map(_ocKey);
+  const sorted=rows.slice().sort((a,b)=>{for(const kk of gkeys){const c=String(a[kk]||'').localeCompare(String(b[kk]||''),'es');if(c)return c;}return String(a.receptor||'').localeCompare(String(b.receptor||''),'es');});
+  const g0=gkeys[0];let lastG=null,body='';
+  sorted.forEach(r=>{const gv=String(r[g0]||'').trim()||_paSinLabel(_pa.group[0]);
+    if(gv!==lastG){lastG=gv;body+='<tr class="grp"><td colspan="8">'+esc(gv)+'</td></tr>';}
+    body+='<tr><td>'+esc(r.provincia||'-')+'</td><td>'+esc(r.municipio||'-')+'</td><td>'+esc(r.articulo)+'</td><td>'+esc(r.receptor||'-')+'</td><td>'+esc(r.ci||'-')+'</td><td>'+esc(r.direccion||'-')+'</td><td>'+esc(r.telefono||'-')+'</td><td>'+esc(r.track||'-')+'</td></tr>';
+  });
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>Pedidos con receptor</title><style>@page{size:landscape;margin:8mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:8px}h1{font-size:15px;margin:0 0 2px}.sub{color:#555;font-size:10px;margin-bottom:8px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:3px 5px;font-size:8.5px;text-align:left;vertical-align:top}th{background:#1f2450;color:#fff}tr.grp td{background:#e8912a;color:#fff;font-weight:bold;font-size:10px}</style></head><body><h1>📦 Pedidos con receptor · Riders Miami</h1><div class="sub">Agrupado por '+esc(_pa.group.map(_paLabel).join(' → '))+' · '+rows.length+' unidad(es) · '+fmtFecha(hoy())+'</div><table><thead><tr><th>Provincia</th><th>Municipio</th><th>Artículo</th><th>Receptor</th><th>Identificación</th><th>Dirección completa</th><th>Teléfono</th><th>Track</th></tr></thead><tbody>'+body+'</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>';
+  const w=window.open('','_blank');if(!w){alert('Permití las ventanas emergentes.');return;}w.document.open();w.document.write(html);w.document.close();
 }
 function _piCSV(){
   const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}
