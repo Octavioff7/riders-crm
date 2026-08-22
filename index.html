@@ -3169,8 +3169,9 @@ function _fzBuild(){
   main.innerHTML=h;
 }
 /* ================= PEDIDOS Y LOGÍSTICA ================= */
+function _pedGo(v){view=v;render();if(typeof pushHistory==='function')pushHistory();}
 function renderPedidosMenu(){
-  const card=(ic,t,d,v)=>'<button class="ped-card" onclick="view=\''+v+'\';render()"><span class="ped-ic">'+ic+'</span><div class="ped-t">'+esc(t)+'</div><div class="ped-d">'+esc(d)+'</div></button>';
+  const card=(ic,t,d,v)=>'<button class="ped-card" onclick="_pedGo(\''+v+'\')"><span class="ped-ic">'+ic+'</span><div class="ped-t">'+esc(t)+'</div><div class="ped-d">'+esc(d)+'</div></button>';
   let h='<div class="page page-wide"><div class="ped-hero"><div class="ped-hero-h"><h1 style="margin:0">📦 Pedidos y Logística</h1><div class="sub" style="margin:3px 0 0">Preparación, agrupación y seguimiento de pedidos.</div></div><div class="ped-cards">'
     +card('📦','Pedidos','Listado logístico detallado de pedidos.','pedInforme')
     +card('▦','Pedidos Agrupado','Vista agrupada por provincia, municipio y producto.','pedAgrupado')
@@ -3181,7 +3182,7 @@ function renderPedidosMenu(){
 }
 function renderPedidosPlaceholder(v){
   const T={pedAgrupado:['▦','Pedidos Agrupado','Vista agrupada por provincia, municipio y producto.'],pedOrganizar:['☰','Organizar Pedidos','Selección y armado operativo de órdenes.'],pedOrdenes:['📋','Órdenes Pedidos','Consulta y seguimiento de órdenes generadas.']}[v];
-  main.innerHTML='<div class="page page-wide"><div class="conv-head-row"><h1>'+T[0]+' '+esc(T[1])+'</h1><button class="btn ghost" onclick="view=\'pedidos\';render()">← Volver</button></div><div class="sub">'+esc(T[2])+'</div><div class="panelcard"><div class="empty" style="padding:40px;text-align:center">🚧 Lo armamos en el próximo paso.<br><span class="faint">Ya está listo el <b>Informe de Pedidos</b>.</span></div></div></div>';
+  main.innerHTML='<div class="page page-wide"><div class="conv-head-row"><h1>'+T[0]+' '+esc(T[1])+'</h1><button class="btn ghost" onclick="history.back()">← Volver</button></div><div class="sub">'+esc(T[2])+'</div><div class="panelcard"><div class="empty" style="padding:40px;text-align:center">🚧 Lo armamos en el próximo paso.<br><span class="faint">Ya está listo el <b>Informe de Pedidos</b>.</span></div></div></div>';
 }
 /* ---- Datos de pedidos (aplanar ventas → productos → receptores) ---- */
 function _pedDir(rec){return [rec.direccion,rec.municipio,rec.provincia,rec.pais||'Cuba'].map(x=>String(x||'').trim()).filter(Boolean).join(' - ');}
@@ -3248,7 +3249,7 @@ function _piBuild(){
   const grp=(key)=>{const m={};rows.forEach(r=>{const k=String(r[key]||'').trim()||'(sin dato)';const g=m[k]||(m[k]={ped:new Set(),uni:0});g.ped.add(r.ship);g.uni++;});return Object.keys(m).map(k=>({k,ped:m[k].ped.size,uni:m[k].uni})).sort((a,b)=>b.ped-a.ped||b.uni-a.uni);};
   const totProd=grp('articulo'),totProv=grp('provincia'),totZona=grp('zona');
   let h='<div class="page page-wide">';
-  h+='<div class="conv-head-row" style="align-items:flex-start"><div><h1 style="margin:0">Informe de Pedidos</h1><div class="sub" style="margin:3px 0 0">Ventas, receptores, productos y datos de logística inicial.</div></div><div class="xbtn-row"><button class="btn ghost" onclick="view=\'pedidos\';render()">← Volver</button><button class="xbtn excel" onclick="_piCSV()">⬇ CSV/Excel</button><button class="xbtn pdf" onclick="_piPDF()">⬇ PDF</button></div></div>';
+  h+='<div class="conv-head-row" style="align-items:flex-start"><div><h1 style="margin:0">Informe de Pedidos</h1><div class="sub" style="margin:3px 0 0">Ventas, receptores, productos y datos de logística inicial.</div></div><div class="xbtn-row"><button class="btn ghost" onclick="history.back()">← Volver</button><button class="xbtn excel" onclick="_piCSV()">⬇ CSV/Excel</button><button class="xbtn pdf" onclick="_piPDF()">⬇ PDF</button></div></div>';
   // filtros
   const pk=(label,key,srcKey,todos)=>'<div class="vf-field"><label>'+label+'</label>'+_vSelBtn('vf-fld',_pf[key]||todos,!_pf[key],'_pfPick(\''+key+'\',\''+srcKey+'\',\''+todos+'\')')+'</div>';
   h+='<div class="vf-grid">'
