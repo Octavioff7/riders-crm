@@ -1129,7 +1129,7 @@ function setCantidad(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.ca
 function setCantidadMas(id){const c=clientes.find(x=>x.id===id);if(!c)return;appModal({titulo:'Cantidad de productos',texto:'¿Cuántos productos compró? (más de 10)',conInput:true,inputPlaceholder:'Ej: 12',inputValue:(c.cantidad>10?String(c.cantidad):''),okLabel:'Guardar',onOk:v=>{c.cantidad=Math.max(1,parseInt(v,10)||1);save();_refreshCant(c);}});}
 // Ganancias: mes (se reinicia el 1° de cada mes) o total (histórico). Switch en la tarjeta del panel.
 let earnMode='mes';
-function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const vm=vend.filter(c=>(c.vendidoFecha||'').slice(0,7)===mesAct);const g=a=>a.reduce((s,c)=>s+(Number(c.comision)||0),0);const q=a=>a.reduce((s,c)=>s+(Number(c.cantidad)||1),0);return {mes:{g:g(vm),n:q(vm)},total:{g:g(vend),n:q(vend)}};}
+function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const vm=vend.filter(c=>(c.vendidoFecha||'').slice(0,7)===mesAct);const g=a=>a.reduce((s,c)=>s+_comisionVenta(c),0);const q=a=>a.reduce((s,c)=>s+(Number(c.cantidad)||1),0);return {mes:{g:g(vm),n:q(vm)},total:{g:g(vend),n:q(vend)}};}
 function _earnMoney(v){return '$'+Number(v||0).toLocaleString('es-AR');}
 function earnCardHTML(){return `<div class="ec-top"><div class="ec-label" id="ec-label"></div><div class="ec-switch ${earnMode==='total'?'is-total':''}"><span class="ec-thumb"></span><span class="ec-tab ${earnMode==='mes'?'on':''}">Este mes</span><span class="ec-tab ${earnMode==='total'?'on':''}">Total</span></div></div><div class="ec-amount" id="ec-amount"></div><div class="ec-sub" id="ec-sub"></div>`;}
 // Actualiza los textos + desliza el thumb SIN redibujar la tarjeta (para que la transición se vea).
@@ -1571,7 +1571,7 @@ function _ventaStep3(){
     +'<label class="v-lbl-sm">📅 Fecha de la venta</label>'+_dateBtn('v-full',M.fecha,'📅 Elegí la fecha','_pickFechaVenta()')
     +(showVend?'<label class="v-lbl-sm">👤 Vendedor asignado</label>'+_vSelBtn('v-full',(M.vendedorId?nombreVend(M.vendedorId):'—'),!M.vendedorId,'_pickVentaVend()'):'')
     +(showVend?'<label class="v-lbl-sm">🤝 Colaborador (opcional)</label>'+_vSelBtn('v-full',(M.colaborador||'— Ninguno —'),!M.colaborador,'_pickVentaColab()'):'')
-    +'<label class="v-lbl-sm">💰 Comisión ($)</label><input type="number" inputmode="numeric" class="v-full" value="'+esc(M.comision||'')+'" oninput="_venta.meta.comision=this.value">'
+    +'<label class="v-lbl-sm">💰 Comisión estimada <span style="color:var(--muted);font-weight:400">(automática, según inventario y precio de venta)</span></label><div class="v-full" style="padding:10px 12px;background:var(--hover);border-radius:8px;font-weight:700;color:#248a3d">US$ '+_money(_comisionWizardCalc())+'</div>'
     +'<label class="v-lbl-sm">📝 Observaciones</label><textarea class="v-full" style="min-height:56px;box-sizing:border-box" oninput="_venta.meta.obs=this.value" placeholder="Notas de la venta (opcional)">'+esc(M.obs||'')+'</textarea>'
     +'</div>';
   return h;
@@ -1864,7 +1864,7 @@ function ventaResumenHTML(c){
     h+='<div class="vr-ln" style="opacity:.8">Taxes: $'+_money(v.cobro.tax)+' · Fees: $'+_money(v.cobro.fee)+'</div>';
     h+='<div class="vr-ln" style="margin-top:3px;font-size:14.5px"><b>Total de la venta: $'+_money(v.cobro.total)+'</b></div>';
   }
-  if(c.comision)h+='<div class="vr-ln" style="margin-top:3px">Comisión: <b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b></div>';
+  {const _cv=_comisionVenta(c);if(_cv)h+='<div class="vr-ln" style="margin-top:3px">Comisión: <b style="color:#34c759">$'+Number(_cv).toLocaleString('es-AR')+'</b></div>';}
   if(v.obs)h+='<div class="vr-ln" style="margin-top:5px">📝 <b>Observaciones:</b> '+esc(v.obs)+'</div>';
   h+='</div></div>';
   return h;
@@ -1963,7 +1963,7 @@ function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render(
 function irVista(v){view=v;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();}
 function renderVendidos(){
   const list=activos().filter(c=>c.etapa==='vendido'||c.etapa==='posventa').sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));
-  const totalQty=list.reduce((s,c)=>s+(Number(c.cantidad)||1),0);const totalCom=list.reduce((s,c)=>s+(Number(c.comision)||0),0);
+  const totalQty=list.reduce((s,c)=>s+(Number(c.cantidad)||1),0);const totalCom=list.reduce((s,c)=>s+_comisionVenta(c),0);
   let h=`<div class="page"><h1>✅ Vendidos</h1><div class="sub">${list.length} cliente(s) con venta cerrada · ${totalQty} producto(s)${totalCom?' · $'+totalCom.toLocaleString('es-AR')+' en comisiones':''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Todavía no hay ventas cerradas.</div></div>';return;}
   h+='<div class="panelcard">';
@@ -2131,7 +2131,7 @@ function _ventasTablaHTML(list){
       +'<td>'+(c.anulada?'<span class="vt-badge no">ANULADA</span>':estBadge(ep.estado))+'</td>'
       +'<td class="num" style="color:#248a3d">'+money(ep.acred)+'</td>'
       +'<td class="num"'+(ep.saldo>0.009?' style="color:#ff3b30"':'')+'>'+money(ep.saldo)+'</td>'
-      +'<td class="num">'+money(c.comision)+'</td>'
+      +'<td class="num">'+money(_comisionVenta(c))+'</td>'
       +'<td>'+bajo+'</td>'
       +'<td>'+esc(nombreVend(c.vendedorId))+'</td>'
       +'<td>'+esc(_colabNom(c)||'-')+'</td>'
@@ -2282,7 +2282,7 @@ function _pdfVenta(id){
     +'<tr>'+cell('Vendedor',esc(nombreVend(c.vendedorId)))+cell('Colaborador',esc(_colabNom(c)||'-'))+'</tr>'
     +'<tr>'+cell('Total productos',m(totalProd))+cell('Total venta',m(ep.total))+'</tr>'
     +'<tr>'+cell('Taxes',m((v.cobro&&v.cobro.tax)||0))+cell('Fees',m((v.cobro&&v.cobro.fee)||0))+'</tr>'
-    +'<tr>'+cell('Comisión',m(c.comision))+cell('Observaciones',esc(v.obs||'-'))+'</tr>'
+    +'<tr>'+cell('Comisión',m(_comisionVenta(c)))+cell('Observaciones',esc(v.obs||'-'))+'</tr>'
     +'</table>'
     +'<div class="sec">Ítems de la venta</div>'
     +'<table class="dt"><tr><th>#</th><th>Producto</th><th>Cliente recibe</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>'+itemsRows+'</table>'
@@ -2427,7 +2427,7 @@ function _exportarVentas(scope){
     {h:'Estado pago',g:c=>_vtEstado(c)},
     {h:'Acreditado ($)',g:c=>_pagoEstado(c).acred,n:1},
     {h:'Saldo ($)',g:c=>_pagoEstado(c).saldo,n:1},
-    {h:'Comisión ($)',g:c=>Number(c.comision)||0,n:1},
+    {h:'Comisión ($)',g:c=>_comisionVenta(c),n:1},
     {h:'Bajo mínimo',g:c=>_bajoMin(c)?'Sí':'No'},
     {h:'Vendedor',g:c=>nombreVend(c.vendedorId)},
     {h:'Colaborador',g:c=>_colabNom(c)},
@@ -2465,12 +2465,12 @@ function _pdfVentasTabla(scope){
     {h:'Estado',g:c=>_vtEstado(c)},
     {h:'Acreditado',g:c=>m(_pagoEstado(c).acred),num:1},
     {h:'Saldo',g:c=>m(_pagoEstado(c).saldo),num:1},
-    {h:'Comisi\u00f3n',g:c=>m(Number(c.comision)||0),num:1},
+    {h:'Comisi\u00f3n',g:c=>m(_comisionVenta(c)),num:1},
     {h:'Bajo m\u00edn.',g:c=>_bajoMin(c)?'S\u00ed':'No'},
     {h:'Vendedor',g:c=>nombreVend(c.vendedorId)},
     {h:'Colaborador',g:c=>_colabNom(c)}
   ];
-  const totBase=list.reduce((s,c)=>s+_baseProd(c),0),totMonto=list.reduce((s,c)=>s+_montoTotal(c),0),totAcred=list.reduce((s,c)=>s+_pagoEstado(c).acred,0),totSaldo=list.reduce((s,c)=>s+_pagoEstado(c).saldo,0),totComis=list.reduce((s,c)=>s+(Number(c.comision)||0),0),totEnv=list.reduce((s,c)=>s+_envioV(c),0);
+  const totBase=list.reduce((s,c)=>s+_baseProd(c),0),totMonto=list.reduce((s,c)=>s+_montoTotal(c),0),totAcred=list.reduce((s,c)=>s+_pagoEstado(c).acred,0),totSaldo=list.reduce((s,c)=>s+_pagoEstado(c).saldo,0),totComis=list.reduce((s,c)=>s+_comisionVenta(c),0),totEnv=list.reduce((s,c)=>s+_envioV(c),0);
   const th=cols.map(c=>'<th'+(c.num?' class="n"':'')+'>'+esc(c.h)+'</th>').join('');
   const rows=list.map(c=>'<tr>'+cols.map(col=>'<td'+(col.num?' class="n"':'')+'>'+esc(String(col.g(c)==null?'':col.g(c)))+'</td>').join('')+'</tr>').join('');
   const foot='<tr class="tot"><td colspan="6">TOTALES \u00b7 '+list.length+' venta(s)</td><td class="n">'+m(totBase)+'</td><td class="n">'+m(totEnv)+'</td><td class="n">'+m(totMonto)+'</td><td></td><td class="n">'+m(totAcred)+'</td><td class="n">'+m(totSaldo)+'</td><td class="n">'+m(totComis)+'</td><td colspan="3"></td></tr>';
@@ -2971,7 +2971,11 @@ async function renderInicioAdmin(){
 let _pv={desde:'',hasta:'',estado:'',q:''};
 function _pvMoney(n){return 'US$ '+Number(Math.round((n||0)*100)/100).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function _pvJs(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
-function _comisionVenta(c){const prods=(c.venta&&c.venta.productos)||[];let s=0;prods.forEach(p=>{const inv=INVENTARIO.find(x=>x.nombre===(p.detalle||'·')||x.nombre===(p.producto||'·'));if(inv)s+=Number(inv.comision)||0;});return s;}
+// Comisión oficial: comisión base del inventario + (precio de venta − precio de lista)/2, piso 0.
+// Sobreprecio o rebaja se reparten a medias entre vendedor y empresa. Taxes/fee/envío NO cuentan.
+function _comisionProd(p,invMap){const inv=(invMap||{})[p.detalle]||(invMap||{})[p.producto]||INVENTARIO.find(x=>x.nombre===(p.detalle||'·')||x.nombre===(p.producto||'·'));if(!inv)return 0;const base=Number(inv.precio)||0,comBase=Number(inv.comision)||0,venta=Number(p.precio)||0;return Math.max(0,comBase+(venta-base)/2);}
+function _comisionWizardCalc(){const invMap={};(INVENTARIO||[]).forEach(x=>{invMap[x.nombre]=x;});let s=0;((_venta&&_venta.productos)||[]).forEach(p=>{s+=_comisionProd({detalle:p.detalle,producto:p.producto,precio:parseFloat(p.precio)||0},invMap);});return Math.round(s*100)/100;}
+function _comisionVenta(c){const prods=(c.venta&&c.venta.productos)||[];if(!prods.length)return Number(c.comision)||0;const invMap={};(INVENTARIO||[]).forEach(x=>{invMap[x.nombre]=x;});let s=0;prods.forEach(p=>{s+=_comisionProd(p,invMap);});return Math.round(s*100)/100;}
 function _pvSales(){
   return clientes.filter(c=>!c.borrado&&!c.descartado&&(c.etapa==='vendido'||c.etapa==='posventa'))
     .filter(c=>{const f=(c.vendidoFecha||'').slice(0,10);if(_pv.desde&&(!f||f<_pv.desde))return false;if(_pv.hasta&&(!f||f>_pv.hasta))return false;return true;})
@@ -3839,7 +3843,7 @@ function renderPanel(){
   const _wa=new Date(Date.now()-6*86400000);const weekAgo=_wa.getFullYear()+'-'+pad(_wa.getMonth()+1)+'-'+pad(_wa.getDate());
   const vendidosMes=AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===mesAct);
   const ventasMesMonto=vendidosMes.reduce((s,c)=>s+(Number(c.valor)||0),0);
-  const gananciaMes=vendidosMes.reduce((s,c)=>s+(Number(c.comision)||0),0);
+  const gananciaMes=vendidosMes.reduce((s,c)=>s+_comisionVenta(c),0);
   const conteoE=id=>AA.filter(c=>c.etapa===id).length;
   const maxE=Math.max(1,...ETAPAS.map(e=>conteoE(e.id)));
   const conv=total?Math.round((AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length/total)*100):0;
@@ -3858,7 +3862,7 @@ function renderPanel(){
   const ventasWk=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());ventasWk.push({l:diasSemNom[i],n:AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')===ds).reduce((s,c)=>s+(Number(c.cantidad)||1),0)});}
   const ventasSemTotal=ventasWk.reduce((s,d)=>s+d.n,0);
   const ventasSemLista=AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')>=monDs).sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));
-  const gananciaSem=ventasSemLista.reduce((s,c)=>s+(Number(c.comision)||0),0);
+  const gananciaSem=ventasSemLista.reduce((s,c)=>s+_comisionVenta(c),0);
   const _now2=new Date();const _yr=_now2.getFullYear(),_mo=_now2.getMonth();const diasEnMes=new Date(_yr,_mo+1,0).getDate();
   const ventasMo=[];for(let day=1;day<=diasEnMes;day++){const ds=_yr+'-'+pad(_mo+1)+'-'+pad(day);ventasMo.push({l:day,n:AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')===ds).reduce((s,c)=>s+(Number(c.cantidad)||1),0),showL:(day===1||day%5===0)});}
   const qtyMes=ventasMo.reduce((s,d)=>s+d.n,0);const hoyDiaIdx=new Date().getDate()-1;
