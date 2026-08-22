@@ -403,6 +403,11 @@
   .og-pg{min-width:30px;height:30px;border:1px solid var(--sep-strong);background:var(--card);color:var(--txt);border-radius:7px;cursor:pointer;font-family:inherit;font-size:12px}
   .og-pg.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .og-foot{margin-top:14px;font-size:12px;padding:10px 0;border-top:1px solid var(--sep)}
+  .op-tbl td,.op-tbl th{font-size:12px;padding:9px 11px}
+  .op-btn{border:1px solid var(--sep-strong);background:var(--card);color:var(--txt);border-radius:7px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-right:6px}
+  .op-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .op-btn.danger{color:#e74c3c;border-color:rgba(231,76,60,.4)}
+  .op-btn.danger:hover{background:#e74c3c;color:#fff;border-color:#e74c3c}
   .vf-search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt)}
   .vf-selbtn{width:auto;min-width:190px;flex:none;background:var(--card);padding:10px 14px}
   .vf-clear{flex:none;border:1px solid var(--sep-strong);background:var(--card);color:var(--muted);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -905,7 +910,7 @@ function render(){
   else if(view==='pedInforme')renderInformePedidos();
   else if(view==='pedAgrupado')renderPedidosAgrupado();
   else if(view==='pedOrganizar')renderOrganizarPedidos();
-  else if(view==='pedOrdenes')renderPedidosPlaceholder(view);
+  else if(view==='pedOrdenes')renderOrdenesPedido();
   else renderSeg();
   if(view!==_lastView){const el=main.firstElementChild;if(el)el.classList.add('anim-in');_lastView=view;}
 }
@@ -3432,8 +3437,8 @@ function _ogGenerar(){
   appModal({titulo:'Generar orden de pedido',texto:'¿Generar la orden '+numStr+' con '+rows.length+' pedido(s)?\n\nLos pedidos quedan asignados a esta orden y salen del listado de disponibles.',okLabel:'Generar orden',onOk:()=>{
     const byClient={};rows.forEach(r=>{(byClient[r.clientId]||(byClient[r.clientId]=[])).push(r.prodIdx);});
     Object.keys(byClient).forEach(cid=>{const c=clientes.find(x=>x.id===cid);if(!c||!c.venta||!c.venta.productos)return;byClient[cid].forEach(pi=>{if(c.venta.productos[pi])c.venta.productos[pi].orden=numStr;});_savCliente(c);});
-    const orden={id:uid(),num,numStr,fecha:hoy(),estado:'GENERADA',creadoPor:(me&&me.nombre)||'',
-      pedidos:rows.map(r=>({clientId:r.clientId,prodIdx:r.prodIdx,articulo:r.articulo,codigo:r.codigo,tipo:r.tipo,provincia:r.provincia,municipio:r.municipio,zona:r.zona,receptor:r.receptor,ci:r.ci,direccion:r.direccion,telefono:r.telefono,track:r.track,fecha:r.fecha}))};
+    const orden={id:uid(),num,numStr,fecha:hoy(),creada:hoy()+' '+ahora(),estado:'GENERADA',creadoPor:(me&&me.nombre)||'',detalle:'Orden armada desde Organizar Pedido',
+      pedidos:rows.map(r=>({clientId:r.clientId,prodIdx:r.prodIdx,recIdx:r.recIdx,ship:r.ship,articulo:r.articulo,codigo:r.codigo,tipo:r.tipo,provincia:r.provincia,municipio:r.municipio,zona:r.zona,receptor:r.receptor,ci:r.ci,direccion:r.direccion,telefono:r.telefono,track:r.track,fecha:r.fecha,clienteUSA:r.clienteUSA}))};
     _ORDENES.push(orden);_ordenesPersist();
     _og={checked:new Set(),orden:new Set(),q:'',sort:_og.sort,page:1};
     appModal({titulo:'✅ Orden generada',texto:'Se generó la orden '+numStr+' con '+rows.length+' pedido(s). La vas a poder seguir en "Órdenes Pedidos".',okLabel:'Listo',onOk:()=>_ogBuild()});
@@ -3482,6 +3487,78 @@ function _ogBuild(){
   h+='<div class="og-foot faint">💡 Cómo funciona: 1) Seleccioná pedidos a la izquierda. 2) Pasalos con "›". 3) Revisá la lista. 4) Generá la orden. · Disponibles: '+dispPed+' · Unidades: '+availAll.length+' · Sin track: '+sinTrack+' · Sin teléfono: '+sinTel+'</div>';
   h+='</div>';
   main.innerHTML=h;
+}
+/* ---- ÓRDENES DE PEDIDO ---- */
+let _op={q:'',estado:''};
+function renderOrdenesPedido(){_opBuild();}
+async function _opRefresh(){try{const o=await (await api('/api/ordenes')).json();if(Array.isArray(o))_ORDENES=o;}catch(e){}_opBuild();}
+function _opStats(o){const peds=o.pedidos||[];return {uni:peds.length,ped:new Set(peds.map(p=>p.ship||(p.clientId+'|'+p.recIdx))).size};}
+function _opPickEstado(){appPick({titulo:'Estado',actual:_op.estado||'',opciones:[{value:'',label:'Todos los estados'},{value:'GENERADA',label:'Generadas'},{value:'ANULADA',label:'Anuladas'}],onPick:v=>{_op.estado=v;_opBuild();}});}
+function _opFiltered(){
+  const q=_op.q.trim().toLowerCase();
+  return _ORDENES.slice().sort((a,b)=>b.num-a.num).filter(o=>{
+    if(_op.estado&&(o.estado||'GENERADA')!==_op.estado)return false;
+    if(q){const s=((o.numStr||'')+' '+(o.pedidos||[]).map(p=>(p.track||'')+' '+(p.receptor||'')+' '+(p.articulo||'')).join(' ')).toLowerCase();if(s.indexOf(q)<0)return false;}
+    return true;
+  });
+}
+function _opBuild(){
+  const all=_ORDENES;
+  const gen=all.filter(o=>(o.estado||'GENERADA')==='GENERADA').length;
+  const anu=all.filter(o=>o.estado==='ANULADA').length;
+  let totPed=0,totUni=0;all.forEach(o=>{const s=_opStats(o);totPed+=s.ped;totUni+=s.uni;});
+  let h='<div class="page page-wide">';
+  h+='<div class="conv-head-row" style="align-items:flex-start"><div><h1 style="margin:0">Órdenes de Pedido</h1><div class="sub" style="margin:3px 0 0">Listado de órdenes generadas para proveedores y logística.</div></div><div class="xbtn-row"><button class="btn ghost" onclick="history.back()">← Volver</button><button class="btn ghost" onclick="_opRefresh()">↻ Actualizar</button></div></div>';
+  h+='<div class="fz-kpis" style="grid-template-columns:repeat(5,1fr)">'+_piKpi('Órdenes',all.length)+_piKpi('Generadas',gen)+_piKpi('Anuladas',anu)+_piKpi('Pedidos',totPed)+_piKpi('Unidades',totUni)+'</div>';
+  h+='<div class="vf-bar"><input class="vf-search" placeholder="Buscar por número, track, receptor, producto…" value="'+esc(_op.q)+'" oninput="_op.q=this.value;_opRows()">'+_vSelBtn('vf-fld','Estado: '+(_op.estado?(_op.estado==='GENERADA'?'Generadas':'Anuladas'):'Todos'),!_op.estado,'_opPickEstado()')+'</div>';
+  h+='<div class="pv-card"><div class="vtbl-wrap"><table class="vtbl op-tbl"><thead><tr><th>#</th><th>Fecha</th><th>Estado</th><th class="num">Pedidos</th><th class="num">Unidades</th><th>Detalle</th><th>Creada</th><th>Acciones</th></tr></thead><tbody id="op-tbody"></tbody></table></div></div>';
+  h+='</div>';main.innerHTML=h;_opRows();
+}
+function _opRows(){
+  const tb=document.getElementById('op-tbody');if(!tb)return;
+  const rows=_opFiltered();const ro=!_esAdminRol();
+  if(!rows.length){tb.innerHTML='<tr><td colspan="8" class="faint" style="text-align:center;padding:24px">No hay órdenes'+(_op.q||_op.estado?' con esos filtros':' generadas todavía')+'.</td></tr>';return;}
+  tb.innerHTML=rows.map(o=>{const s=_opStats(o);const anulada=o.estado==='ANULADA';
+    const badge=anulada?'<span class="vt-badge no">ANULADA</span>':'<span class="vt-badge ok">GENERADA</span>';
+    const anularBtn=(!anulada&&!ro)?'<button class="op-btn danger" onclick="_ordAnular(\''+o.id+'\')">Anular</button>':'';
+    return '<tr style="cursor:pointer" onclick="_ordVer(\''+o.id+'\')"><td><b>'+o.num+'</b></td><td>'+esc(fmtFecha(o.fecha))+'</td><td>'+badge+'</td><td class="num">'+s.ped+'</td><td class="num">'+s.uni+'</td><td>'+esc((o.detalle||'').toUpperCase())+'</td><td class="faint">'+esc(o.creada?fmtFecha(String(o.creada).slice(0,10))+', '+String(o.creada).slice(11):'')+'</td>'
+      +'<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="op-btn" onclick="_ordPDF(\''+o.id+'\')">PDF</button><button class="op-btn" onclick="_ordCSV(\''+o.id+'\')">CSV</button>'+anularBtn+'</td></tr>';
+  }).join('');
+}
+function _ordAnular(id){
+  if(!_esAdminRol())return;const o=_ORDENES.find(x=>x.id===id);if(!o||o.estado==='ANULADA')return;
+  appModal({titulo:'Anular orden',texto:'¿Anular la orden '+o.numStr+'?\n\nSus pedidos vuelven a quedar disponibles para armar otra orden.',okLabel:'Anular orden',okDanger:true,onOk:()=>{
+    o.estado='ANULADA';o.anuladaFecha=hoy();
+    const byClient={};(o.pedidos||[]).forEach(p=>{(byClient[p.clientId]||(byClient[p.clientId]=[])).push(p.prodIdx);});
+    Object.keys(byClient).forEach(cid=>{const c=clientes.find(x=>x.id===cid);if(!c||!c.venta||!c.venta.productos)return;let ch=false;byClient[cid].forEach(pi=>{if(c.venta.productos[pi]&&c.venta.productos[pi].orden===o.numStr){c.venta.productos[pi].orden='';ch=true;}});if(ch)_savCliente(c);});
+    _ordenesPersist();_opBuild();
+  }});
+}
+function _ordVer(id){
+  const o=_ORDENES.find(x=>x.id===id);if(!o)return;const peds=o.pedidos||[];
+  let b='<div class="vtbl-wrap"><table class="vtbl fz-tbl"><thead><tr><th>Producto</th><th>Cód.</th><th>Tipo</th><th>Receptor</th><th>Provincia</th><th>Municipio</th><th>Track</th></tr></thead><tbody>';
+  if(!peds.length)b+='<tr><td colspan="7" class="faint" style="text-align:center;padding:14px">Sin pedidos.</td></tr>';
+  peds.forEach(p=>{b+='<tr><td><b>'+esc(p.articulo)+'</b></td><td class="faint">'+esc(String(p.codigo||'—'))+'</td><td>'+esc(p.tipo||'')+'</td><td>'+esc(p.receptor||'—')+'</td><td>'+esc(p.provincia||'—')+'</td><td>'+esc(p.municipio||'—')+'</td><td class="faint">'+esc(p.track||'—')+'</td></tr>';});
+  b+='</tbody></table></div>';
+  cerrarModal();const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
+  wrap.innerHTML='<div class="modal" style="width:min(760px,calc(100vw - 32px));max-height:88vh;display:flex;flex-direction:column"><div class="modal-h"><b>Orden '+esc(o.numStr)+' · '+(o.estado==='ANULADA'?'<span style="color:#e74c3c">ANULADA</span>':'GENERADA')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b" style="overflow:auto"><div class="sub" style="margin:0 0 8px">'+peds.length+' pedido(s) · '+esc(fmtFecha(o.fecha))+(o.creadoPor?' · por '+esc(o.creadoPor):'')+'</div>'+b+'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cerrar</button><button class="btn ghost" onclick="_ordCSV(\''+o.id+'\')">⬇ CSV</button><button class="btn" onclick="_ordPDF(\''+o.id+'\')">📄 PDF</button></div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
+}
+function _ordCSV(id){
+  const o=_ORDENES.find(x=>x.id===id);if(!o)return;const peds=o.pedidos||[];
+  const esc2=v=>{v=String(v==null?'':v);return /[",;\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  let csv='Orden;'+o.numStr+';Estado;'+(o.estado||'GENERADA')+';Fecha;'+fmtFecha(o.fecha)+'\n\n';
+  csv+='Producto;Codigo;Tipo;Cliente USA;Receptor;Identificacion;Provincia;Municipio;Zona;Direccion;Telefono;Track\n';
+  peds.forEach(p=>{csv+=[p.articulo,p.codigo,p.tipo,p.clienteUSA,p.receptor,p.ci,p.provincia,p.municipio,p.zona,p.direccion,p.telefono,p.track].map(esc2).join(';')+'\n';});
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='orden-'+o.numStr+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function _ordPDF(id){
+  const o=_ORDENES.find(x=>x.id===id);if(!o)return;const peds=o.pedidos||[];
+  const cols=[['Producto',p=>p.articulo],['Cód.',p=>p.codigo],['Tipo',p=>p.tipo],['Receptor',p=>p.receptor],['Identificación',p=>p.ci],['Provincia',p=>p.provincia],['Municipio',p=>p.municipio],['Dirección completa',p=>p.direccion],['Teléfono',p=>p.telefono],['Track',p=>p.track]];
+  const th=cols.map(c=>'<th>'+esc(c[0])+'</th>').join('');
+  const body=peds.map(p=>'<tr>'+cols.map(c=>'<td>'+esc(String(c[1](p)==null?'':c[1](p)))+'</td>').join('')+'</tr>').join('');
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>Orden '+esc(o.numStr)+'</title><style>@page{size:landscape;margin:8mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:10px}h1{font-size:16px;margin:0 0 2px}.sub{color:#555;font-size:11px;margin-bottom:8px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #c8c8c8;padding:3px 6px;font-size:8.5px;text-align:left;vertical-align:top}th{background:#1f2450;color:#fff}tr:nth-child(even) td{background:#f5f6fa}</style></head><body><h1>📦 Orden de Pedido '+esc(o.numStr)+'</h1><div class="sub">'+peds.length+' pedido(s) · '+esc(fmtFecha(o.fecha))+' · Estado: '+(o.estado||'GENERADA')+(o.creadoPor?' · por '+esc(o.creadoPor):'')+'</div><table><thead><tr>'+th+'</tr></thead><tbody>'+body+'</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>';
+  const w=window.open('','_blank');if(!w){alert('Permití las ventanas emergentes.');return;}w.document.open();w.document.write(html);w.document.close();
 }
 function _piCSV(){
   const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}
