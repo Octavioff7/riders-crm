@@ -36,6 +36,7 @@ function loadWaMap(){try{return JSON.parse(fs.readFileSync(WAMAPPATH,'utf8'))}ca
 const INVPATH=path.join(DATA_DIR,'inventario.json');
 const FINPATH=path.join(DATA_DIR,'financieras.json');
 const ORDPATH=path.join(DATA_DIR,'ordenes.json');
+const AUDPATH=path.join(DATA_DIR,'auditoria.json');
 const DEFAULT_INVENTARIO=[
   {n:1,nombre:'MATIAS',modelo:'MATIAS 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4600,comision:500,activo:true},
   {n:2,nombre:'TITAN',modelo:'TITAN 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4500,comision:500,activo:true},
@@ -98,6 +99,8 @@ function loadFinancieras(){try{return JSON.parse(fs.readFileSync(FINPATH,'utf8')
 function saveFinancieras(a){fs.writeFileSync(FINPATH,JSON.stringify(a,null,1))}
 function loadOrdenes(){try{return JSON.parse(fs.readFileSync(ORDPATH,'utf8'))}catch(e){return null}}
 function saveOrdenes(a){fs.writeFileSync(ORDPATH,JSON.stringify(a,null,1))}
+function loadAud(){try{return JSON.parse(fs.readFileSync(AUDPATH,'utf8'))}catch(e){return []}}
+function saveAud(a){try{fs.writeFileSync(AUDPATH,JSON.stringify(a))}catch(e){}}
 // Enriquecer inventario existente con marca/modelo/motor/cc/comisión (sin tocar precio, color, fotos ni info)
 function migrateInventario(){
   try{
@@ -621,6 +624,10 @@ http.createServer((req,res)=>{
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
   if(u==='/api/ordenes'&&req.method==='GET')return json(200,loadOrdenes()||[]);
   if(u==='/api/ordenes'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveOrdenes(b);json(200,{ok:true});});}
+  if(u==='/api/auditoria'&&req.method==='GET'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return json(200,loadAud().slice(-8000));}
+  if(u==='/api/auditoria'&&req.method==='POST'){if(!me)return json(401,{error:'auth'});return readBody(b=>{const a=loadAud();
+    const e={id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),ts:new Date().toISOString(),userId:me.id,userName:me.nombre||'',email:me.email||'',rol:me.rol||'',sede:me.sede||'',modulo:String(b.modulo||''),entidad:String(b.entidad||''),accion:String(b.accion||''),referencia:String(b.referencia||''),metodo:String(b.metodo||''),resultado:String(b.resultado||'OK'),cambios:Number(b.cambios)||0,detalle:(b.detalle!=null?b.detalle:'')};
+    a.push(e);if(a.length>20000)a.splice(0,a.length-20000);saveAud(a);json(200,{ok:true});});}
 
   // Actualizar un cliente/venta completo: admin/supervisor/dueño (editar ventas, acreditar pagos, fondeo)
   if(u==='/api/cliente-save'&&req.method==='POST'){
