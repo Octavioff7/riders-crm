@@ -343,6 +343,34 @@
   .fz-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
   .fz-tbl th,.fz-tbl td{padding:7px 9px;font-size:11.5px}
   .fz-tbl thead th{position:static}
+  .ped-hero{border:1px solid var(--sep);border-left:4px solid #e8912a;border-radius:16px;background:linear-gradient(180deg,rgba(232,145,42,.05),rgba(232,145,42,.02));padding:20px 22px}
+  .ped-hero-h h1{color:#c46a12}
+  .ped-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:16px}
+  @media(max-width:900px){.ped-cards{grid-template-columns:repeat(2,1fr)}}
+  .ped-card{background:var(--card);border:1px solid var(--sep);border-radius:14px;padding:22px 16px;cursor:pointer;font-family:inherit;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;transition:transform .12s,box-shadow .12s,border-color .12s}
+  .ped-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08);border-color:#e8912a}
+  .ped-ic{width:56px;height:56px;border-radius:14px;display:grid;place-items:center;font-size:24px;background:rgba(232,145,42,.12);color:#c46a12;border:1px solid rgba(232,145,42,.25)}
+  .ped-t{font-weight:700;font-size:14.5px;color:var(--accent)}
+  .ped-d{font-size:12px;color:var(--muted);line-height:1.4}
+  .oc-box{border:1px solid var(--sep);border-radius:12px;background:var(--card);padding:12px 14px;margin-bottom:12px}
+  .oc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .oc-chks{display:flex;flex-wrap:wrap;gap:8px}
+  .oc-chk{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--sep-strong);border-radius:8px;font-size:12.5px;cursor:pointer;background:var(--bg);color:var(--txt)}
+  .oc-chk.on{border-color:var(--accent);background:rgba(0,122,255,.08);color:var(--accent)}
+  .oc-chk input{width:auto;margin:0}
+  .pi-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:14px 0}
+  @media(max-width:1100px){.pi-kpis{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:600px){.pi-kpis{grid-template-columns:repeat(2,1fr)}}
+  .pi-kpi{background:var(--card);border:1px solid var(--sep);border-radius:13px;padding:13px 15px}
+  .pi-kl{font-size:12px;color:var(--muted);font-weight:600}
+  .pi-kv{font-size:26px;font-weight:800;color:var(--txt);line-height:1.1;margin-top:2px}
+  .pi-tot{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:4px}
+  @media(max-width:1000px){.pi-tot{grid-template-columns:1fr}}
+  .pi-tbl td,.pi-tbl th{font-size:11px;padding:6px 8px}
+  .pi-tbl .pi-dir{max-width:280px;white-space:normal;min-width:200px}
+  .pi-inp{width:110px;border:1px solid var(--sep-strong);background:var(--bg);color:var(--txt);border-radius:6px;padding:4px 7px;font-size:11px;font-family:inherit}
+  .pi-inp:focus{outline:none;border-color:var(--accent)}
+  .pi-tbl .v-selbtn.pi-zona{min-width:110px;width:auto;padding:5px 9px;font-size:11px;background:var(--bg)}
   .vf-search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt)}
   .vf-selbtn{width:auto;min-width:190px;flex:none;background:var(--card);padding:10px 14px}
   .vf-clear{flex:none;border:1px solid var(--sep-strong);background:var(--card);color:var(--muted);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -651,6 +679,7 @@
         <button class="admin-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
         <button class="admin-only" data-view="financieras"><span class="ic" aria-hidden="true">🏦</span><span class="lbl">Financieras</span></button>
         <button class="admin-only" data-view="finanzas"><span class="ic" aria-hidden="true">💹</span><span class="lbl">Dashboard Financiero</span></button>
+        <button class="admin-only" data-view="pedidos"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Pedidos y Logística</span></button>
         <button class="admin-only" data-view="equipo"><span class="ic" aria-hidden="true">📈</span><span class="lbl">Equipo</span></button>
         <button class="sv-only" data-view="cuentas"><span class="ic" aria-hidden="true">⚙️</span><span class="lbl">Cuentas</span></button>
         <button id="nav-avisos" onclick="conectarTelegram()"><span class="ic" aria-hidden="true" style="background:#ff9500">🔔</span><span class="lbl">Notificaciones</span></button>
@@ -810,10 +839,11 @@ function updateCounts(){
 }
 function render(){
   if(view!=='inbox')inboxCtx=null; // al salir del inbox se pierde el contexto de la sección
-  const navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
+  let navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
+  if(/^ped(Informe|Agrupado|Organizar|Ordenes)$/.test(navActive))navActive='pedidos'; // sub-vistas de logística resaltan el menú Pedidos
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras',finanzas:'Dashboard Financiero'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras',finanzas:'Dashboard Financiero',pedidos:'Pedidos y Logística',pedInforme:'Informe de Pedidos',pedAgrupado:'Pedidos Agrupado',pedOrganizar:'Organizar Pedidos',pedOrdenes:'Órdenes Pedidos'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
@@ -839,6 +869,9 @@ function render(){
   else if(view==='inventario')renderInventario();
   else if(view==='financieras')renderFinancieras();
   else if(view==='finanzas')renderFinanzas();
+  else if(view==='pedidos')renderPedidosMenu();
+  else if(view==='pedInforme')renderInformePedidos();
+  else if(view==='pedAgrupado'||view==='pedOrganizar'||view==='pedOrdenes')renderPedidosPlaceholder(view);
   else renderSeg();
   if(view!==_lastView){const el=main.firstElementChild;if(el)el.classList.add('anim-in');_lastView=view;}
 }
@@ -3135,6 +3168,154 @@ function _fzBuild(){
   h+='</div>';
   main.innerHTML=h;
 }
+/* ================= PEDIDOS Y LOGÍSTICA ================= */
+function renderPedidosMenu(){
+  const card=(ic,t,d,v)=>'<button class="ped-card" onclick="view=\''+v+'\';render()"><span class="ped-ic">'+ic+'</span><div class="ped-t">'+esc(t)+'</div><div class="ped-d">'+esc(d)+'</div></button>';
+  let h='<div class="page page-wide"><div class="ped-hero"><div class="ped-hero-h"><h1 style="margin:0">📦 Pedidos y Logística</h1><div class="sub" style="margin:3px 0 0">Preparación, agrupación y seguimiento de pedidos.</div></div><div class="ped-cards">'
+    +card('📦','Pedidos','Listado logístico detallado de pedidos.','pedInforme')
+    +card('▦','Pedidos Agrupado','Vista agrupada por provincia, municipio y producto.','pedAgrupado')
+    +card('☰','Organizar Pedidos','Selección y armado operativo de órdenes.','pedOrganizar')
+    +card('📋','Órdenes Pedidos','Consulta y seguimiento de órdenes generadas.','pedOrdenes')
+    +'</div></div></div>';
+  main.innerHTML=h;
+}
+function renderPedidosPlaceholder(v){
+  const T={pedAgrupado:['▦','Pedidos Agrupado','Vista agrupada por provincia, municipio y producto.'],pedOrganizar:['☰','Organizar Pedidos','Selección y armado operativo de órdenes.'],pedOrdenes:['📋','Órdenes Pedidos','Consulta y seguimiento de órdenes generadas.']}[v];
+  main.innerHTML='<div class="page page-wide"><div class="conv-head-row"><h1>'+T[0]+' '+esc(T[1])+'</h1><button class="btn ghost" onclick="view=\'pedidos\';render()">← Volver</button></div><div class="sub">'+esc(T[2])+'</div><div class="panelcard"><div class="empty" style="padding:40px;text-align:center">🚧 Lo armamos en el próximo paso.<br><span class="faint">Ya está listo el <b>Informe de Pedidos</b>.</span></div></div></div>';
+}
+/* ---- Datos de pedidos (aplanar ventas → productos → receptores) ---- */
+function _pedDir(rec){return [rec.direccion,rec.municipio,rec.provincia,rec.pais||'Cuba'].map(x=>String(x||'').trim()).filter(Boolean).join(' - ');}
+function _pedList(){
+  const out=[];
+  clientes.filter(c=>!c.borrado&&!c.descartado&&!c.anulada&&(c.etapa==='vendido'||c.etapa==='posventa')).forEach(c=>{
+    const v=c.venta;if(!v)return;
+    const recs=_entList(v,'receptor');
+    const clienteUSA=(_entNom(_entList(v,'comprador')[0])||c.nombre||'');
+    (v.productos||[]).forEach(p=>{
+      let ri=Number(p.receptorIdx)||0;if(ri>=recs.length)ri=0;const rec=recs[ri]||{};
+      out.push({clientId:c.id,recIdx:ri,ship:c.id+'|'+ri,
+        fecha:c.vendidoFecha||'',articulo:(p.detalle||p.producto||''),cantidad:1,
+        clienteUSA,receptor:_entNom(rec)||'',ci:rec.carnet||'',provincia:(rec.provincia||''),municipio:(rec.municipio||''),
+        zona:(rec.zona||''),direccion:_pedDir(rec),telefono:(rec.telefono||''),track:(rec.track||''),orden:(rec.orden||'')});
+    });
+  });
+  return out;
+}
+let _pf={desde:'',hasta:'',q:'',provincia:'',municipio:'',zona:'',producto:'',orden:[]};
+function _pfDistinct(key){const s=new Set();_pedList().forEach(r=>{const v=String(r[key]||'').trim();if(v)s.add(v);});return [...s].sort((a,b)=>a.localeCompare(b));}
+function _pedFiltered(){
+  const q=_pf.q.trim().toLowerCase();
+  return _pedList().filter(r=>{
+    const f=(r.fecha||'').slice(0,10);
+    if(_pf.desde&&(!f||f<_pf.desde))return false;
+    if(_pf.hasta&&(!f||f>_pf.hasta))return false;
+    if(_pf.provincia&&r.provincia!==_pf.provincia)return false;
+    if(_pf.municipio&&r.municipio!==_pf.municipio)return false;
+    if(_pf.zona&&r.zona!==_pf.zona)return false;
+    if(_pf.producto&&r.articulo!==_pf.producto)return false;
+    if(q){const s=(r.receptor+' '+r.ci+' '+r.telefono+' '+r.track+' '+r.clienteUSA+' '+r.articulo).toLowerCase();if(s.indexOf(q)<0)return false;}
+    return true;
+  });
+}
+function _ocKey(k){return {producto:'articulo',zona:'zona',provincia:'provincia',municipio:'municipio',receptor:'receptor',fecha:'fecha'}[k]||k;}
+function _pedSort(rows){
+  if(!_pf.orden.length)return rows.slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  return rows.slice().sort((a,b)=>{for(const k of _pf.orden){const kk=_ocKey(k);let c=(kk==='fecha')?String(a.fecha).localeCompare(String(b.fecha)):String(a[kk]||'').localeCompare(String(b[kk]||''),'es');if(c)return c;}return 0;});
+}
+function _pfPickFecha(w){appDate({titulo:w==='desde'?'Desde':'Hasta',actual:_pf[w],onPick:v=>{_pf[w]=v;_piBuild();}});}
+function _pfPick(key,srcKey,todos){appPick({titulo:todos,actual:_pf[key]||'',search:true,opciones:[{value:'',label:todos}].concat(_pfDistinct(srcKey).map(x=>({value:x,label:x}))),onPick:v=>{_pf[key]=v;_piBuild();}});}
+function _pfOrdenToggle(k){const i=_pf.orden.indexOf(k);if(i>=0)_pf.orden.splice(i,1);else _pf.orden.push(k);_piBuild();}
+function _pfOrdenClear(){_pf.orden=[];_piBuild();}
+function _pfClear(){_pf={desde:'',hasta:'',q:'',provincia:'',municipio:'',zona:'',producto:'',orden:_pf.orden};_piBuild();}
+function _pedSetTrack(clientId,recIdx,val){const c=clientes.find(x=>x.id===clientId);if(!c||!c.venta||!_esAdminRol())return;const recs=_entList(c.venta,'receptor');if(!recs[recIdx])return;recs[recIdx].track=(val||'').trim();_savCliente(c);_piBuild();}
+function _pedPickZona(clientId,recIdx){
+  const zonas=_pfDistinct('zona');
+  const opts=[{value:'',label:'— Sin zona —'},{value:'__nueva__',label:'✎ Escribir nueva zona'}].concat(zonas.map(z=>({value:z,label:z})));
+  appPick({titulo:'Zona logística',actual:'',opciones:opts,onPick:v=>{
+    if(v==='__nueva__'){appModal({titulo:'Nueva zona logística',texto:'Escribí el nombre de la zona.',conInput:true,okLabel:'Guardar',onOk:t=>_pedSetZona(clientId,recIdx,t)});return;}
+    _pedSetZona(clientId,recIdx,v);
+  }});
+}
+function _pedSetZona(clientId,recIdx,val){const c=clientes.find(x=>x.id===clientId);if(!c||!c.venta||!_esAdminRol())return;const recs=_entList(c.venta,'receptor');if(!recs[recIdx])return;recs[recIdx].zona=(val||'').trim();_savCliente(c);_piBuild();}
+function _piKpi(label,val,warn){return '<div class="pi-kpi"><div class="pi-kl">'+esc(label)+'</div><div class="pi-kv"'+(warn&&Number(val)>0?' style="color:#e67e22"':'')+'>'+esc(String(val))+'</div></div>';}
+function renderInformePedidos(){_piBuild();}
+function _piBuild(){
+  const rows=_pedSort(_pedFiltered());const ro=!_esAdminRol();
+  const ships=new Set(rows.map(r=>r.ship));
+  const shipData={};rows.forEach(r=>{if(!shipData[r.ship])shipData[r.ship]={track:r.track,tel:r.telefono};});
+  const prov=new Set(),zon=new Set();rows.forEach(r=>{if(r.provincia)prov.add(r.provincia);if(r.zona)zon.add(r.zona);});
+  let sinTrack=0,sinTel=0;Object.values(shipData).forEach(s=>{if(!String(s.track||'').trim())sinTrack++;if(!String(s.tel||'').trim())sinTel++;});
+  const grp=(key)=>{const m={};rows.forEach(r=>{const k=String(r[key]||'').trim()||'(sin dato)';const g=m[k]||(m[k]={ped:new Set(),uni:0});g.ped.add(r.ship);g.uni++;});return Object.keys(m).map(k=>({k,ped:m[k].ped.size,uni:m[k].uni})).sort((a,b)=>b.ped-a.ped||b.uni-a.uni);};
+  const totProd=grp('articulo'),totProv=grp('provincia'),totZona=grp('zona');
+  let h='<div class="page page-wide">';
+  h+='<div class="conv-head-row" style="align-items:flex-start"><div><h1 style="margin:0">Informe de Pedidos</h1><div class="sub" style="margin:3px 0 0">Ventas, receptores, productos y datos de logística inicial.</div></div><div class="xbtn-row"><button class="btn ghost" onclick="view=\'pedidos\';render()">← Volver</button><button class="xbtn excel" onclick="_piCSV()">⬇ CSV/Excel</button><button class="xbtn pdf" onclick="_piPDF()">⬇ PDF</button></div></div>';
+  // filtros
+  const pk=(label,key,srcKey,todos)=>'<div class="vf-field"><label>'+label+'</label>'+_vSelBtn('vf-fld',_pf[key]||todos,!_pf[key],'_pfPick(\''+key+'\',\''+srcKey+'\',\''+todos+'\')')+'</div>';
+  h+='<div class="vf-grid">'
+    +'<div class="vf-field"><label>Desde</label>'+_dateBtn('vf-fld',_pf.desde,'📅 Cualquiera','_pfPickFecha(\'desde\')')+'</div>'
+    +'<div class="vf-field"><label>Hasta</label>'+_dateBtn('vf-fld',_pf.hasta,'📅 Cualquiera','_pfPickFecha(\'hasta\')')+'</div>'
+    +'<div class="vf-field grow"><label>Buscar</label><input class="vf-search" placeholder="Nombre, CI, teléfono, track…" value="'+esc(_pf.q)+'" oninput="_pf.q=this.value" onkeydown="if(event.key===\'Enter\')_piBuild()"></div>'
+    +pk('Provincia','provincia','provincia','Todas')
+    +pk('Municipio','municipio','municipio','Todos')
+    +pk('Zona logística','zona','zona','Todas')
+    +pk('Producto','producto','articulo','Todos')
+    +'<div class="vf-field"><label>&nbsp;</label><button class="vf-clear" onclick="_pfClear()">✕ Limpiar filtros</button></div>'
+    +'</div>';
+  // orden combinado
+  const OC=[['zona','Zona logística'],['provincia','Provincia'],['municipio','Municipio'],['producto','Producto'],['receptor','Nombre receptor'],['fecha','Fecha']];
+  h+='<div class="oc-box"><div class="oc-head"><b>Orden combinado</b> <span class="faint" style="font-size:12px">Tildá en el orden que querés ordenar. Ej: Zona → Provincia → Municipio.</span><button class="vf-clear" style="margin-left:auto" onclick="_pfOrdenClear()">Limpiar orden</button></div><div class="oc-chks">';
+  OC.forEach(o=>{const idx=_pf.orden.indexOf(o[0]);h+='<label class="oc-chk'+(idx>=0?' on':'')+'"><input type="checkbox" '+(idx>=0?'checked':'')+' onchange="_pfOrdenToggle(\''+o[0]+'\')"> '+o[1]+(idx>=0?' <b>('+(idx+1)+')</b>':'')+'</label>';});
+  h+='</div></div>';
+  // KPIs
+  h+='<div class="pi-kpis">'+_piKpi('Pedidos',ships.size)+_piKpi('Unidades',rows.length)+_piKpi('Provincias',prov.size)+_piKpi('Zonas',zon.size)+_piKpi('Sin track',sinTrack,1)+_piKpi('Sin teléfono',sinTel,1)+'</div>';
+  // totales
+  const totTbl=(titulo,arr)=>{let t='<div class="pv-card"><h3>'+titulo+'</h3><div class="vtbl-wrap" style="max-height:300px;overflow:auto"><table class="vtbl fz-tbl"><thead><tr><th>Concepto</th><th class="num">Pedidos</th><th class="num">Unidades</th></tr></thead><tbody>';if(!arr.length)t+='<tr><td colspan="3" class="faint" style="text-align:center;padding:14px">Sin datos.</td></tr>';arr.forEach(x=>{t+='<tr><td>'+esc(x.k)+'</td><td class="num">'+x.ped+'</td><td class="num">'+x.uni+'</td></tr>';});t+='</tbody></table></div></div>';return t;};
+  h+='<div class="pi-tot">'+totTbl('Totales por producto',totProd)+totTbl('Totales por provincia',totProv)+totTbl('Totales por zona logística',totZona)+'</div>';
+  // tabla detalle
+  const cols=['Fecha','Artículo','Cant.','Cliente USA','Nombre receptor','Identificación','Provincia','Municipio','Zona logística','Dirección completa','Teléfono','Track','Orden'];
+  h+='<div class="pv-card" style="margin-top:12px"><h3>Detalle de pedidos <span class="faint" style="font-weight:400;font-size:12px">· '+rows.length+' unidad(es)</span></h3>';
+  h+='<div class="vtbl-wrap"><table class="vtbl pi-tbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
+  if(!rows.length)h+='<tr><td colspan="13" class="faint" style="text-align:center;padding:22px">No hay pedidos con esos filtros.</td></tr>';
+  rows.forEach(r=>{
+    const zonaCell=ro?esc(r.zona||'—'):_vSelBtn('pi-zona',r.zona||'—',!r.zona,'_pedPickZona(\''+r.clientId+'\','+r.recIdx+')');
+    const trackCell=ro?esc(r.track||'—'):'<input class="pi-inp" value="'+esc(r.track)+'" placeholder="—" onchange="_pedSetTrack(\''+r.clientId+'\','+r.recIdx+',this.value)">';
+    h+='<tr>'
+      +'<td>'+esc(r.fecha?fmtFecha(r.fecha):'')+'</td>'
+      +'<td><b>'+esc(r.articulo)+'</b></td>'
+      +'<td class="num">'+r.cantidad+'</td>'
+      +'<td>'+esc(r.clienteUSA)+'</td>'
+      +'<td>'+esc(r.receptor||'—')+'</td>'
+      +'<td>'+esc(r.ci||'—')+'</td>'
+      +'<td>'+esc(r.provincia||'—')+'</td>'
+      +'<td>'+esc(r.municipio||'—')+'</td>'
+      +'<td>'+zonaCell+'</td>'
+      +'<td class="pi-dir">'+esc(r.direccion||'—')+'</td>'
+      +'<td>'+esc(r.telefono||'—')+'</td>'
+      +'<td>'+trackCell+'</td>'
+      +'<td>'+esc(r.orden||'—')+'</td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></div></div>';
+  h+='</div>';
+  main.innerHTML=h;
+}
+function _piCSV(){
+  const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}
+  const esc2=v=>{v=String(v==null?'':v);return /[",;\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const H=['Fecha','Articulo','Cantidad','Cliente USA','Nombre receptor','Identificacion','Provincia','Municipio','Zona logistica','Direccion completa','Telefono','Track','Orden'];
+  let csv=H.join(';')+'\n';
+  rows.forEach(r=>{csv+=[r.fecha?fmtFecha(r.fecha):'',r.articulo,r.cantidad,r.clienteUSA,r.receptor,r.ci,r.provincia,r.municipio,r.zona,r.direccion,r.telefono,r.track,r.orden].map(esc2).join(';')+'\n';});
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='pedidos-'+hoy()+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function _piPDF(){
+  const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}
+  const cols=[['Fecha',r=>r.fecha?fmtFecha(r.fecha):''],['Artículo',r=>r.articulo],['Cant.',r=>r.cantidad],['Cliente USA',r=>r.clienteUSA],['Receptor',r=>r.receptor],['ID',r=>r.ci],['Provincia',r=>r.provincia],['Municipio',r=>r.municipio],['Zona',r=>r.zona],['Dirección',r=>r.direccion],['Teléfono',r=>r.telefono],['Track',r=>r.track],['Orden',r=>r.orden]];
+  const th=cols.map(c=>'<th>'+esc(c[0])+'</th>').join('');
+  const body=rows.map(r=>'<tr>'+cols.map(c=>'<td>'+esc(String(c[1](r)==null?'':c[1](r)))+'</td>').join('')+'</tr>').join('');
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>Informe de Pedidos</title><style>@page{size:landscape;margin:8mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:10px}h1{font-size:16px;margin:0 0 2px}.sub{color:#555;font-size:10px;margin-bottom:8px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #c8c8c8;padding:3px 5px;font-size:8px;text-align:left;vertical-align:top}th{background:#1f2450;color:#fff}tr:nth-child(even) td{background:#f5f6fa}</style></head><body><h1>📦 Informe de Pedidos · Riders Miami</h1><div class="sub">'+rows.length+' unidad(es) · generado '+fmtFecha(hoy())+'</div><table><thead><tr>'+th+'</tr></thead><tbody>'+body+'</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>';
+  const w=window.open('','_blank');if(!w){alert('Permití las ventanas emergentes para generar el PDF.');return;}
+  w.document.open();w.document.write(html);w.document.close();
+}
 async function renderCuentas(){
   main.innerHTML='<div class="page"><h1>⚙️ Cuentas</h1><div class="sub">Cargando…</div></div>';
   let us=[];try{us=await (await api('/api/users')).json();}catch(e){return;}
@@ -3459,8 +3640,8 @@ function applyRoleUI(){
   // Menú por rol. Supervisión (dueño/supervisor) = menú acotado a herramientas de equipo, sin las
   // secciones de tarea diaria de vendedor (Hoy/Calientes/Atrasados/etc.) que aparecían como listas sueltas.
   const nav=document.querySelectorAll('#nav button');
-  if(owner){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','finanzas','equipo']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
-  else if(sup){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','finanzas','equipo','cuentas']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
+  if(owner){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','finanzas','pedidos','equipo']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
+  else if(sup){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','finanzas','pedidos','equipo','cuentas']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
   else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only')&&!b.classList.contains('vend-only'))b.style.display='';});}
   const av=document.getElementById('nav-avisos');if(av)av.style.display=''; // "Avisos por Telegram" siempre visible, para todos los roles
 }
