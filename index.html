@@ -569,7 +569,9 @@
   .inv-bulk{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:9px 14px;margin-bottom:14px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
   .invselall{float:right;font-size:11px}
   .owner-kpis-3{grid-template-columns:repeat(3,1fr)}
-  @media(max-width:820px){.owner-kpis,.owner-kpis-3,.owner-mini{grid-template-columns:repeat(2,1fr)}}
+  .owner-kpis-5{grid-template-columns:repeat(5,1fr)}
+  @media(max-width:1200px){.owner-kpis-5{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:820px){.owner-kpis,.owner-kpis-3,.owner-kpis-5,.owner-mini{grid-template-columns:repeat(2,1fr)}}
   /* ---- Inicio: secciones ---- */
   .okpi.okpi-hero{background:linear-gradient(180deg,rgba(52,199,89,.10),rgba(52,199,89,.03));border-color:rgba(52,199,89,.30)}
   .okpi.okpi-hero .ok-v{font-size:30px}
@@ -2984,22 +2986,24 @@ async function renderInicioAdmin(){
   const ventasMes=activas.filter(c=>(c.vendidoFecha||'').slice(0,7)===mp);
   let facturado=0,cobrado=0,comisionMes=0;
   ventasMes.forEach(c=>{const ep=_pagoEstado(c);facturado+=ep.total;cobrado+=ep.acred;comisionMes+=_comisionVenta(c);});
-  let porCobrar=0,nPorCobrar=0;activas.forEach(c=>{const s=Math.max(0,_pagoEstado(c).saldo);if(s>0.009){porCobrar+=s;nPorCobrar++;}});
   const nVentasMes=ventasMes.length,ticket=nVentasMes?facturado/nVentasMes:0;
   let porArmar=0;try{porArmar=_pedList().filter(r=>!r.orden).length;}catch(e){}
   const byV={};ventasMes.forEach(c=>{const id=c.vendedorId||'—';const g=byV[id]||(byV[id]={id,ventas:0,total:0});g.ventas++;g.total+=_pagoEstado(c).total;});
   const topV=Object.values(byV).sort((a,b)=>b.total-a.total).slice(0,5);
+  const finAgg={};ventasMes.forEach(c=>{((c.venta&&c.venta.pagos)||[]).forEach(p=>{if(p.metodo!=='financiado')return;const m=Number(p.monto)||0;if(!m)return;const fn=p.financiera||'(sin financiera)';const g=finAgg[fn]||(finAgg[fn]={n:fn,monto:0,mov:0});g.monto+=m;g.mov++;});});
+  const finArr=Object.values(finAgg).sort((a,b)=>b.monto-a.monto).slice(0,6);
+  const prodAgg={};ventasMes.forEach(c=>{((c.venta&&c.venta.productos)||[]).forEach(p=>{const nm=p.detalle||p.producto||'—';const g=prodAgg[nm]||(prodAgg[nm]={n:nm,cant:0,monto:0});g.cant++;g.monto+=Number(p.precio)||0;});});
+  const prodArr=Object.values(prodAgg).sort((a,b)=>b.monto-a.monto).slice(0,6);
   const days=_pvDays(hoy().slice(0,8)+'01',hoy());const dC={},dM={};days.forEach(d=>{dC[d]=0;dM[d]=0;});
   ventasMes.forEach(c=>{const f=(c.vendidoFecha||'').slice(0,10);if(dC[f]!==undefined){dC[f]++;dM[f]+=_montoTotal(c);}});
   let h='<div class="page page-wide">';
   h+='<div class="conv-head-row"><h1>🏠 Inicio</h1><div class="head-btns"><button class="btn cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button></div></div>';
   h+='<div class="sub">Resumen del equipo · '+nombreMes+'</div>';
-  h+='<div class="owner-kpis owner-kpis-3" style="margin-top:14px">'+
+  h+='<div class="owner-kpis owner-kpis-5" style="margin-top:14px">'+
     kpi('💵 Facturado',money(facturado),'este mes','#248a3d','okpi-hero')+
     kpi('✅ Cobrado / en mano',money(cobrado),'acreditado este mes','#248a3d')+
-    kpi('⏳ Por cobrar',money(porCobrar),nPorCobrar+' venta'+(nPorCobrar===1?'':'s')+' con saldo','#e67e22')+
-    kpi('📦 Pedidos por armar',porArmar,'unidades pendientes','#3a7bd5')+
     kpi('🧾 Ventas',nVentasMes,'este mes · ticket '+money(ticket),'')+
+    kpi('📦 Pedidos por armar',porArmar,'unidades pendientes','#3a7bd5')+
     kpi('💰 Comisiones',money(comisionMes),'a pagar este mes','#b8890f')+
   '</div>';
   h+='<div class="in-r1">'
@@ -3008,17 +3012,17 @@ async function renderInicioAdmin(){
     +(topV.length?topV.map((r,i)=>'<tr><td class="faint">'+(i+1)+'</td><td><b>'+esc(nombreVend(r.id))+'</b></td><td class="num">'+r.ventas+'</td><td class="num">'+money(r.total)+'</td></tr>').join(''):'<tr><td colspan="4" class="faint" style="text-align:center;padding:16px">Sin ventas este mes.</td></tr>')
     +'</tbody></table></div></div>'
   +'</div>';
-  h+='<h3 class="in-sect-h">🔔 Requiere atención</h3>';
-  h+='<div class="in-alerts">'
-    +_inAlert('🔥',T.calientes,'Clientes calientes','','#ff3b30',"_pedGo('calientes')")
-    +_inAlert('⏰',T.atrasados,'Seguimientos atrasados','','#e67e22',"_pedGo('atrasado')")
-    +_inAlert('💸',nPorCobrar,'Ventas por cobrar',money(porCobrar),'#c98a1e',"_pedGo('ventas')")
-    +_inAlert('📦',porArmar,'Pedidos por armar','','#3a7bd5',"_pedGo('pedOrganizar')")
+  h+='<div class="adb-r3">'
+    +'<div class="pv-card"><h3 class="in-sect-h">Facturado por financiera · '+nombreMes+'</h3><div class="vtbl-wrap"><table class="vtbl fz-tbl"><thead><tr><th>#</th><th>Financiera</th><th>Mov.</th><th>Monto</th></tr></thead><tbody>'
+    +(finArr.length?finArr.map((r,i)=>'<tr><td class="faint">'+(i+1)+'</td><td><b>'+esc(r.n)+'</b></td><td class="num">'+r.mov+'</td><td class="num">'+money(r.monto)+'</td></tr>').join(''):'<tr><td colspan="4" class="faint" style="text-align:center;padding:16px">Sin ventas financiadas este mes.</td></tr>')
+    +'</tbody></table></div></div>'
+    +'<div class="pv-card"><h3 class="in-sect-h">Productos más vendidos · '+nombreMes+'</h3><div class="vtbl-wrap"><table class="vtbl fz-tbl"><thead><tr><th>#</th><th>Producto</th><th>Cant.</th><th>Monto</th></tr></thead><tbody>'
+    +(prodArr.length?prodArr.map((r,i)=>'<tr><td class="faint">'+(i+1)+'</td><td><b>'+esc(r.n)+'</b></td><td class="num">'+r.cant+'</td><td class="num">'+money(r.monto)+'</td></tr>').join(''):'<tr><td colspan="4" class="faint" style="text-align:center;padding:16px">Sin ventas este mes.</td></tr>')
+    +'</tbody></table></div></div>'
   +'</div>';
   h+='</div>';
   main.innerHTML=h;
 }
-function _inAlert(ic,val,label,sub,col,onclick){return '<button class="in-alert" onclick="'+onclick+'"><span class="in-al-ic" style="background:'+col+'22;color:'+col+'">'+ic+'</span><div><div class="in-al-v">'+esc(String(val))+'</div><div class="in-al-l">'+esc(label)+'</div>'+(sub?'<div class="in-al-sub" style="color:'+col+'">'+esc(sub)+'</div>':'')+'</div></button>';}
 function _inDayBars(days,dC,dM){
   if(!days.length)return '<div class="faint" style="padding:30px;text-align:center">Sin datos.</div>';
   const W=720,H=240,pL=34,pR=12,pT=12,pB=26,pw=W-pL-pR,ph=H-pT-pB,n=days.length;
