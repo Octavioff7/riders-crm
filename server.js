@@ -37,6 +37,7 @@ const INVPATH=path.join(DATA_DIR,'inventario.json');
 const FINPATH=path.join(DATA_DIR,'financieras.json');
 const ORDPATH=path.join(DATA_DIR,'ordenes.json');
 const AUDPATH=path.join(DATA_DIR,'auditoria.json');
+const SEQPATH=path.join(DATA_DIR,'seq.json');
 const DEFAULT_INVENTARIO=[
   {n:1,nombre:'MATIAS',modelo:'MATIAS 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4600,comision:500,activo:true},
   {n:2,nombre:'TITAN',modelo:'TITAN 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4500,comision:500,activo:true},
@@ -101,6 +102,15 @@ function loadOrdenes(){try{return JSON.parse(fs.readFileSync(ORDPATH,'utf8'))}ca
 function saveOrdenes(a){fs.writeFileSync(ORDPATH,JSON.stringify(a,null,1))}
 function loadAud(){try{return JSON.parse(fs.readFileSync(AUDPATH,'utf8'))}catch(e){return []}}
 function saveAud(a){try{fs.writeFileSync(AUDPATH,JSON.stringify(a))}catch(e){}}
+// Contador atómico (Node es un solo hilo → estas lecturas/escrituras no se intercalan).
+// El piso se deriva de los datos reales para no colisionar nunca con números ya existentes.
+function nextSeq(name){
+  let s={};try{s=JSON.parse(fs.readFileSync(SEQPATH,'utf8'))}catch(e){s={};}
+  let floor=Number(s[name]||0);
+  if(name==='venta'){try{loadClientes().forEach(c=>{if(Number(c.ventaNum)>floor)floor=Number(c.ventaNum);});}catch(e){}}
+  else if(name==='orden'){try{(loadOrdenes()||[]).forEach(o=>{if(Number(o.num)>floor)floor=Number(o.num);});}catch(e){}}
+  const n=floor+1;s[name]=n;try{fs.writeFileSync(SEQPATH,JSON.stringify(s));}catch(e){}return n;
+}
 // Enriquecer inventario existente con marca/modelo/motor/cc/comisión (sin tocar precio, color, fotos ni info)
 function migrateInventario(){
   try{
@@ -312,7 +322,9 @@ function mergeClientes(user,incoming){
       byId[ic.id]=Object.assign({},ic,{vendedorId:vId});
     }
   }
-  for(const c of current){ if(canSeeCliente(user,c,users)&&!inIds.has(c.id)) delete byId[c.id]; }
+  // NO borramos por ausencia: un POST con lista vieja (pestaña desactualizada) borraría
+  // clientes nuevos creados por otros usuarios / webhook / bot. El borrado es explícito
+  // (soft-delete c.borrado/c.descartado, o el endpoint /api/cliente-delete).
   saveClientes(Object.values(byId));
 }
 
@@ -623,13 +635,18 @@ http.createServer((req,res)=>{
   if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
   if(u==='/api/ordenes'&&req.method==='GET')return json(200,loadOrdenes()||[]);
-  if(u==='/api/ordenes'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveOrdenes(b);json(200,{ok:true});});}
+  if(u==='/api/ordenes'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});const cur=loadOrdenes()||[];const byId={};cur.forEach(o=>{if(o&&o.id)byId[o.id]=o;});b.forEach(o=>{if(o&&o.id)byId[o.id]=o;});saveOrdenes(Object.values(byId));json(200,{ok:true});});}
+  if(u==='/api/seq'&&req.method==='POST'){if(!me)return json(401,{error:'auth'});return readBody(b=>{const name=String(b&&b.name||'').replace(/[^a-z]/gi,'')||'x';json(200,{n:nextSeq(name)});});}
   if(u==='/api/auditoria'&&req.method==='GET'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return json(200,loadAud().slice(-8000));}
   if(u==='/api/auditoria'&&req.method==='POST'){if(!me)return json(401,{error:'auth'});return readBody(b=>{const a=loadAud();
     const e={id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),ts:new Date().toISOString(),userId:me.id,userName:me.nombre||'',email:me.email||'',rol:me.rol||'',sede:me.sede||'',modulo:String(b.modulo||''),entidad:String(b.entidad||''),accion:String(b.accion||''),referencia:String(b.referencia||''),metodo:String(b.metodo||''),resultado:String(b.resultado||'OK'),cambios:Number(b.cambios)||0,detalle:(b.detalle!=null?b.detalle:'')};
     a.push(e);if(a.length>20000)a.splice(0,a.length-20000);saveAud(a);json(200,{ok:true});});}
 
   // Actualizar un cliente/venta completo: admin/supervisor/dueño (editar ventas, acreditar pagos, fondeo)
+  if(u==='/api/cliente-delete'&&req.method==='POST'){
+    if(!me||me.rol!=='admin')return json(403,{error:'Solo admin'});
+    return readBody(b=>{if(!b||!b.id)return json(400,{error:'id'});const arr=loadClientes();const i=arr.findIndex(x=>x.id===b.id);if(i>=0){arr.splice(i,1);saveClientes(arr);}json(200,{ok:true});});
+  }
   if(u==='/api/cliente-save'&&req.method==='POST'){
     if(!esAdminRol)return json(403,{error:'Sin permiso'});
     return readBody(b=>{

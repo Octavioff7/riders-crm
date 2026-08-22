@@ -805,6 +805,8 @@ async function api(path,opts){
 function save(){if(RO())return;if(SERVER){api('/api/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clientes)}).catch(()=>{});}else{localStorage.setItem(KEY,JSON.stringify(clientes));}}
 /* Registro de auditoría: registra un movimiento (no bloquea el flujo si falla) */
 function _audit(o){try{if(!SERVER||!me||!o)return;api('/api/auditoria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).catch(()=>{});}catch(e){}}
+/* Número correlativo atómico del servidor (evita duplicados entre usuarios/concurrencia). */
+async function _nextNum(name,fallbackMax){if(!SERVER)return (Number(fallbackMax)||0)+1;try{const r=await api('/api/seq',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});const j=await r.json();const n=Number(j&&j.n);return n>0?n:(Number(fallbackMax)||0)+1;}catch(e){return (Number(fallbackMax)||0)+1;}}
 function saveA(){localStorage.setItem(AKEY,JSON.stringify(asistente));}
 
 let clientes=[];
@@ -1774,7 +1776,7 @@ async function guardarVenta(){
   }
   const venta={
     compradores,receptores,receptorPendiente,
-    productos:prods.map(p=>{const rr=(_venta.receptorModo==='ahora'&&_venta.receptores[p.receptorIdx||0])?_entNom(_venta.receptores[p.receptorIdx||0]):'';return {producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),listaPrecio:p.listaPrecio||null,precio:parseFloat(p.precio)||0,receptor:rr};}),
+    productos:prods.map(p=>{const ri=Number(p.receptorIdx)||0;const rr=(_venta.receptorModo==='ahora'&&_venta.receptores[ri])?_entNom(_venta.receptores[ri]):'';return {producto:p.producto,color:(p.color||'').trim(),detalle:(p.detalle||'').trim(),listaPrecio:p.listaPrecio||null,precio:parseFloat(p.precio)||0,receptor:rr,receptorIdx:ri,orden:(p.orden||'')};}),
     pagos:pagosOut,
     total};
   const _calc=_ventaCalc();
@@ -1799,7 +1801,7 @@ async function guardarVenta(){
     cerrarVenta();view='ventas';render();
     return;
   }
-  const ventaNum=clientes.reduce((m,x)=>Math.max(m,x.ventaNum||0),0)+1;
+  const ventaNum=await _nextNum('venta',clientes.reduce((m,x)=>Math.max(m,x.ventaNum||0),0));
   const c={id:uid(),nombre,whatsapp:tel,email:cmp.email||'',ventaNum,comision:Number(M.comision)||0,colaborador:M.colaborador||'',
     producto:venta.productos[0].producto,operacion:'',ubicacion:ubic,
     etapa:'vendido',valor:total,cantidad,venta,ventaDetalle,
@@ -1901,7 +1903,7 @@ function restaurarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;c
 function eliminarDefinitivo(id){const c=clientes.find(x=>x.id===id);if(!c)return;
   if(me&&me.rol==='admin'){
     appModal({titulo:'Eliminar para siempre',texto:'¿Eliminar a "'+c.nombre+'" PARA SIEMPRE?\nEsto no se puede deshacer.',okLabel:'Eliminar',okDanger:true,
-      onOk:()=>{const i=clientes.findIndex(x=>x.id===id);if(i>=0)clientes.splice(i,1);save();render();}});
+      onOk:()=>{const i=clientes.findIndex(x=>x.id===id);if(i>=0)clientes.splice(i,1);if(SERVER)api('/api/cliente-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).catch(()=>{});else save();render();}});
   }else{
     appModal({titulo:'Descartar cliente',texto:'¿Descartar a "'+c.nombre+'" definitivamente?\nSale de tu papelera.',okLabel:'Descartar',okDanger:true,
       onOk:()=>{c.descartado=true;c.descartadoFecha=hoy();c.descartadoPor=(me&&me.nombre)||'';save();render();}});
@@ -2181,7 +2183,7 @@ function editarVenta(id){
     compradores:(comps.length?comps:[{}]).map(cm=>({nombre:cm.nombre||'',apellido:cm.apellido||'',telefono:cm.telefono||'+1 ',email:cm.email||'',direccion:cm.direccion||'',apt:cm.apt||'',ciudad:cm.ciudad||'',estado:cm.estado||'',codigoPostal:cm.codigoPostal||'',imgs:[],docsKeep:(cm.docs||[]).slice()})),
     receptorModo:(recs.length?'ahora':(v.receptorPendiente?'despues':'ahora')),
     receptores:(recs.length?recs:[{}]).map(r=>({nombre:r.nombre||'',apellido:r.apellido||'',carnet:r.carnet||'',telefono:r.telefono||'+53 ',direccion:r.direccion||'',municipio:r.municipio||'',provincia:r.provincia||'',pais:r.pais||'Cuba',imgs:[],docsKeep:(r.docs||[]).slice()})),
-    productos:(v.productos&&v.productos.length?v.productos:[{producto:'Moto'}]).map(p=>({producto:p.producto||'Moto',color:p.color||'',detalle:p.detalle||'',listaPrecio:p.listaPrecio||null,precio:String(p.precio||''),receptorIdx:_recIdxByName(v,p.receptor)})),
+    productos:(v.productos&&v.productos.length?v.productos:[{producto:'Moto'}]).map(p=>({producto:p.producto||'Moto',color:p.color||'',detalle:p.detalle||'',listaPrecio:p.listaPrecio||null,precio:String(p.precio||''),receptorIdx:(p.receptorIdx!=null?Number(p.receptorIdx)||0:_recIdxByName(v,p.receptor)),orden:(p.orden||'')})),
     pagos:(v.pagos&&v.pagos.length?v.pagos:[{metodo:'cash'}]).map(p=>({metodo:p.metodo||'cash',monto:String(p.monto||''),fecha:p.fecha||hoy(),financiera:p.financiera||'',comprobante:null,comprobanteKeep:p.comprobante||null,compradorIdx:_compIdxByName(v,p.comprador),acreditado:!!p.acreditado,acredFecha:p.acredFecha||''})),
     meta:{fecha:c.vendidoFecha||hoy(),vendedorId:c.vendedorId||'',colaborador:_colabNom(c),comision:String(c.comision||''),obs:v.obs||''}};
   _ventaModalOpen('Editar venta N° '+_padNum(c.ventaNum));
@@ -3445,8 +3447,8 @@ function _ogGenerar(){
   if(!_esAdminRol()){alert('Sin permiso para generar órdenes.');return;}
   if(!_og.orden.size){alert('Elegí al menos un pedido para la orden.');return;}
   const rows=_pedList().filter(r=>_og.orden.has(r.key));
-  const num=_ordMaxNum()+1;const numStr='OP-'+_padNum(num);
-  appModal({titulo:'Generar orden de pedido',texto:'¿Generar la orden '+numStr+' con '+rows.length+' pedido(s)?\n\nLos pedidos quedan asignados a esta orden y salen del listado de disponibles.',okLabel:'Generar orden',onOk:()=>{
+  appModal({titulo:'Generar orden de pedido',texto:'¿Generar una orden con '+rows.length+' pedido(s)?\n\nLos pedidos quedan asignados a esta orden y salen del listado de disponibles.',okLabel:'Generar orden',onOk:async()=>{
+    const num=await _nextNum('orden',_ordMaxNum());const numStr='OP-'+_padNum(num);
     const byClient={};rows.forEach(r=>{(byClient[r.clientId]||(byClient[r.clientId]=[])).push(r.prodIdx);});
     Object.keys(byClient).forEach(cid=>{const c=clientes.find(x=>x.id===cid);if(!c||!c.venta||!c.venta.productos)return;byClient[cid].forEach(pi=>{if(c.venta.productos[pi])c.venta.productos[pi].orden=numStr;});_savCliente(c);});
     const orden={id:uid(),num,numStr,fecha:hoy(),creada:hoy()+' '+ahora(),estado:'GENERADA',creadoPor:(me&&me.nombre)||'',detalle:'Orden armada desde Organizar Pedido',
