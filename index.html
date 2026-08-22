@@ -3203,6 +3203,8 @@ function _pedList(){
   return out;
 }
 let _pf={desde:'',hasta:'',q:'',provincia:'',municipio:'',zona:'',producto:'',orden:[]};
+const _ZONAS_LOG=['PUERTO DEL MARIEL','ZONA CENTRAL','SANTIAGO DE CUBA'];
+function _pedZonasAll(){const used=_pfDistinct('zona');return [..._ZONAS_LOG,...used.filter(z=>_ZONAS_LOG.indexOf(z)<0)];}
 function _pfDistinct(key){const s=new Set();_pedList().forEach(r=>{const v=String(r[key]||'').trim();if(v)s.add(v);});return [...s].sort((a,b)=>a.localeCompare(b));}
 function _pedFiltered(){
   const q=_pf.q.trim().toLowerCase();
@@ -3224,14 +3226,14 @@ function _pedSort(rows){
   return rows.slice().sort((a,b)=>{for(const k of _pf.orden){const kk=_ocKey(k);let c=(kk==='fecha')?String(a.fecha).localeCompare(String(b.fecha)):String(a[kk]||'').localeCompare(String(b[kk]||''),'es');if(c)return c;}return 0;});
 }
 function _pfPickFecha(w){appDate({titulo:w==='desde'?'Desde':'Hasta',actual:_pf[w],onPick:v=>{_pf[w]=v;_piBuild();}});}
-function _pfPick(key,srcKey,todos){appPick({titulo:todos,actual:_pf[key]||'',search:true,opciones:[{value:'',label:todos}].concat(_pfDistinct(srcKey).map(x=>({value:x,label:x}))),onPick:v=>{_pf[key]=v;_piBuild();}});}
+function _pfPick(key,srcKey,todos){const vals=key==='zona'?_pedZonasAll():_pfDistinct(srcKey);appPick({titulo:todos,actual:_pf[key]||'',search:true,opciones:[{value:'',label:todos}].concat(vals.map(x=>({value:x,label:x}))),onPick:v=>{_pf[key]=v;_piBuild();}});}
 function _pfOrdenToggle(k){const i=_pf.orden.indexOf(k);if(i>=0)_pf.orden.splice(i,1);else _pf.orden.push(k);_piBuild();}
 function _pfOrdenClear(){_pf.orden=[];_piBuild();}
 function _pfClear(){_pf={desde:'',hasta:'',q:'',provincia:'',municipio:'',zona:'',producto:'',orden:_pf.orden};_piBuild();}
 function _pedSetTrack(clientId,recIdx,val){const c=clientes.find(x=>x.id===clientId);if(!c||!c.venta||!_esAdminRol())return;const recs=_entList(c.venta,'receptor');if(!recs[recIdx])return;recs[recIdx].track=(val||'').trim();_savCliente(c);_piBuild();}
 function _pedPickZona(clientId,recIdx){
-  const zonas=_pfDistinct('zona');
-  const opts=[{value:'',label:'— Sin zona —'},{value:'__nueva__',label:'✎ Escribir nueva zona'}].concat(zonas.map(z=>({value:z,label:z})));
+  const zonas=_pedZonasAll();
+  const opts=[{value:'',label:'— Sin dato —'}].concat(zonas.map(z=>({value:z,label:z}))).concat([{value:'__nueva__',label:'✎ Escribir otra zona'}]);
   appPick({titulo:'Zona logística',actual:'',opciones:opts,onPick:v=>{
     if(v==='__nueva__'){appModal({titulo:'Nueva zona logística',texto:'Escribí el nombre de la zona.',conInput:true,okLabel:'Guardar',onOk:t=>_pedSetZona(clientId,recIdx,t)});return;}
     _pedSetZona(clientId,recIdx,v);
