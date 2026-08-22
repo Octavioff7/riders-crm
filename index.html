@@ -383,6 +383,26 @@
   .pa-tree tr.pa-l2 td{color:var(--txt)}
   .pa-tree tr.pa-total td{font-weight:800;background:#262a63;color:#fff;border-top:2px solid var(--sep-strong)}
   .pa-tree .pa-lbl{vertical-align:middle}
+  .og-cols{display:grid;grid-template-columns:1fr 70px 1fr;gap:12px;align-items:start;margin-top:12px}
+  @media(max-width:900px){.og-cols{grid-template-columns:1fr}}
+  .og-tools{display:flex;gap:10px;align-items:flex-end;margin:6px 0 8px}
+  .og-tools .vf-search{flex:1}
+  .og-selrow{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);padding:6px 0;flex-wrap:wrap;gap:6px}
+  .og-selrow a{color:var(--accent);cursor:pointer;font-weight:600}
+  .og-tbl th,.og-tbl td{font-size:11.5px;padding:6px 9px}
+  .og-tbl tr.og-grp td{background:var(--hover);font-weight:700;font-size:11px;letter-spacing:.03em;color:var(--muted)}
+  .og-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:120px}
+  .og-arrow{width:46px;height:46px;border-radius:12px;border:1px solid var(--sep-strong);background:var(--card);color:var(--accent);font-size:22px;cursor:pointer;line-height:1}
+  .og-arrow:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .og-rhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .og-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+  .og-kpis .pi-kpi{padding:10px 12px;text-align:center}
+  .og-kpis .pi-kv{font-size:22px}
+  .og-info{margin-top:12px;background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.2);color:var(--accent);border-radius:10px;padding:10px 12px;font-size:12.5px}
+  .og-pag{display:flex;gap:5px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+  .og-pg{min-width:30px;height:30px;border:1px solid var(--sep-strong);background:var(--card);color:var(--txt);border-radius:7px;cursor:pointer;font-family:inherit;font-size:12px}
+  .og-pg.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .og-foot{margin-top:14px;font-size:12px;padding:10px 0;border-top:1px solid var(--sep)}
   .vf-search{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--sep-strong);border-radius:8px;font-size:13.5px;background:var(--card);color:var(--txt)}
   .vf-selbtn{width:auto;min-width:190px;flex:none;background:var(--card);padding:10px 14px}
   .vf-clear{flex:none;border:1px solid var(--sep-strong);background:var(--card);color:var(--muted);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -884,7 +904,8 @@ function render(){
   else if(view==='pedidos')renderPedidosMenu();
   else if(view==='pedInforme')renderInformePedidos();
   else if(view==='pedAgrupado')renderPedidosAgrupado();
-  else if(view==='pedOrganizar'||view==='pedOrdenes')renderPedidosPlaceholder(view);
+  else if(view==='pedOrganizar')renderOrganizarPedidos();
+  else if(view==='pedOrdenes')renderPedidosPlaceholder(view);
   else renderSeg();
   if(view!==_lastView){const el=main.firstElementChild;if(el)el.classList.add('anim-in');_lastView=view;}
 }
@@ -1363,6 +1384,7 @@ async function cargarCatalogos(){
   if(!SERVER)return;
   try{const inv=await (await api('/api/inventario')).json();if(Array.isArray(inv)&&inv.length)INVENTARIO=inv;}catch(e){}
   try{const fin=await (await api('/api/financieras')).json();if(Array.isArray(fin)&&fin.length){_FIN=fin;_rebuildFin();}}catch(e){}
+  try{const ord=await (await api('/api/ordenes')).json();if(Array.isArray(ord))_ORDENES=ord;}catch(e){}
 }
 function abrirCargarVenta(){
   if(RO()&&!_esAdminRol())return; // admin/supervisor/dueño y vendedores pueden cargar ventas
@@ -3199,22 +3221,28 @@ function renderPedidosPlaceholder(v){
 }
 /* ---- Datos de pedidos (aplanar ventas → productos → receptores) ---- */
 function _pedDir(rec){return [rec.direccion,rec.municipio,rec.provincia,rec.pais||'Cuba'].map(x=>String(x||'').trim()).filter(Boolean).join(' - ');}
+function _tipoDe(cat){return (cat==='moto'||cat==='triciclo')?'VEHICULO':(cat==='kit'?'ENERGIA':'OTRO');}
 function _pedList(){
-  const out=[];
+  const out=[];const invMap={};(INVENTARIO||[]).forEach(x=>{invMap[x.nombre]=x;});
   clientes.filter(c=>!c.borrado&&!c.descartado&&!c.anulada&&(c.etapa==='vendido'||c.etapa==='posventa')).forEach(c=>{
     const v=c.venta;if(!v)return;
     const recs=_entList(v,'receptor');
     const clienteUSA=(_entNom(_entList(v,'comprador')[0])||c.nombre||'');
-    (v.productos||[]).forEach(p=>{
+    (v.productos||[]).forEach((p,pi)=>{
       let ri=Number(p.receptorIdx)||0;if(ri>=recs.length)ri=0;const rec=recs[ri]||{};
-      out.push({clientId:c.id,recIdx:ri,ship:c.id+'|'+ri,
+      const inv=invMap[p.detalle]||invMap[p.producto]||null;
+      out.push({clientId:c.id,recIdx:ri,prodIdx:pi,ship:c.id+'|'+ri,key:c.id+'#'+pi,
         fecha:c.vendidoFecha||'',articulo:(p.detalle||p.producto||''),cantidad:1,
+        codigo:inv?inv.n:'',cat:inv?inv.cat:'',tipo:_tipoDe(inv?inv.cat:''),
         clienteUSA,receptor:_entNom(rec)||'',ci:rec.carnet||'',provincia:(rec.provincia||''),municipio:(rec.municipio||''),
-        zona:(rec.zona||''),direccion:_pedDir(rec),telefono:(rec.telefono||''),track:(rec.track||''),orden:(rec.orden||'')});
+        zona:(rec.zona||''),direccion:_pedDir(rec),telefono:(rec.telefono||''),track:(rec.track||''),orden:(p.orden||'')});
     });
   });
   return out;
 }
+let _ORDENES=[];
+function _ordenesPersist(){if(SERVER)api('/api/ordenes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_ORDENES)}).catch(()=>{});}
+function _ordMaxNum(){return _ORDENES.reduce((m,o)=>Math.max(m,o.num||0),0);}
 let _pf={desde:'',hasta:'',q:'',provincia:'',municipio:'',zona:'',producto:'',orden:[]};
 const _ZONAS_LOG=['PUERTO DEL MARIEL','ZONA CENTRAL','SANTIAGO DE CUBA'];
 function _pedZonasAll(){const used=_pfDistinct('zona');return [..._ZONAS_LOG,...used.filter(z=>_ZONAS_LOG.indexOf(z)<0)];}
@@ -3381,6 +3409,79 @@ function _paPDFReceptor(){
   });
   const html='<!doctype html><html><head><meta charset="utf-8"><title>Pedidos con receptor</title><style>@page{size:landscape;margin:8mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:8px}h1{font-size:15px;margin:0 0 2px}.sub{color:#555;font-size:10px;margin-bottom:8px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:3px 5px;font-size:8.5px;text-align:left;vertical-align:top}th{background:#1f2450;color:#fff}tr.grp td{background:#e8912a;color:#fff;font-weight:bold;font-size:10px}</style></head><body><h1>📦 Pedidos con receptor · Riders Miami</h1><div class="sub">Agrupado por '+esc(_pa.group.map(_paLabel).join(' → '))+' · '+rows.length+' unidad(es) · '+fmtFecha(hoy())+'</div><table><thead><tr><th>Provincia</th><th>Municipio</th><th>Artículo</th><th>Receptor</th><th>Identificación</th><th>Dirección completa</th><th>Teléfono</th><th>Track</th></tr></thead><tbody>'+body+'</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>';
   const w=window.open('','_blank');if(!w){alert('Permití las ventanas emergentes.');return;}w.document.open();w.document.write(html);w.document.close();
+}
+/* ---- ORGANIZAR PEDIDOS (armar orden) ---- */
+let _og={checked:new Set(),orden:new Set(),q:'',sort:'articulo',page:1};
+function renderOrganizarPedidos(){if(_lastView!=='pedOrganizar')_og={checked:new Set(),orden:new Set(),q:'',sort:'articulo',page:1};_ogBuild();}
+function _ogAvail(){return _pedList().filter(r=>!r.orden);}
+function _ogFiltered(){const q=_og.q.trim().toLowerCase();return _ogAvail().filter(r=>!_og.orden.has(r.key)).filter(r=>{if(!q)return true;return (r.articulo+' '+r.receptor+' '+r.track+' '+r.provincia+' '+r.codigo).toLowerCase().indexOf(q)>=0;});}
+function _ogSortLbl(){return {articulo:'Producto',provincia:'Provincia',tipo:'Tipo',track:'Track',fecha:'Fecha'}[_og.sort]||'Producto';}
+function _ogPickSort(){appPick({titulo:'Ordenar por',actual:_og.sort,opciones:[['articulo','Producto'],['provincia','Provincia'],['tipo','Tipo'],['track','Track'],['fecha','Fecha']].map(o=>({value:o[0],label:o[1]})),onPick:v=>{_og.sort=v;_og.page=1;_ogBuild();}});}
+function _ogCheck(key,on){if(on)_og.checked.add(key);else _og.checked.delete(key);const el=document.getElementById('og-chkn');if(el)el.textContent=_og.checked.size;}
+function _ogSelAll(){_ogFiltered().forEach(r=>_og.checked.add(r.key));_ogBuild();}
+function _ogSelNone(){_og.checked=new Set();_ogBuild();}
+function _ogMoveRight(){if(!_og.checked.size)return;_og.checked.forEach(k=>_og.orden.add(k));_og.checked=new Set();_ogBuild();}
+function _ogRemove(key){_og.orden.delete(key);_ogBuild();}
+function _ogClear(){_og.orden=new Set();_ogBuild();}
+function _ogPage(p){_og.page=p;_ogBuild();}
+function _ogGenerar(){
+  if(!_esAdminRol()){alert('Sin permiso para generar órdenes.');return;}
+  if(!_og.orden.size){alert('Elegí al menos un pedido para la orden.');return;}
+  const rows=_pedList().filter(r=>_og.orden.has(r.key));
+  const num=_ordMaxNum()+1;const numStr='OP-'+_padNum(num);
+  appModal({titulo:'Generar orden de pedido',texto:'¿Generar la orden '+numStr+' con '+rows.length+' pedido(s)?\n\nLos pedidos quedan asignados a esta orden y salen del listado de disponibles.',okLabel:'Generar orden',onOk:()=>{
+    const byClient={};rows.forEach(r=>{(byClient[r.clientId]||(byClient[r.clientId]=[])).push(r.prodIdx);});
+    Object.keys(byClient).forEach(cid=>{const c=clientes.find(x=>x.id===cid);if(!c||!c.venta||!c.venta.productos)return;byClient[cid].forEach(pi=>{if(c.venta.productos[pi])c.venta.productos[pi].orden=numStr;});_savCliente(c);});
+    const orden={id:uid(),num,numStr,fecha:hoy(),estado:'GENERADA',creadoPor:(me&&me.nombre)||'',
+      pedidos:rows.map(r=>({clientId:r.clientId,prodIdx:r.prodIdx,articulo:r.articulo,codigo:r.codigo,tipo:r.tipo,provincia:r.provincia,municipio:r.municipio,zona:r.zona,receptor:r.receptor,ci:r.ci,direccion:r.direccion,telefono:r.telefono,track:r.track,fecha:r.fecha}))};
+    _ORDENES.push(orden);_ordenesPersist();
+    _og={checked:new Set(),orden:new Set(),q:'',sort:_og.sort,page:1};
+    appModal({titulo:'✅ Orden generada',texto:'Se generó la orden '+numStr+' con '+rows.length+' pedido(s). La vas a poder seguir en "Órdenes Pedidos".',okLabel:'Listo',onOk:()=>_ogBuild()});
+  }});
+}
+function _ogBuild(){
+  const ro=!_esAdminRol();
+  const filtered=_ogFiltered();
+  filtered.sort((a,b)=>{const t=a.tipo.localeCompare(b.tipo);if(t)return t;return String(a[_og.sort]||'').localeCompare(String(b[_og.sort]||''),'es');});
+  const pageSize=25;const pages=Math.max(1,Math.ceil(filtered.length/pageSize));if(_og.page>pages)_og.page=pages;if(_og.page<1)_og.page=1;
+  const pageRows=filtered.slice((_og.page-1)*pageSize,_og.page*pageSize);
+  const ordRows=_pedList().filter(r=>_og.orden.has(r.key));
+  const availAll=_ogAvail();
+  const dispPed=new Set(availAll.map(r=>r.ship)).size;
+  const sinTrack=new Set(availAll.filter(r=>!String(r.track||'').trim()).map(r=>r.ship)).size;
+  const sinTel=new Set(availAll.filter(r=>!String(r.telefono||'').trim()).map(r=>r.ship)).size;
+  const oPed=new Set(ordRows.map(r=>r.ship)).size,oTipos=new Set(ordRows.map(r=>r.tipo)).size,oProv=new Set(ordRows.map(r=>r.provincia).filter(Boolean)).size;
+  let h='<div class="page page-wide">';
+  h+='<div class="conv-head-row" style="align-items:flex-start"><div><h1 style="margin:0">Organizar pedido</h1><div class="sub" style="margin:3px 0 0">Seleccioná pedidos del listado y pasalos a la orden.</div></div><div class="xbtn-row"><button class="btn ghost" onclick="history.back()">Cancelar</button><button class="btn'+(_og.orden.size?'':' ghost')+'" onclick="_ogGenerar()"'+(_og.orden.size?'':' disabled')+'>✅ Generar orden de pedido</button></div></div>';
+  h+='<div class="og-cols">';
+  // LEFT
+  h+='<div class="pv-card og-left"><h3>Listado de pedidos disponibles</h3>';
+  h+='<div class="og-tools"><input class="vf-search" placeholder="Buscar producto, receptor, track…" value="'+esc(_og.q)+'" oninput="_og.q=this.value" onkeydown="if(event.key===\'Enter\')_ogBuild()"><div class="vf-field"><label>Ordenar por</label>'+_vSelBtn('vf-fld',_ogSortLbl(),false,'_ogPickSort()')+'</div></div>';
+  h+='<div class="og-selrow"><span>Seleccionar: <a onclick="_ogSelAll()">Todos</a> · <a onclick="_ogSelNone()">Ninguno</a></span><span class="faint">'+dispPed+' pedidos · '+availAll.length+' unidades <b id="og-chkn">'+_og.checked.size+'</b> tildado(s)</span></div>';
+  h+='<div class="vtbl-wrap" style="max-height:440px;overflow:auto"><table class="vtbl og-tbl"><thead><tr><th style="width:32px"></th><th>Producto</th><th>Código</th><th>Provincia</th><th>Tipo</th><th>Track</th></tr></thead><tbody>';
+  if(!pageRows.length)h+='<tr><td colspan="6" class="faint" style="text-align:center;padding:22px">No hay pedidos disponibles.</td></tr>';
+  let lastTipo=null;
+  pageRows.forEach(r=>{if(r.tipo!==lastTipo){lastTipo=r.tipo;h+='<tr class="og-grp"><td colspan="6">'+esc(r.tipo)+'</td></tr>';}
+    h+='<tr><td><input type="checkbox" '+(_og.checked.has(r.key)?'checked':'')+' onchange="_ogCheck(\''+r.key+'\',this.checked)"></td><td><b>'+esc(r.articulo)+'</b></td><td class="faint">'+esc(String(r.codigo||'—'))+'</td><td>'+esc(r.provincia||'—')+'</td><td>'+esc(r.tipo)+'</td><td class="faint">'+esc(r.track||'—')+'</td></tr>';});
+  h+='</tbody></table></div>';
+  if(pages>1){h+='<div class="og-pag">';for(let p=1;p<=pages;p++){if(p===1||p===pages||Math.abs(p-_og.page)<=1){h+='<button class="og-pg'+(p===_og.page?' on':'')+'" onclick="_ogPage('+p+')">'+p+'</button>';}else if(Math.abs(p-_og.page)===2){h+='<span class="faint">…</span>';}}h+='</div>';}
+  h+='</div>';
+  // MIDDLE
+  h+='<div class="og-mid"><button class="og-arrow" title="Pasar seleccionados a la orden" onclick="_ogMoveRight()">›</button><div class="faint" style="font-size:11px;text-align:center;margin-top:8px">Seleccioná a la izquierda y pasalos con "›"</div></div>';
+  // RIGHT
+  h+='<div class="pv-card og-right"><div class="og-rhead"><h3 style="margin:0">Pedido a generar</h3><span class="faint">'+_og.orden.size+' pedido/s seleccionado/s</span></div>';
+  h+='<div class="vtbl-wrap" style="max-height:340px;overflow:auto"><table class="vtbl og-tbl"><thead><tr><th>Producto</th><th>Código</th><th>Provincia</th><th>Tipo</th><th>Fecha</th><th class="num">Cant.</th><th></th></tr></thead><tbody>';
+  if(!ordRows.length)h+='<tr><td colspan="7" class="faint" style="text-align:center;padding:34px">Seleccioná registros de la izquierda y presioná "›".</td></tr>';
+  ordRows.forEach(r=>{h+='<tr><td><b>'+esc(r.articulo)+'</b></td><td class="faint">'+esc(String(r.codigo||'—'))+'</td><td>'+esc(r.provincia||'—')+'</td><td>'+esc(r.tipo)+'</td><td>'+esc(r.fecha?fmtFecha(r.fecha):'')+'</td><td class="num">1</td><td><button class="vt-ic vt-del" title="Quitar" onclick="_ogRemove(\''+r.key+'\')">✕</button></td></tr>';});
+  h+='</tbody></table></div>';
+  h+='<div style="text-align:right;margin-top:8px"><button class="vf-clear" onclick="_ogClear()">Limpiar todo</button></div>';
+  h+='<div class="og-kpis">'+_piKpi('Pedidos',oPed)+_piKpi('Tipos',oTipos)+_piKpi('Provincias',oProv)+_piKpi('Total unidades',ordRows.length)+'</div>';
+  h+='<div class="og-info">ℹ️ Revisá los pedidos seleccionados antes de generar la orden de pedido.</div>';
+  h+='</div>';
+  h+='</div>';
+  h+='<div class="og-foot faint">💡 Cómo funciona: 1) Seleccioná pedidos a la izquierda. 2) Pasalos con "›". 3) Revisá la lista. 4) Generá la orden. · Disponibles: '+dispPed+' · Unidades: '+availAll.length+' · Sin track: '+sinTrack+' · Sin teléfono: '+sinTel+'</div>';
+  h+='</div>';
+  main.innerHTML=h;
 }
 function _piCSV(){
   const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}

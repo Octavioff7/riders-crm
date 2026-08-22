@@ -35,6 +35,7 @@ function loadWaMap(){try{return JSON.parse(fs.readFileSync(WAMAPPATH,'utf8'))}ca
 // ---- Inventario y Financieras: editables por admin, guardados en disco ----
 const INVPATH=path.join(DATA_DIR,'inventario.json');
 const FINPATH=path.join(DATA_DIR,'financieras.json');
+const ORDPATH=path.join(DATA_DIR,'ordenes.json');
 const DEFAULT_INVENTARIO=[
   {n:1,nombre:'MATIAS',modelo:'MATIAS 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4600,comision:500,activo:true},
   {n:2,nombre:'TITAN',modelo:'TITAN 250CC',cat:'moto',marca:'VITACCI',motor:'250cc',cc:250,color:'',precio:4500,comision:500,activo:true},
@@ -95,6 +96,8 @@ function loadInventario(){try{return JSON.parse(fs.readFileSync(INVPATH,'utf8'))
 function saveInventario(a){fs.writeFileSync(INVPATH,JSON.stringify(a,null,1))}
 function loadFinancieras(){try{return JSON.parse(fs.readFileSync(FINPATH,'utf8'))}catch(e){return null}}
 function saveFinancieras(a){fs.writeFileSync(FINPATH,JSON.stringify(a,null,1))}
+function loadOrdenes(){try{return JSON.parse(fs.readFileSync(ORDPATH,'utf8'))}catch(e){return null}}
+function saveOrdenes(a){fs.writeFileSync(ORDPATH,JSON.stringify(a,null,1))}
 // Enriquecer inventario existente con marca/modelo/motor/cc/comisión (sin tocar precio, color, fotos ni info)
 function migrateInventario(){
   try{
@@ -616,6 +619,8 @@ http.createServer((req,res)=>{
   if(u==='/api/inventario'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveInventario(b);json(200,{ok:true});});}
   if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
+  if(u==='/api/ordenes'&&req.method==='GET')return json(200,loadOrdenes()||[]);
+  if(u==='/api/ordenes'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveOrdenes(b);json(200,{ok:true});});}
 
   // Actualizar un cliente/venta completo: admin/supervisor/dueño (editar ventas, acreditar pagos, fondeo)
   if(u==='/api/cliente-save'&&req.method==='POST'){
