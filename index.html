@@ -3166,13 +3166,13 @@ function _fzClear(){_fz={desde:hoy().slice(0,8)+'01',hasta:hoy(),estadoPago:'',m
 function renderFinanzas(){if(_fz.desde===''&&_fz.hasta===''){_fz.desde=hoy().slice(0,8)+'01';_fz.hasta=hoy();}_fzBuild();}
 function _fzBuild(){
   const sales=_fzSales();
-  let ventaSinTax=0,tax=0,cargado=0,fee=0,montoFin=0,pendAcred=0,saldo=0,acredPagos=0,nPagos=0;
+  let ventaSinTax=0,tax=0,cargado=0,fee=0,montoFin=0,pendAcred=0,saldo=0,acredPagos=0,nPagos=0,envioTot=0;
   const finAgg={},movs=[],days={};
   sales.forEach(c=>{
-    const base=_baseProd(c),tx=_taxesV(c),f=(c.vendidoFecha||'').slice(0,10);
-    ventaSinTax+=base;tax+=tx;
+    const base=_baseProd(c),tx=_taxesV(c),env=_envioV(c),f=(c.vendidoFecha||'').slice(0,10);
+    ventaSinTax+=base;tax+=tx;envioTot+=env;
     const ep=_pagoEstado(c);saldo+=Math.max(0,ep.saldo);
-    const D=days[f]||(days[f]={vt:0,tax:0,st:0,cob:0,fee:0});D.vt+=base+tx;D.tax+=tx;D.st+=base;
+    const D=days[f]||(days[f]={vt:0,tax:0,st:0,cob:0,fee:0});D.vt+=base+tx+env;D.tax+=tx;D.st+=base;
     const comp=_entList(c.venta,'comprador')[0];const cliente=(comp&&_entNom(comp))||c.nombre;
     ((c.venta&&c.venta.pagos)||[]).forEach(p=>{const m=Number(p.monto)||0;if(!m)return;
       nPagos++;cargado+=m;const pf=_pagoFee(p);fee+=pf;D.fee+=pf;
@@ -3181,7 +3181,7 @@ function _fzBuild(){
       movs.push({fecha:p.fecha||c.vendidoFecha||'',cliente,fin:p.metodo==='financiado'?(p.financiera||'-'):'-',medio:_VMETLBL[p.metodo]||p.metodo||'-',monto:m,fee:pf,neto:m-pf,acred:!!p.acreditado});
     });
   });
-  const ventaTotal=ventaSinTax+tax;
+  const ventaTotal=ventaSinTax+tax+envioTot;
   const daysArr=_pvDays(_fz.desde,_fz.hasta);
   const mk=k=>{const o={};daysArr.forEach(d=>{o[d]=(days[d]||{})[k]||0;});return o;};
   const lineSeries=[{label:'Venta total',color:'#3a7bd5',data:mk('vt')},{label:'Tax',color:'#8ab6e8',data:mk('tax')},{label:'Venta sin tax',color:'#17a2b8',data:mk('st')},{label:'Cobrado',color:'#2ecc71',data:mk('cob')},{label:'Fee retenido',color:'#e74c3c',data:mk('fee')}];
