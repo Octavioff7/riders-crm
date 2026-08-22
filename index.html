@@ -722,16 +722,38 @@
   .dash-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
   .muted{color:var(--muted);font-weight:600}
   @media(max-width:900px){.tiles{grid-template-columns:repeat(2,1fr)}.dash-cols{grid-template-columns:1fr}}
-  @media(max-width:1000px){.side{width:60px}.brand div,.brand small,nav button span.lbl,nav button .count,.nav-label,.side-foot .acct span:not(.a),.side-foot .demo{display:none}nav button{justify-content:center}}
+  @media(min-width:761px) and (max-width:1000px){.side{width:60px;min-width:0}.brand div,.brand small,nav button span.lbl,nav button .count,.nav-label,.side-foot .acct span:not(.a),.side-foot .demo{display:none}nav button{justify-content:center}}
+  /* Celular: sidebar como cajón (drawer) */
+  .nav-burger{display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:none;background:transparent;color:var(--txt);font-size:22px;cursor:pointer;border-radius:10px;align-items:center;justify-content:center}
+  #side-backdrop{display:none}
+  @media(max-width:760px){
+    .traffic{display:none}
+    .nav-burger{display:flex}
+    .side{position:fixed;top:0;left:0;height:100dvh;width:min(85vw,290px);min-width:0;z-index:1001;transform:translateX(-100%);transition:transform .28s cubic-bezier(.32,.72,0,1);box-shadow:2px 0 26px rgba(0,0,0,.3);overflow-y:auto;background:var(--bg)}
+    body.side-open .side{transform:translateX(0)}
+    .side-toggle{display:none}
+    #side-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s}
+    body.side-open #side-backdrop{opacity:1;pointer-events:auto}
+  }
   /* Celular: campos con letra 16px para que iOS NO haga zoom al tocarlos (y no quede zoomeado). */
   @media(max-width:760px){input,select,textarea{font-size:16px!important}}
   @media(max-width:760px){.inbox.two{grid-template-columns:1fr}.col-crm{display:none}body.chat-open .col-conv{display:none}body.chat-open .col-crm{display:block}.backbtn{display:inline-block}.crm-b{padding-bottom:calc(64px + env(safe-area-inset-bottom))}}
   @media(max-width:760px){.panel-head h1{display:none}.panel-sub{display:none}.panel-head{margin-bottom:14px}.panel-head .head-btns{flex:1;flex-wrap:nowrap;gap:8px}.panel-head .head-btns .btn{flex:1;white-space:nowrap;justify-content:center}}
+  @media(max-width:760px){
+    .page{padding:16px 13px}
+    .page h1{font-size:21px}
+    .conv-head-row{flex-wrap:wrap}
+    .conv-head-row>.head-btns,.conv-head-row>.xbtn-row{width:100%}
+    .fin-tabs{display:flex;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .fin-tab{flex:0 0 auto;white-space:nowrap}
+    .og-cols{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
 <div class="window">
   <div class="titlebar">
+    <button id="nav-burger" class="nav-burger" onclick="_toggleSide()" aria-label="Abrir menú" title="Menú">☰</button>
     <div class="traffic"><button class="tl red" id="tl-red" aria-label="Salir de pantalla completa" title="Salir de pantalla completa"></button><button class="tl yellow" id="tl-yellow" aria-label="Ocultar o mostrar el menú" title="Ocultar / mostrar menú"></button><button class="tl green" id="tl-green" aria-label="Pantalla completa" title="Pantalla completa"></button></div>
     <button class="theme-toggle" id="theme-toggle" title="Cambiar entre claro y oscuro" aria-label="Cambiar tema">🌙</button>
     <div class="title">Riders Miami · CRM</div>
@@ -771,6 +793,7 @@
     </aside>
     <main id="main"></main>
   </div>
+  <div id="side-backdrop" onclick="_toggleSide()"></div>
 </div>
 
 <script>
@@ -4167,7 +4190,7 @@ function renderPanel(){
   </div>`;
   earnApply();
 }
-document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.view){view=b.dataset.view;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();}});
+document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.view){view=b.dataset.view;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();document.body.classList.remove('side-open');}});
 
 /* ---- Historial: el botón atrás del navegador y el gesto de deslizar vuelven al paso anterior ---- */
 let _navlock=false;
@@ -4213,7 +4236,9 @@ initEmoji();
   if(r)r.onclick=()=>{if(inFS())document.exitFullscreen();};
   if(y)y.onclick=()=>_toggleSide();
 })();
-function _toggleSide(){const c=document.body.classList.toggle('side-collapsed');try{localStorage.setItem('crmSide',c?'1':'0');}catch(e){}const b=document.getElementById('side-toggle');if(b)b.textContent=c?'»':'«';}
+function _toggleSide(){
+  if(window.matchMedia('(max-width:760px)').matches){document.body.classList.toggle('side-open');return;}
+  const c=document.body.classList.toggle('side-collapsed');try{localStorage.setItem('crmSide',c?'1':'0');}catch(e){}const b=document.getElementById('side-toggle');if(b)b.textContent=c?'»':'«';}
 (function(){try{if(localStorage.getItem('crmSide')==='1'){document.body.classList.add('side-collapsed');const b=document.getElementById('side-toggle');if(b)b.textContent='»';}}catch(e){}})();
 (function(){
   function applyTheme(){const dark=localStorage.getItem('crmTheme')==='dark';document.body.classList.toggle('dark',dark);const b=document.getElementById('theme-toggle');if(b)b.textContent=dark?'☀️':'🌙';}
