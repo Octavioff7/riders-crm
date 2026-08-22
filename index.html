@@ -590,6 +590,10 @@
   .in-al-l{font-size:11.5px;color:var(--muted);margin-top:3px}
   .in-al-sub{font-size:11px;font-weight:700;margin-top:1px}
   .in-sect-h{font-size:14px;margin:0 0 8px;font-weight:700}
+  .in-seg{display:inline-flex;border:1px solid var(--sep);border-radius:9px;overflow:hidden;flex:none}
+  .in-seg button{border:none;background:var(--card);color:var(--muted);font-size:11.5px;font-weight:600;padding:5px 11px;cursor:pointer}
+  .in-seg button+button{border-left:1px solid var(--sep)}
+  .in-seg button.on{background:var(--accent);color:#fff}
   .actrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--sep)}
   .vend-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--brand-soft,rgba(0,122,255,.08));border:1px solid rgba(0,122,255,.2);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:13.5px}
   .tagrow{display:flex;flex-wrap:wrap;gap:6px}
@@ -1612,7 +1616,7 @@ function _ventaStep3(){
     +'<label class="v-lbl-sm">📅 Fecha de la venta</label>'+_dateBtn('v-full',M.fecha,'📅 Elegí la fecha','_pickFechaVenta()')
     +(showVend?'<label class="v-lbl-sm">👤 Vendedor asignado</label>'+_vSelBtn('v-full',(M.vendedorId?nombreVend(M.vendedorId):'—'),!M.vendedorId,'_pickVentaVend()'):'')
     +(showVend?'<label class="v-lbl-sm">🤝 Colaborador (opcional)</label>'+_vSelBtn('v-full',(M.colaborador||'— Ninguno —'),!M.colaborador,'_pickVentaColab()'):'')
-    +'<label class="v-lbl-sm">💰 Comisión estimada <span style="color:var(--muted);font-weight:400">(automática, según inventario y precio de venta)</span></label><div class="v-full" style="padding:10px 12px;background:var(--hover);border-radius:8px;font-weight:700;color:#248a3d">US$ '+_money(_comisionWizardCalc())+'</div>'
+    +'<label class="v-lbl-sm">💰 Comisión estimada <span style="color:var(--muted);font-weight:400">(automática, según inventario y precio de venta)</span></label><div class="v-full" id="v-comis-est" style="padding:10px 12px;background:var(--hover);border-radius:8px;font-weight:700;color:#248a3d">US$ '+_money(_comisionWizardCalc())+'</div>'
     +'<label class="v-lbl-sm">📝 Observaciones</label><textarea class="v-full" style="min-height:56px;box-sizing:border-box" oninput="_venta.meta.obs=this.value" placeholder="Notas de la venta (opcional)">'+esc(M.obs||'')+'</textarea>'
     +'</div>';
   return h;
@@ -1729,7 +1733,7 @@ function _ventaTotHTML(){
   }
   return s;
 }
-function _ventaTot(){const c=document.getElementById('v-calc');if(c)c.innerHTML=_ventaCalcHTML();}
+function _ventaTot(){const c=document.getElementById('v-calc');if(c)c.innerHTML=_ventaCalcHTML();const ce=document.getElementById('v-comis-est');if(ce)ce.textContent='US$ '+_money(_comisionWizardCalc());}
 // Calcula lo que paga el cliente: por cada pago, base + (7% tax si la financiera lo lleva) + fee de la financiera
 function _ventaCalc(){
   let base=0,tax=0,fee=0;const lineas=[];
@@ -2987,6 +2991,7 @@ async function renderInicioAdmin(){
   let facturado=0,cobrado=0,comisionMes=0;
   ventasMes.forEach(c=>{const ep=_pagoEstado(c);facturado+=ep.total;cobrado+=ep.acred;comisionMes+=_comisionVenta(c);});
   const nVentasMes=ventasMes.length,ticket=nVentasMes?facturado/nVentasMes:0;
+  let porCobrar=0,nPorCobrar=0;activas.forEach(c=>{const s=Math.max(0,_pagoEstado(c).saldo);if(s>0.009){porCobrar+=s;nPorCobrar++;}});
   let porArmar=0;try{porArmar=_pedList().filter(r=>!r.orden).length;}catch(e){}
   const byV={};ventasMes.forEach(c=>{const id=c.vendedorId||'—';const g=byV[id]||(byV[id]={id,ventas:0,total:0});g.ventas++;g.total+=_pagoEstado(c).total;});
   const topV=Object.values(byV).sort((a,b)=>b.total-a.total).slice(0,5);
@@ -2994,20 +2999,19 @@ async function renderInicioAdmin(){
   const finArr=Object.values(finAgg).sort((a,b)=>b.monto-a.monto).slice(0,6);
   const prodAgg={};ventasMes.forEach(c=>{((c.venta&&c.venta.productos)||[]).forEach(p=>{const nm=p.detalle||p.producto||'—';const g=prodAgg[nm]||(prodAgg[nm]={n:nm,cant:0,monto:0});g.cant++;g.monto+=Number(p.precio)||0;});});
   const prodArr=Object.values(prodAgg).sort((a,b)=>b.monto-a.monto).slice(0,6);
-  const days=_pvDays(hoy().slice(0,8)+'01',hoy());const dC={},dM={};days.forEach(d=>{dC[d]=0;dM[d]=0;});
-  ventasMes.forEach(c=>{const f=(c.vendidoFecha||'').slice(0,10);if(dC[f]!==undefined){dC[f]++;dM[f]+=_montoTotal(c);}});
   let h='<div class="page page-wide">';
   h+='<div class="conv-head-row"><h1>🏠 Inicio</h1><div class="head-btns"><button class="btn cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button></div></div>';
   h+='<div class="sub">Resumen del equipo · '+nombreMes+'</div>';
-  h+='<div class="owner-kpis owner-kpis-5" style="margin-top:14px">'+
+  h+='<div class="owner-kpis owner-kpis-3" style="margin-top:14px">'+
     kpi('💵 Facturado',money(facturado),'este mes','#248a3d','okpi-hero')+
     kpi('✅ Cobrado / en mano',money(cobrado),'acreditado este mes','#248a3d')+
+    kpi('⏳ Por cobrar',money(porCobrar),nPorCobrar+' venta'+(nPorCobrar===1?'':'s')+' con saldo','#e67e22')+
     kpi('🧾 Ventas',nVentasMes,'este mes · ticket '+money(ticket),'')+
     kpi('📦 Pedidos por armar',porArmar,'unidades pendientes','#3a7bd5')+
     kpi('💰 Comisiones',money(comisionMes),'a pagar este mes','#b8890f')+
   '</div>';
   h+='<div class="in-r1">'
-    +'<div class="pv-card"><h3 class="in-sect-h">Ventas por día · '+nombreMes+'</h3>'+_inDayBars(days,dC,dM)+'</div>'
+    +'<div class="pv-card" id="in-chart-card">'+_inChartInner()+'</div>'
     +'<div class="pv-card"><h3 class="in-sect-h">Top vendedores del mes</h3><div class="vtbl-wrap"><table class="vtbl fz-tbl"><thead><tr><th>#</th><th>Vendedor</th><th>Vtas</th><th>Facturado</th></tr></thead><tbody>'
     +(topV.length?topV.map((r,i)=>'<tr><td class="faint">'+(i+1)+'</td><td><b>'+esc(nombreVend(r.id))+'</b></td><td class="num">'+r.ventas+'</td><td class="num">'+money(r.total)+'</td></tr>').join(''):'<tr><td colspan="4" class="faint" style="text-align:center;padding:16px">Sin ventas este mes.</td></tr>')
     +'</tbody></table></div></div>'
@@ -3023,17 +3027,48 @@ async function renderInicioAdmin(){
   h+='</div>';
   main.innerHTML=h;
 }
-function _inDayBars(days,dC,dM){
-  if(!days.length)return '<div class="faint" style="padding:30px;text-align:center">Sin datos.</div>';
-  const W=720,H=240,pL=34,pR=12,pT=12,pB=26,pw=W-pL-pR,ph=H-pT-pB,n=days.length;
-  let maxY=1;days.forEach(d=>maxY=Math.max(maxY,dC[d]||0));maxY=_niceMax(maxY);
-  const gw=pw/n,bw=Math.max(3,Math.min(26,gw*0.6)),Y=v=>pT+ph-(v/maxY)*ph,step=Math.max(1,Math.ceil(n/10));
+let _inMode='dia';
+function _inSetMode(m){_inMode=m;const el=document.getElementById('in-chart-card');if(el)el.innerHTML=_inChartInner();}
+function _inChartInner(){
+  const items=_inChartItems();
+  const tit=_inMode==='dia'?'Ventas por día · '+new Date().toLocaleDateString('es-AR',{month:'long'}):(_inMode==='sem'?'Ventas por semana · últimas 12':'Ventas por mes · últimos 12');
+  const seg=[['dia','Diario'],['sem','Semanal'],['mes','Mensual']].map(o=>'<button class="'+(_inMode===o[0]?'on':'')+'" onclick="_inSetMode(\''+o[0]+'\')">'+o[1]+'</button>').join('');
+  return '<div class="pv-cardhead" style="margin-bottom:8px"><h3 class="in-sect-h" style="margin:0">'+tit+'</h3><div class="in-seg">'+seg+'</div></div>'+_inBars(items);
+}
+function _mondayOf(dstr){const d=new Date(dstr+'T00:00:00');const dw=(d.getDay()+6)%7;d.setDate(d.getDate()-dw);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _inChartItems(){
+  const activas=clientes.filter(c=>!c.borrado&&!c.descartado&&!c.anulada&&(c.etapa==='vendido'||c.etapa==='posventa'));
+  const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];const items=[];
+  if(_inMode==='dia'){
+    const days=_pvDays(hoy().slice(0,8)+'01',hoy());const m={};days.forEach(d=>m[d]={c:0,mo:0});
+    activas.forEach(c=>{const f=(c.vendidoFecha||'').slice(0,10);if(m[f]){m[f].c++;m[f].mo+=_montoTotal(c);}});
+    days.forEach(d=>items.push({label:fmtFecha(d).slice(0,5),full:fmtFecha(d),count:m[d].c,monto:m[d].mo}));
+  }else if(_inMode==='sem'){
+    const anchor=_mondayOf(hoy());const weeks=[];const d=new Date(anchor+'T00:00:00');d.setDate(d.getDate()-7*11);
+    for(let i=0;i<12;i++){weeks.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));d.setDate(d.getDate()+7);}
+    const m={};weeks.forEach(w=>m[w]={c:0,mo:0});
+    activas.forEach(c=>{const f=(c.vendidoFecha||'').slice(0,10);if(!f)return;const w=_mondayOf(f);if(m[w]){m[w].c++;m[w].mo+=_montoTotal(c);}});
+    weeks.forEach(w=>{const dt=new Date(w+'T00:00:00');items.push({label:String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0'),full:'Semana del '+fmtFecha(w),count:m[w].c,monto:m[w].mo});});
+  }else{
+    const now=new Date(hoy()+'T00:00:00'),months=[];
+    for(let i=11;i>=0;i--){let yy=now.getFullYear(),mm=now.getMonth()-i;while(mm<0){mm+=12;yy--;}months.push(yy+'-'+String(mm+1).padStart(2,'0'));}
+    const m={};months.forEach(k=>m[k]={c:0,mo:0});
+    activas.forEach(c=>{const f=(c.vendidoFecha||'').slice(0,7);if(m[f]){m[f].c++;m[f].mo+=_montoTotal(c);}});
+    months.forEach(k=>{const mm=Number(k.slice(5,7))-1;items.push({label:MES[mm]+" '"+k.slice(2,4),full:MES[mm]+' '+k.slice(0,4),count:m[k].c,monto:m[k].mo});});
+  }
+  return items;
+}
+function _inBars(items){
+  if(!items.length)return '<div class="faint" style="padding:30px;text-align:center">Sin datos.</div>';
+  const W=720,H=240,pL=34,pR=12,pT=12,pB=28,pw=W-pL-pR,ph=H-pT-pB,n=items.length;
+  let maxY=1;items.forEach(it=>maxY=Math.max(maxY,it.count));maxY=_niceMax(maxY);
+  const gw=pw/n,bw=Math.max(3,Math.min(34,gw*0.6)),Y=v=>pT+ph-(v/maxY)*ph,step=n>14?Math.ceil(n/10):1;
   let g='';for(let k=0;k<=4;k++){const val=maxY*k/4,yy=Y(val);g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--grid)" stroke-dasharray="3 3"/><text x="'+(pL-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="9" fill="var(--muted)">'+Math.round(val)+'</text>';}
-  days.forEach((d,i)=>{if(i%step===0||i===n-1){const gx=pL+i*gw+gw/2;g+='<line x1="'+gx+'" y1="'+pT+'" x2="'+gx+'" y2="'+(pT+ph)+'" stroke="var(--grid)" stroke-dasharray="3 3"/>';}});
-  let bars='';days.forEach((d,i)=>{const cx=pL+i*gw+gw/2,x=cx-bw/2,c=dC[d]||0,y=Y(c),hh=Math.max(0,pT+ph-y);
-    const tip=_pvJs(fmtFecha(d))+'<br>'+_pvJs(c+' venta'+(c===1?'':'s'))+'<br>'+_pvJs('$'+Number(Math.round(dM[d]||0)).toLocaleString('es-AR'));
+  items.forEach((it,i)=>{if(i%step===0||i===n-1){const gx=pL+i*gw+gw/2;g+='<line x1="'+gx+'" y1="'+pT+'" x2="'+gx+'" y2="'+(pT+ph)+'" stroke="var(--grid)" stroke-dasharray="3 3"/>';}});
+  let bars='';items.forEach((it,i)=>{const cx=pL+i*gw+gw/2,x=cx-bw/2,c=it.count,y=Y(c),hh=Math.max(0,pT+ph-y);
+    const tip=_pvJs(it.full||it.label)+'<br>'+_pvJs(c+' venta'+(c===1?'':'s'))+'<br>'+_pvJs('$'+Number(Math.round(it.monto||0)).toLocaleString('es-AR'));
     bars+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+hh+'" rx="2" fill="#3a7bd5" onmousemove="_pvTip(event,\''+tip+'\')" onmouseleave="_pvTipHide()"/>';});
-  let xl='';days.forEach((d,i)=>{if(i%step===0||i===n-1)xl+='<text x="'+(pL+i*gw+gw/2)+'" y="'+(H-9)+'" text-anchor="middle" font-size="8" fill="var(--muted)">'+fmtFecha(d).slice(0,5)+'</text>';});
+  let xl='';items.forEach((it,i)=>{if(i%step===0||i===n-1)xl+='<text x="'+(pL+i*gw+gw/2)+'" y="'+(H-9)+'" text-anchor="middle" font-size="8" fill="var(--muted)">'+esc(it.label)+'</text>';});
   return '<svg viewBox="0 0 '+W+' '+H+'" class="pv-svg" preserveAspectRatio="xMidYMid meet">'+g+bars+xl+'</svg>';
 }
 /* ---- PANEL DEL EQUIPO · Informe de Ventas por Vendedor ---- */
