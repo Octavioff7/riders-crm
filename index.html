@@ -449,9 +449,11 @@
   .fin-card .fc-l{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
   .fin-card .fc-v{font-size:26px;font-weight:800;color:var(--txt);margin:2px 0}
   .fin-card .fc-s{font-size:12px;color:var(--muted)}
-  .fin-tabs{display:inline-flex;background:var(--hover);border-radius:10px;padding:3px;gap:2px;flex:none}
-  .fin-tab{border:none;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:inherit}
-  .fin-tab.on{background:var(--card);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .fin-tabs{position:relative;display:inline-flex;background:var(--hover);border-radius:10px;padding:3px;gap:2px;flex:none}
+  .fin-tab{position:relative;z-index:1;border:none;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:inherit;transition:color .28s ease}
+  .fin-tab.on{color:var(--accent)}
+  .seg-thumb{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:8px;z-index:0;pointer-events:none;transition:transform .38s cubic-bezier(.32,.72,0,1),width .3s cubic-bezier(.32,.72,0,1)}
+  .fin-tabs .seg-thumb{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.1)}
   .fin-logo{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:8px;color:#fff;font-size:11px;font-weight:700}
   .inv-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .inv-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
@@ -590,10 +592,10 @@
   .in-al-l{font-size:11.5px;color:var(--muted);margin-top:3px}
   .in-al-sub{font-size:11px;font-weight:700;margin-top:1px}
   .in-sect-h{font-size:14px;margin:0 0 8px;font-weight:700}
-  .in-seg{display:inline-flex;border:1px solid var(--sep);border-radius:9px;overflow:hidden;flex:none}
-  .in-seg button{border:none;background:var(--card);color:var(--muted);font-size:11.5px;font-weight:600;padding:5px 11px;cursor:pointer}
-  .in-seg button+button{border-left:1px solid var(--sep)}
-  .in-seg button.on{background:var(--accent);color:#fff}
+  .in-seg{position:relative;display:inline-flex;background:var(--hover);border-radius:9px;padding:3px;flex:none}
+  .in-seg button{position:relative;z-index:1;border:none;background:transparent;color:var(--muted);font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:7px;cursor:pointer;transition:color .28s ease}
+  .in-seg button.on{color:#fff}
+  .in-seg .seg-thumb{background:var(--accent);border-radius:7px}
   .actrow{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--sep)}
   .vend-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--brand-soft,rgba(0,122,255,.08));border:1px solid rgba(0,122,255,.2);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:13.5px}
   .tagrow{display:flex;flex-wrap:wrap;gap:6px}
@@ -2615,7 +2617,7 @@ function renderInventario(){
   h+='<div class="fin-cards">'+card('Total',total,'Productos cargados')+card('Activos',act,'Disponibles para vender')+card('Inactivos',inact,'No visibles en ventas')+card('Con mínimo',conMin,'Con precio mínimo')+'</div>';
   if(sel)h+='<div class="inv-bulk" id="inv-bulk" style="display:none"></div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, modelo, marca o color…" value="'+esc(_invQ)+'" oninput="_invQ=this.value.toLowerCase();_invRenderRows()">';
-  h+='<div class="fin-tabs">'+[['todos','Todos'],['moto','Motos'],['triciclo','Triciclos'],['kit','Kits'],['inactivos','Inactivos']].map(t=>'<button class="fin-tab'+(_invFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_invSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
+  h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todos','Todos'],['moto','Motos'],['triciclo','Triciclos'],['kit','Kits'],['inactivos','Inactivos']].map(t=>'<button class="fin-tab'+(_invFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_invSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
   const cols=(sel?['✓']:[]).concat(['N°','Producto','Modelo','Categoría','Marca','Motor','Watts','Kw','Colores','Precio','Mínimo','Comisión','Envío','Estado','']);
   h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody id="inv-tbody"></tbody></table></div>';
   h+='<div class="sub" id="inv-foot" style="margin-top:8px"></div>';
@@ -2658,6 +2660,7 @@ function _invRenderRows(){
     +'</tr>';});
     tb.innerHTML=html;}
   const foot=document.getElementById('inv-foot');if(foot)foot.textContent=rows.length?(rows.length+' producto(s)'):'Sin resultados';
+  try{_segSlideAll();}catch(e){}
 }
 /* ---- FICHA DE PRODUCTO (imágenes + info; ver todos, editar solo admin) ---- */
 function verProducto(idx){
@@ -2922,7 +2925,7 @@ function renderFinancieras(){
   let h='<div class="page page-wide"><div class="conv-head-row"><h1>🏦 Financieras</h1><button class="btn" onclick="_finModal(-1)">＋ Agregar financiera</button></div>';
   h+='<div class="fin-cards">'+card('Activas',act,'Disponibles para operar')+card('Inactivas',inact,'No visibles en ventas')+card('Configuradas',conf,'Con fee o reglas')+card('Con cuotas',cuo,'Con plan de cuotas')+'</div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, código o cuotas…" value="'+esc(_finQ)+'" oninput="_finQ=this.value.toLowerCase();_finRenderRows()">';
-  h+='<div class="fin-tabs">'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
+  h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
   h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Código','Financiera','Fee','Estado','Cuotas','Cálculo','Acciones'].map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
   h+='<div class="sub" id="fin-foot" style="margin-top:8px"></div>';
   main.innerHTML=h+'</div>';
@@ -2945,6 +2948,7 @@ function _finRenderRows(){
     +'<td style="white-space:nowrap"><button class="vt-ic" style="background:'+(_finActiva(f)?'#8e8e93':'#34c759')+'" title="'+(_finActiva(f)?'Desactivar':'Activar')+'" onclick="_finToggle('+idx+')">'+(_finActiva(f)?'⏸':'▶')+'</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_finModal('+idx+')">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_finDel('+idx+')">🗑️</button></td>'
     +'</tr>').join('');
   const foot=document.getElementById('fin-foot');if(foot)foot.textContent=rows.length?(rows.length+' financiera(s)'):'Sin resultados';
+  try{_segSlideAll();}catch(e){}
 }
 function _finToggle(idx){const f=_FIN[idx];if(!f)return;f.activa=!_finActiva(f);_finPersist();renderFinancieras();}
 const _DIAS_SEM=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
@@ -3055,14 +3059,19 @@ async function renderInicioAdmin(){
   +'</div>';
   h+='</div>';
   main.innerHTML=h;
+  try{_segSlideAll();}catch(e){}
 }
 let _inMode='dia';
-function _inSetMode(m){_inMode=m;const el=document.getElementById('in-chart-card');if(el)el.innerHTML=_inChartInner();}
+function _inChartTit(){return _inMode==='dia'?'Ventas por día · '+new Date().toLocaleDateString('es-AR',{month:'long'}):(_inMode==='sem'?'Ventas por semana · últimas 12':'Ventas por mes · últimos 12');}
+function _inSetMode(m){_inMode=m;const el=document.getElementById('in-chart-card');if(!el)return;
+  el.querySelectorAll('.in-seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  _segSlide(el.querySelector('.in-seg'));
+  const tit=document.getElementById('in-chart-tit');if(tit)tit.textContent=_inChartTit();
+  const body=document.getElementById('in-chart-body');if(body)body.innerHTML=_inBars(_inChartItems());
+}
 function _inChartInner(){
-  const items=_inChartItems();
-  const tit=_inMode==='dia'?'Ventas por día · '+new Date().toLocaleDateString('es-AR',{month:'long'}):(_inMode==='sem'?'Ventas por semana · últimas 12':'Ventas por mes · últimos 12');
-  const seg=[['dia','Diario'],['sem','Semanal'],['mes','Mensual']].map(o=>'<button class="'+(_inMode===o[0]?'on':'')+'" onclick="_inSetMode(\''+o[0]+'\')">'+o[1]+'</button>').join('');
-  return '<div class="pv-cardhead" style="margin-bottom:8px"><h3 class="in-sect-h" style="margin:0">'+tit+'</h3><div class="in-seg">'+seg+'</div></div>'+_inBars(items);
+  const seg=[['dia','Diario'],['sem','Semanal'],['mes','Mensual']].map(o=>'<button class="'+(_inMode===o[0]?'on':'')+'" data-m="'+o[0]+'" onclick="_inSetMode(\''+o[0]+'\')">'+o[1]+'</button>').join('');
+  return '<div class="pv-cardhead" style="margin-bottom:8px"><h3 class="in-sect-h" id="in-chart-tit" style="margin:0">'+_inChartTit()+'</h3><div class="in-seg"><span class="seg-thumb"></span>'+seg+'</div></div><div id="in-chart-body">'+_inBars(_inChartItems())+'</div>';
 }
 function _mondayOf(dstr){const d=new Date(dstr+'T00:00:00');const dw=(d.getDay()+6)%7;d.setDate(d.getDate()-dw);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function _inChartItems(){
@@ -3516,7 +3525,7 @@ function _paBuild(){
   h+=_pedFiltrosHTML('_paBuild');
   // vista + agrupar por
   h+='<div class="oc-box" style="display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start">';
-  h+='<div><div class="faint" style="font-size:11px;font-weight:600;margin-bottom:5px">Vista del informe</div><div class="fin-tabs"><button class="fin-tab'+(_pa.vista==='detalle'?' on':'')+'" onclick="_paSetVista(\'detalle\')">Detalle</button><button class="fin-tab'+(_pa.vista==='agrupado'?' on':'')+'" onclick="_paSetVista(\'agrupado\')">Agrupado</button></div></div>';
+  h+='<div><div class="faint" style="font-size:11px;font-weight:600;margin-bottom:5px">Vista del informe</div><div class="fin-tabs"><span class="seg-thumb"></span><button class="fin-tab'+(_pa.vista==='detalle'?' on':'')+'" data-k="detalle" onclick="_paSetVista(\'detalle\')">Detalle</button><button class="fin-tab'+(_pa.vista==='agrupado'?' on':'')+'" data-k="agrupado" onclick="_paSetVista(\'agrupado\')">Agrupado</button></div></div>';
   h+='<div style="flex:1;min-width:260px"><div class="faint" style="font-size:11px;font-weight:600;margin-bottom:5px">Agrupar por</div><div class="pa-groups">'+_PA_GROUPS.map((g,i)=>'<button class="pa-gbtn'+(_paSameGroup(g)?' on':'')+'" onclick="_paSetGroup('+i+')">'+g.map(_paLabel).join(' → ')+'</button>').join('')+'</div></div>';
   h+='<div class="faint" style="max-width:230px;font-size:11.5px;line-height:1.5">Los filtros se aplican primero y luego se organiza el resultado según la agrupación seleccionada.</div>';
   h+='</div>';
@@ -3535,6 +3544,7 @@ function _paBuild(){
   }
   h+='</div>';
   main.innerHTML=h;
+  try{_segSlideAll();}catch(e){}
 }
 function _paCSV(){
   const rows=_pedSort(_pedFiltered());if(!rows.length){alert('No hay pedidos para exportar.');return;}
@@ -4127,6 +4137,9 @@ function renderAgenda(){
 /* ---- PANEL DE INICIO (dashboard) ---- */
 function _vcHover(ev,rect,cx,cy,tip){const svg=rect.ownerSVGElement||rect.closest('svg');const h=svg&&svg.querySelector('.vhl');if(h){h.setAttribute('cx',cx);h.setAttribute('cy',cy);h.style.display='';}_pvTip(ev,tip);}
 function _vcLeave(rect){const svg=rect.ownerSVGElement||rect.closest('svg');const h=svg&&svg.querySelector('.vhl');if(h)h.style.display='none';_pvTipHide();}
+// Pulgar deslizante para los switches segmentados (mismo estilo que el toggle de ganancias)
+function _segSlide(seg){if(!seg)return;const on=seg.querySelector('.on');const th=seg.querySelector('.seg-thumb');if(!on||!th)return;const w=on.offsetWidth;if(!w)return;th.style.width=w+'px';th.style.transform='translateX('+on.offsetLeft+'px)';}
+function _segSlideAll(){document.querySelectorAll('.fin-tabs,.in-seg').forEach(_segSlide);}
 function renderPanel(){
   const T=c=>temperatura(c);
   const AA=activos();
