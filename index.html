@@ -3252,9 +3252,11 @@ function _fzLineSVG(days,series){
   let maxY=1;days.forEach(d=>series.forEach(s=>maxY=Math.max(maxY,s.data[d]||0)));maxY=_niceMax(maxY);
   _fzLineGeom={days,series,pL,pw,pT,ph,n,W,H,maxY};
   const X=i=>pL+(n===1?pw/2:i*pw/(n-1)),Y=v=>pT+ph-(v/maxY)*ph;
-  let g='';for(let k=0;k<=4;k++){const val=maxY*k/4,yy=Y(val);g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--sep)" stroke-dasharray="3 3"/><text x="'+(pL-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="9" fill="var(--muted)">'+_kFmt(val)+'</text>';}
+  const step=Math.max(1,Math.ceil(n/8));
+  let g='';for(let k=0;k<=4;k++){const val=maxY*k/4,yy=Y(val);g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--grid)" stroke-dasharray="3 3" opacity="0.5"/><text x="'+(pL-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="9" fill="var(--muted)">'+_kFmt(val)+'</text>';}
+  days.forEach((d,i)=>{if(i%step===0||i===n-1){const gx=X(i);g+='<line x1="'+gx+'" y1="'+pT+'" x2="'+gx+'" y2="'+(pT+ph)+'" stroke="var(--grid)" stroke-dasharray="3 3" opacity="0.5"/>';}});
   let lines='';series.forEach(s=>{const pts=days.map((d,i)=>X(i)+','+Y(s.data[d]||0)).join(' ');lines+='<polyline points="'+pts+'" fill="none" stroke="'+s.color+'" stroke-width="2"/>';lines+=days.map((d,i)=>'<circle cx="'+X(i)+'" cy="'+Y(s.data[d]||0)+'" r="2.2" fill="var(--card)" stroke="'+s.color+'" stroke-width="1.3"/>').join('');});
-  const step=Math.max(1,Math.ceil(n/8));let xl='';days.forEach((d,i)=>{if(i%step===0||i===n-1)xl+='<text x="'+X(i)+'" y="'+(H-11)+'" text-anchor="middle" font-size="9" fill="var(--muted)">'+fmtFecha(d).slice(0,5)+'</text>';});
+  let xl='';days.forEach((d,i)=>{if(i%step===0||i===n-1)xl+='<text x="'+X(i)+'" y="'+(H-11)+'" text-anchor="middle" font-size="9" fill="var(--muted)">'+fmtFecha(d).slice(0,5)+'</text>';});
   const vline='<line class="fz-vline" x1="0" x2="0" y1="'+pT+'" y2="'+(pT+ph)+'" stroke="var(--muted)" stroke-width="1" style="display:none"/>';
   let hlc='';series.forEach((s,si)=>hlc+='<circle class="fz-hl fz-hl-'+si+'" r="4" fill="'+s.color+'" stroke="var(--card)" stroke-width="1.8" style="display:none"/>');
   const hover='<rect x="'+pL+'" y="'+pT+'" width="'+pw+'" height="'+ph+'" fill="transparent" onmousemove="_fzLineHover(event)" onmouseleave="_fzLineLeave()"/>';
@@ -3273,10 +3275,11 @@ function _fzLineLeave(){const svg=document.getElementById('fz-line');if(svg)svg.
 /* ---- Barras (simples o agrupadas) ---- */
 function _fzBarSVG(items,series,valfmt){
   if(!items.length)return '<div class="faint" style="padding:40px;text-align:center">Sin datos.</div>';
-  const W=330,H=300,pL=42,pR=10,pT=14,pB=34,pw=W-pL-pR,ph=H-pT-pB,n=items.length,ns=series.length;
+  const W=300,H=300,pL=40,pR=12,pT=14,pB=34,pw=W-pL-pR,ph=H-pT-pB,n=items.length,ns=series.length;
   let maxY=1;items.forEach(it=>series.forEach(s=>maxY=Math.max(maxY,it[s.key]||0)));maxY=_niceMax(maxY);
-  const gw=pw/n,bw=Math.max(3,Math.min(15,(gw*0.7)/ns)),Y=v=>pT+ph-(v/maxY)*ph;
-  let g='';for(let k=0;k<=4;k++){const val=maxY*k/4,yy=Y(val);g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--sep)" stroke-dasharray="3 3"/><text x="'+(pL-5)+'" y="'+(yy+3)+'" text-anchor="end" font-size="8.5" fill="var(--muted)">'+_kFmt(val)+'</text>';}
+  const gw=pw/n,bw=Math.max(4,Math.min(46,(gw*0.55)/ns)),Y=v=>pT+ph-(v/maxY)*ph;
+  let g='';for(let k=0;k<=4;k++){const val=maxY*k/4,yy=Y(val);g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--grid)" stroke-dasharray="3 3" opacity="0.5"/><text x="'+(pL-5)+'" y="'+(yy+3)+'" text-anchor="end" font-size="8.5" fill="var(--muted)">'+_kFmt(val)+'</text>';}
+  items.forEach((it,i)=>{const cx=pL+i*gw+gw/2;g+='<line x1="'+cx+'" y1="'+pT+'" x2="'+cx+'" y2="'+(pT+ph)+'" stroke="var(--grid)" stroke-dasharray="3 3" opacity="0.5"/>';});
   let bars='';items.forEach((it,i)=>{const gx=pL+i*gw+(gw-bw*ns)/2;series.forEach((s,si)=>{const x=gx+si*bw,y=Y(it[s.key]||0),hh=Math.max(0,pT+ph-y);bars+='<rect x="'+x+'" y="'+y+'" width="'+Math.max(2,bw-1)+'" height="'+hh+'" rx="1.5" fill="'+s.color+'"/>';});
     let tip='_pvTip(event,\''+_pvJs(it.label);series.forEach(s=>{tip+='<br>'+_pvJs(s.label+' : '+valfmt(it[s.key]||0));});tip+='\')';
     bars+='<rect x="'+(pL+i*gw)+'" y="'+pT+'" width="'+gw+'" height="'+ph+'" fill="transparent" onmousemove="'+tip+'" onmouseleave="_pvTipHide()"/>';});
