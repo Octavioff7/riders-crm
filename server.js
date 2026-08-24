@@ -129,7 +129,10 @@ function migrateInventario(){
     if(changed)saveInventario(inv);
   }catch(e){}
 }
-try{if(!loadInventario())saveInventario(DEFAULT_INVENTARIO);else migrateInventario();}catch(e){}
+// Solo sembramos el inventario si no existe. NO corremos migrateInventario() en cada arranque:
+// antes rellenaba los campos vacíos desde el default y pisaba las ediciones (ej: modelo borrado a mano,
+// que "volvía a aparecer" en cada reinicio de Render). El default ya viene enriquecido para instalaciones nuevas.
+try{if(!loadInventario())saveInventario(DEFAULT_INVENTARIO);}catch(e){}
 try{if(!loadFinancieras())saveFinancieras(DEFAULT_FINANCIERAS);}catch(e){}
 
 function loadClientes(){try{return JSON.parse(fs.readFileSync(DATA,'utf8'))}catch(e){return []}}
