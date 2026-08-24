@@ -4122,6 +4122,7 @@ function renderAgenda(){
 function renderPanel(){
   const T=c=>temperatura(c);
   const AA=activos();
+  const NUEV=misTodos(); // incluye los enviados a papelera: mide los leads reales que entraron
   const total=AA.length;
   const cal=AA.filter(c=>{const x=T(c);return x&&x.id==='caliente';});
   const frios=AA.filter(c=>{const x=T(c);return x&&x.id==='sinContacto';});
@@ -4140,12 +4141,12 @@ function renderPanel(){
   const maxE=Math.max(1,...ETAPAS.map(e=>conteoE(e.id)));
   const conv=total?Math.round((AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length/total)*100):0;
   let seguimSemana=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguimSemana++;}));
-  const nuevosSemana=AA.filter(c=>(c.creado||'')>=weekAgo).length;
+  const nuevosSemana=NUEV.filter(c=>(c.creado||'')>=weekAgo).length;
   const _dow=(new Date().getDay()+6)%7;const _mon=new Date();_mon.setHours(0,0,0,0);_mon.setDate(_mon.getDate()-_dow);
-  const semanaDias=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());semanaDias.push({l:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i],n:AA.filter(c=>(c.creado||'')===ds).length});}
+  const semanaDias=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());semanaDias.push({l:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i],n:NUEV.filter(c=>(c.creado||'')===ds).length});}
   const maxDia=Math.max(1,...semanaDias.map(d=>d.n));
   const _mesLbl=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:AA.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg});}
+  const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:NUEV.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg});}
   // --- Métricas prácticas: enfriándose, ventas semana/mes, objetivos ---
   const OBJ_SEM=5, OBJ_MES=20;
   const esVenta=c=>(c.etapa==='vendido'||c.etapa==='posventa');
@@ -4179,7 +4180,7 @@ function renderPanel(){
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
     <div class="panelcard"><h3>🫧 Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;}).join('')}</div>
-    <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom)</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
+    <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
     <div class="dash-cols">
       <div class="panelcard"><h3>💵 Ventas del mes <span class="muted">· ${vendidosMes.length}</span></h3>${vendidosMes.length?(vendidosMes.slice().sort((a,b)=>(Number(b.comision)||0)-(Number(a.comision)||0)).slice(0,3).map(c=>`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto)+(c.operacion?' · '+esc(c.operacion):'')}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}</div>`).join('')+(vendidosMes.length>3?`<div class="frow" style="cursor:pointer;justify-content:center;color:var(--accent);font-weight:600" onclick="verEtapa('vendido')">Ver todas las ventas (${vendidosMes.length}) →</div>`:'')):'<div class="empty">Todavía no cerraste ventas este mes.</div>'}</div>
       <div class="panelcard"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
