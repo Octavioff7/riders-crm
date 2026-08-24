@@ -1,7 +1,7 @@
 /* Service worker del CRM: permite instalarlo como app y que abra offline.
    Estrategia: red primero (para datos frescos), con respaldo a caché si no hay internet.
    Las llamadas a /api/ SIEMPRE van a la red (nunca se cachean). */
-const CACHE='riders-crm-v2';
+const CACHE='riders-crm-v3';
 const ASSETS=['/','/index.html','/manifest.json','/icon-192.png','/icon-512.png','/icon-180.png'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS).catch(()=>{})));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
