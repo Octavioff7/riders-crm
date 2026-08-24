@@ -627,7 +627,8 @@
   .vline .tgt{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:.5;fill:none}
   .vline .ln{stroke:#34c759;stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
   .vline .dot{fill:#34c759}
-  .vline .grid{stroke:var(--grid);stroke-width:1;stroke-dasharray:3 3;fill:none}
+  .vline .grid{stroke:var(--grid);stroke-width:1;stroke-dasharray:3 3;fill:none;opacity:.5}
+  .vline .vhl{fill:#34c759;stroke:var(--card);stroke-width:2;pointer-events:none}
   .vline .hit{fill:transparent;cursor:pointer}
   .vline text{fill:var(--muted)}
   /* Chips para elegir cantidad de productos (estilo app, no el select del sistema) */
@@ -4124,6 +4125,8 @@ function renderAgenda(){
 }
 
 /* ---- PANEL DE INICIO (dashboard) ---- */
+function _vcHover(ev,rect,cx,cy,tip){const svg=rect.ownerSVGElement||rect.closest('svg');const h=svg&&svg.querySelector('.vhl');if(h){h.setAttribute('cx',cx);h.setAttribute('cy',cy);h.style.display='';}_pvTip(ev,tip);}
+function _vcLeave(rect){const svg=rect.ownerSVGElement||rect.closest('svg');const h=svg&&svg.querySelector('.vhl');if(h)h.style.display='none';_pvTipHide();}
 function renderPanel(){
   const T=c=>temperatura(c);
   const AA=activos();
@@ -4178,8 +4181,8 @@ function renderPanel(){
     let xT='';dias.forEach((d,i)=>{const x=xat(i).toFixed(1);if(d.showL!==false){grid+='<line x1="'+x+'" y1="'+pt+'" x2="'+x+'" y2="'+y0+'" class="grid"/>';xT+='<text x="'+x+'" y="'+(H-4)+'" text-anchor="middle" font-size="8">'+d.l+'</text>';}});
     let dots='';for(let i=0;i<=lim;i++){if(dias[i].n>0||i===lim)dots+='<circle cx="'+xat(i).toFixed(1)+'" cy="'+yat(cumArr[i]).toFixed(1)+'" r="2.3" class="dot"/>';}
     const step=(n>1?plotW/(n-1):plotW);let hits='';
-    for(let i=0;i<=lim;i++){const cx=xat(i),hx=Math.max(x0,cx-step/2),hw=Math.min(W-pr,cx+step/2)-hx,d=dias[i];const lbl=/^\d+$/.test(String(d.l))?('Día '+d.l):d.l;const tip=_pvJs(lbl+' · '+d.n+' venta'+(d.n===1?'':'s')+' · acumulado '+cumArr[i]);hits+='<rect x="'+hx.toFixed(1)+'" y="'+pt+'" width="'+Math.max(1,hw).toFixed(1)+'" height="'+plotH+'" class="hit" onmousemove="_pvTip(event,\''+tip+'\')" onmouseleave="_pvTipHide()"/>';}
-    return '<div class="panelcard"><h3>'+titulo+'</h3><div class="vchart-top"><span class="'+(total>=obj?'done':'')+'">'+total+'</span><span class="obj"> / '+obj+' 🎯</span></div><svg viewBox="0 0 '+W+' '+H+'" class="vline">'+grid+'<line x1="'+x0+'" y1="'+yat(obj).toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yat(obj).toFixed(1)+'" class="tgt"/><line x1="'+x0+'" y1="'+pt+'" x2="'+x0+'" y2="'+y0+'" class="ax"/><line x1="'+x0+'" y1="'+y0+'" x2="'+(W-pr)+'" y2="'+y0+'" class="ax"/>'+yT+xT+'<polyline points="'+poly+'" class="ln"/>'+dots+hits+'</svg></div>';
+    for(let i=0;i<=lim;i++){const cx=xat(i),cy=yat(cumArr[i]),hx=Math.max(x0,cx-step/2),hw=Math.min(W-pr,cx+step/2)-hx,d=dias[i];const lbl=/^\d+$/.test(String(d.l))?('Día '+d.l):d.l;const tip=_pvJs(lbl+' · '+d.n+' venta'+(d.n===1?'':'s')+' · acumulado '+cumArr[i]);hits+='<rect x="'+hx.toFixed(1)+'" y="'+pt+'" width="'+Math.max(1,hw).toFixed(1)+'" height="'+plotH+'" class="hit" onmousemove="_vcHover(event,this,'+cx.toFixed(1)+','+cy.toFixed(1)+',\''+tip+'\')" onmouseleave="_vcLeave(this)"/>';}
+    return '<div class="panelcard"><h3>'+titulo+'</h3><div class="vchart-top"><span class="'+(total>=obj?'done':'')+'">'+total+'</span><span class="obj"> / '+obj+' 🎯</span></div><svg viewBox="0 0 '+W+' '+H+'" class="vline">'+grid+'<line x1="'+x0+'" y1="'+yat(obj).toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yat(obj).toFixed(1)+'" class="tgt"/><line x1="'+x0+'" y1="'+pt+'" x2="'+x0+'" y2="'+y0+'" class="ax"/><line x1="'+x0+'" y1="'+y0+'" x2="'+(W-pr)+'" y2="'+y0+'" class="ax"/>'+yT+xT+'<polyline points="'+poly+'" class="ln"/>'+dots+'<circle class="vhl" r="4" style="display:none"/>'+hits+'</svg></div>';
   };
   main.innerHTML=`<div class="page"><div class="conv-head-row panel-head"><h1>Panel</h1><div class="head-btns"><button class="btn ghost cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub panel-sub">Riders Miami · ${total} clientes en total</div>
     <div class="tiles">
