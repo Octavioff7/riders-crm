@@ -134,6 +134,8 @@ function migrateInventario(){
 // que "volvía a aparecer" en cada reinicio de Render). El default ya viene enriquecido para instalaciones nuevas.
 try{if(!loadInventario())saveInventario(DEFAULT_INVENTARIO);}catch(e){}
 try{if(!loadFinancieras())saveFinancieras(DEFAULT_FINANCIERAS);}catch(e){}
+// Huella de la versión servida (cambia en cada deploy porque cambia index.html)
+const APP_VER=(()=>{try{const st=fs.statSync(path.join(DIR,'index.html'));return String(Math.round(st.mtimeMs))+'-'+st.size;}catch(e){return 'v'+Date.now();}})();
 
 function loadClientes(){try{return JSON.parse(fs.readFileSync(DATA,'utf8'))}catch(e){return []}}
 function saveClientes(arr){fs.writeFileSync(DATA,JSON.stringify(arr,null,1));try{autoBackup();}catch(e){}}
@@ -618,6 +620,10 @@ http.createServer((req,res)=>{
     if(!user||user.activo===false||!verifyPass(body.pass||'',user.salt,user.passHash))return json(401,{error:'Usuario o clave incorrectos'});
     json(200,{token:newSession(user.id),user:publicUser(user)});
   });
+
+  // Versión de la app (sin auth): el navegador la consulta para detectar un deploy nuevo
+  // y recargarse solo, así nadie queda con una copia vieja cacheada.
+  if(u==='/api/version'&&req.method==='GET')return json(200,{v:APP_VER});
 
   const apiAuth=u.startsWith('/api/');
   const me=userFromReq(req);

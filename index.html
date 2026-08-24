@@ -2455,7 +2455,7 @@ function _pvRender(id){
       +'<div class="row2"><div><label class="v-lbl-sm">Medio de pago</label>'+_vSelBtn('v-full',_VMETLBL[n.metodo]||'Medio',false,'_pvPickMetodo(\''+id+'\')')+'</div><div><label class="v-lbl-sm">Monto</label><input class="v-full" id="pv-monto" type="number" inputmode="decimal" placeholder="0" value="'+esc(n.monto)+'" oninput="_pvNew.monto=this.value"></div></div>'
       +(n.metodo==='financiado'?'<label class="v-lbl-sm">Financiera</label>'+_vSelBtn('v-full',n.financiera||'— Elegí —',!n.financiera,'_pvPickFin(\''+id+'\')'):'')
       +(comps.length>1?'<label class="v-lbl-sm">A nombre de</label>'+_vSelBtn('v-full',n.comprador||comps[0],false,'_pvPickComp(\''+id+'\')'):'')
-      +'<div class="row2"><div><label class="v-lbl-sm">Fecha</label>'+_dateBtn('v-full',n.fecha,'📅 Elegí la fecha','_pvPickFecha(\''+id+'\')')+'</div><div><label class="v-lbl-sm">&nbsp;</label><label class="v-comp" style="justify-content:flex-start"><input type="checkbox" style="width:auto;margin:0 6px 0 0" '+(n.acreditado?'checked':'')+' onchange="_pvNew.acreditado=this.checked"> Ya acreditado</label></div></div>'
+      +'<div class="row2"><div><label class="v-lbl-sm">Fecha</label>'+_dateBtn('v-full',n.fecha,'📅 Elegí la fecha','_pvNewPickFecha(\''+id+'\')')+'</div><div><label class="v-lbl-sm">&nbsp;</label><label class="v-comp" style="justify-content:flex-start"><input type="checkbox" style="width:auto;margin:0 6px 0 0" '+(n.acreditado?'checked':'')+' onchange="_pvNew.acreditado=this.checked"> Ya acreditado</label></div></div>'
       +'<button class="btn" style="width:100%;margin-top:10px" onclick="_pvAdd(\''+id+'\')">＋ Agregar pago</button>'
     +'</div>';
   }
@@ -2467,7 +2467,7 @@ function _pvDel(id,i){const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())
 function _pvPickMetodo(id){appPick({titulo:'Medio de pago',actual:_pvNew.metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_pvNew.metodo=v;if(v!=='financiado')_pvNew.financiera='';_pvRender(id);}});}
 function _pvPickFin(id){appPick({titulo:'Financiera',actual:_pvNew.financiera||'',opciones:_FIN.filter(_finActiva).map(f=>({value:f.n,label:f.n})),onPick:v=>{_pvNew.financiera=v;_pvRender(id);}});}
 function _pvPickComp(id){const c=clientes.find(x=>x.id===id);const comps=_entList(c.venta,'comprador').map(_entNom).filter(Boolean);appPick({titulo:'A nombre de',actual:_pvNew.comprador||comps[0]||'',opciones:comps.map(x=>({value:x,label:x})),onPick:v=>{_pvNew.comprador=v;_pvRender(id);}});}
-function _pvPickFecha(id){appDate({titulo:'Fecha del pago',actual:_pvNew.fecha,clearable:false,onPick:v=>{_pvNew.fecha=v;_pvRender(id);}});}
+function _pvNewPickFecha(id){appDate({titulo:'Fecha del pago',actual:_pvNew.fecha,clearable:false,onPick:v=>{_pvNew.fecha=v;_pvRender(id);}});}
 function _pvAdd(id){
   const c=clientes.find(x=>x.id===id);if(!c||!_esAdminRol())return;const n=_pvNew;
   const monto=parseFloat(n.monto)||0;if(monto<=0){alert('Poné un monto mayor a 0.');return;}
@@ -4409,6 +4409,33 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
   let _swReload=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{if(_swReload)return;_swReload=true;location.reload();});
 }
+/* ---- Actualización automática ----
+   Si el service worker sirvió una copia vieja (Render dormido / sin señal), el usuario podía quedarse
+   con una versión anterior del CRM sin enterarse. Consultamos la versión del servidor y, si cambió,
+   limpiamos la caché y recargamos. Nunca interrumpimos: si hay un formulario/modal abierto, esperamos. */
+let _appVer=null,_verBusy=false;
+function _verOcupado(){
+  if(document.querySelector('.modal-back'))return true;              // modal/ficha/calendario abierto
+  if(typeof _venta!=='undefined'&&_venta&&_venta.step)return true;   // cargando una venta
+  const a=document.activeElement;
+  return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));         // escribiendo algo
+}
+async function _checkVer(){
+  if(_verBusy)return;
+  try{
+    const r=await fetch('/api/version',{cache:'no-store'});if(!r.ok)return;
+    const d=await r.json();if(!d||!d.v)return;
+    if(!_appVer){_appVer=d.v;return;}
+    if(d.v===_appVer)return;
+    if(_verOcupado())return;                                          // reintenta en el próximo chequeo
+    _verBusy=true;
+    try{if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}}catch(e){}
+    location.reload();
+  }catch(e){}
+}
+_checkVer();
+setInterval(_checkVer,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)_checkVer();});
 </script>
 </body>
 </html>
