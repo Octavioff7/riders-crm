@@ -2936,7 +2936,8 @@ function _invImportApply(modo){
    5 datos del filtro y avisa cuando el lead está listo para la llamada.
    Esta pantalla sirve para probarlo (simulador) y para ajustarle el tono. */
 let _asisCfg=null,_asisMeta={},_asisSim={cliente:null},_asisBusy=false;
-const _ASIS_CAMPOS=[['producto','Qué producto le interesa'],['destino','Miami o envío a Cuba'],['pago','Cash o financiado'],['urgencia','Para cuándo lo quiere'],['contacto','Nombre y horario para llamarlo']];
+// El servidor manda la lista real al cargar; esto es solo el respaldo.
+let _ASIS_CAMPOS=[{id:'producto',label:'Qué producto le interesa',req:true},{id:'destino',label:'Miami o envío a Cuba',req:true},{id:'pago',label:'Cash o financiado',req:true},{id:'urgencia',label:'Para cuándo lo quiere',req:true},{id:'contacto',label:'Nombre y horario para llamarlo',req:true},{id:'presupuesto',label:'Presupuesto de otro lado',req:false}];
 function _asisCSS(){
   if(document.getElementById('asis-css'))return;
   const s=document.createElement('style');s.id='asis-css';
@@ -2986,7 +2987,7 @@ function renderAsistente(){
   const EST={apagado:['#8e8e93','Apagado','No contesta nada'],borrador:['#ff9f0a','Modo borrador','Escribe la respuesta pero no la manda'],activo:['#34c759','Activo','Contestando por WhatsApp']}[estado];
   const card=(l,v,s,col)=>'<div class="asx-card"><div class="l">'+l+'</div><div class="v">'+(col?'<span class="asx-dot" style="background:'+col+'"></span>':'')+v+'</div><div class="s">'+s+'</div></div>';
   let h='<div class="page page-wide"><div class="conv-head-row"><h1>🤖 Asistente IA</h1><button class="btn" onclick="_asisReset()">↺ Empezar otra charla</button></div>';
-  h+='<p class="sub">Contesta a la gente que escribe desde los anuncios, junta los datos que hacen falta y te avisa cuando el lead está listo para que lo llames.</p>';
+  h+='<p class="sub">Contesta a la gente que escribe desde los anuncios y te los deriva a una llamada. '+(c.sinPrecios?'<b>No da precios</b> — el precio lo manejás vos por teléfono.':'Puede dar precios del catálogo.')+'</p>';
   h+='<div class="asx-cards">'
     +card('Estado',EST[1],EST[2],EST[0])
     +card('Cerebro (IA)',_asisMeta.iaListo?'Conectado':'Sin clave',_asisMeta.iaListo?'Gemini responde':'Falta cargar GEMINI_KEY',_asisMeta.iaListo?'#34c759':'#ff3b30')
@@ -3010,11 +3011,24 @@ function renderAsistente(){
   const d=(sim&&sim.asis&&sim.asis.datos)||{};
   h+='<div class="asx-side">';
   h+='<div class="box"><h3>Filtro del lead</h3>';
-  _ASIS_CAMPOS.forEach(([id,lbl])=>{const v=String(d[id]||'').trim();
-    h+='<div class="asx-f"><span class="tk">'+(v?'✅':'⬜')+'</span><span><div>'+lbl+'</div>'+(v?'<div class="val">'+esc(v)+'</div>':'')+'</span></div>';});
-  const n=_ASIS_CAMPOS.filter(([id])=>String(d[id]||'').trim()).length;
-  h+='<div class="sub" style="margin-top:10px">'+n+' de 5 · '+(n>=4?'<b style="color:#34c759">Listo para llamar</b>':'faltan '+(4-n)+' para pasártelo')+'</div>';
+  _ASIS_CAMPOS.forEach(f=>{const v=String(d[f.id]||'').trim();
+    h+='<div class="asx-f"><span class="tk">'+(v?'✅':(f.req?'⬜':'➕'))+'</span><span><div>'+f.label+(f.req?'':' <span class="faint">(extra)</span>')+'</div>'+(v?'<div class="val">'+esc(v)+'</div>':'')+'</span></div>';});
+  const req=_ASIS_CAMPOS.filter(f=>f.req),min=_asisMeta.minCampos||4;
+  const n=req.filter(f=>String(d[f.id]||'').trim()).length;
+  h+='<div class="sub" style="margin-top:10px">'+n+' de '+req.length+' · '+(n>=min?'<b style="color:#34c759">Listo para llamar</b>':'faltan '+(min-n)+' para pasártelo')+'</div>';
   if(sim&&sim.asis&&sim.asis.resumen)h+='<div class="asx-ej" style="margin-top:10px"><b>Resumen para la llamada</b>'+esc(sim.asis.resumen)+'</div>';
+  h+='</div>';
+
+  // --- Cómo vende: lo que usa EN LUGAR del precio ---
+  h+='<div class="box"><h3>Cómo vende</h3>';
+  h+=_asisSwitch('sinPrecios','Nunca decir precios',c.sinPrecios);
+  h+='<div class="sub" style="margin:2px 0 10px">Con esto prendido el bot ni siquiera ve los precios del catálogo. Los deriva a tu llamada.</div>';
+  h+=_asisSwitch('mejoraPresupuesto','Ofrecer mejorar presupuestos',c.mejoraPresupuesto);
+  h+='<div class="asx-row" style="display:block"><div style="margin-bottom:4px">Reseñas de Google</div><input type="text" style="width:100%;text-align:left" placeholder="casi 700 reseñas y 4.9 estrellas" value="'+esc(c.reviews||'')+'" onchange="_asisSet(\'reviews\',this.value)"></div>';
+  h+='<div class="asx-row" style="display:block"><div style="margin-bottom:4px">Link de Google Maps</div><input type="text" style="width:100%;text-align:left" placeholder="https://maps.app.goo.gl/…" value="'+esc(c.maps||'')+'" onchange="_asisSet(\'maps\',this.value)"></div>';
+  h+='<div class="asx-row" style="display:block"><div style="margin-bottom:4px">Instagram</div><input type="text" style="width:100%;text-align:left" placeholder="@ridersmiami…" value="'+esc(c.instagram||'')+'" onchange="_asisSet(\'instagram\',this.value)"></div>';
+  h+='<div class="asx-row"><span>Si insiste con el precio</span><span><input type="number" min="1" max="9" value="'+(c.maxPedidosPrecio||3)+'" onchange="_asisSet(\'maxPedidosPrecio\',+this.value)" style="width:52px"> veces, te lo pasa</span></div>';
+  h+='<div class="sub" style="margin-top:6px">Lo que dejes vacío, el bot no lo menciona. Nunca inventa un link ni un número de reseñas.</div>';
   h+='</div>';
 
   h+='<div class="box"><h3>Cómo trabaja</h3>';
@@ -3050,7 +3064,8 @@ function _asisLoad(){
   if(!SERVER)return;
   api('/api/asistente/config').then(r=>r.json()).then(j=>{
     if(j.error)return;
-    _asisCfg=j.cfg;_asisMeta={numeroListo:j.numeroListo,iaListo:j.iaListo};
+    _asisCfg=j.cfg;_asisMeta={numeroListo:j.numeroListo,iaListo:j.iaListo,minCampos:j.minCampos};
+    if(Array.isArray(j.campos)&&j.campos.length)_ASIS_CAMPOS=j.campos;
     if(view==='asistente')renderAsistente();
   }).catch(()=>{});
 }
@@ -3078,10 +3093,10 @@ function _asisEnviar(){
     if(j.error){_asisSim.nota='⚠️ '+j.error;return renderAsistente();}
     _asisSim.cliente=j.cliente;
     const r2=j.res||{};
-    if(r2.handoff)_asisSim.nota='🙋 Acá corta y te pasa el chat a vos — '+(r2.motivo||'');
+    if(r2.handoff)_asisSim.nota=(r2.caliente?'🔥 Corta y te lo pasa para llamarlo YA — ':'🙋 Acá corta y te pasa el chat a vos — ')+(r2.motivo||'');
     else if(r2.frio)_asisSim.nota='❄️ Lo marca como frío y deja de contestarle.';
     else if(r2.listo)_asisSim.nota='✅ Lead listo para llamar. Te llega el aviso al celu.';
-    else _asisSim.nota='Tardó '+Math.round((j.ms||0)/1000)+'s en pensar · en WhatsApp esperaría '+Math.round((r2.delays&&r2.delays[0]||0)/1000)+'s antes de mandarlo';
+    else _asisSim.nota=(r2.fugaPrecio?'🛑 Se le escapó un precio y lo bloqueé · ':'')+'Tardó '+Math.round((j.ms||0)/1000)+'s en pensar · en WhatsApp esperaría '+Math.round((r2.delays&&r2.delays[0]||0)/1000)+'s antes de mandarlo';
     renderAsistente();
   }).catch(e=>{_asisBusy=false;_asisSim.nota='⚠️ No se pudo conectar';renderAsistente();});
 }

@@ -507,7 +507,10 @@ async function asistenteResponder(clienteId,texto){
     c.asis=c.asis||{datos:{},msgs:0,estado:'activo'};
     Object.assign(c.asis.datos=c.asis.datos||{},res.datos||{});
     if(res.resumen)c.asis.resumen=res.resumen;
-    if(res.handoff){c.asis.estado='handoff';c.asis.motivo=res.motivo||'';c.sinAtender=true;}
+    if(res.handoff){c.asis.estado='handoff';c.asis.motivo=res.motivo||'';c.sinAtender=true;
+      // Cortes que son buena noticia (mandó una cotización de otro lado, insiste
+      // con el precio): ese lead está para llamarlo ya, no para la cola.
+      if(res.caliente)c.tags=Array.from(new Set([...(c.tags||[]),'caliente']));}
     if(res.listo){c.asis.estado='listo';c.etapa=c.etapa==='nuevo'?'interesado':c.etapa;c.tags=Array.from(new Set([...(c.tags||[]),'caliente']));c.sinAtender=true;}
     if(res.frio){c.asis.estado='frio';c.tags=Array.from(new Set([...(c.tags||[]),'frio']));}
     if(res.descartar)c.asis.estado='descartado';

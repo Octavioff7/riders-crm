@@ -3,28 +3,34 @@
    ------------------------------------------------------------
    Contesta a la gente que escribe desde los anuncios de Facebook,
    habla con el tono de Octa (se aprende de sus chats reales), junta
-   los 5 datos que hacen falta para calificar el lead, y después se
-   lo pasa a un humano para la llamada.
+   los datos que hacen falta para calificar el lead, y después se lo
+   pasa a un humano para la llamada.
+
+   REGLA CENTRAL: el asistente NO habla de precios. El cliente que ya
+   consultó en otros lados se agarra del número y compara nada más;
+   el precio lo maneja Octa por teléfono, donde puede mejorar
+   cualquier presupuesto que el cliente le muestre. Por eso al modelo
+   ni siquiera se le pasan los precios del catálogo: no puede filtrar
+   lo que nunca vio.
 
    Este módulo NO manda nada por su cuenta: devuelve los mensajes ya
    escritos y quien lo llama decide si los envía por la API de
    WhatsApp o si es una simulación de prueba desde el CRM.
    ============================================================ */
 
-/* Los 5 datos del filtro. Si junta 4 de 5 el lead queda listo para llamar. */
+/* Los datos del filtro. Los `req` son los que hacen falta para pasarle
+   el lead a Octa; "presupuesto" es un extra muy valioso (un cliente con
+   cotización de otro lado es el más fácil de cerrar) pero no bloquea. */
 const CAMPOS = [
-  { id: 'producto', label: 'Qué producto le interesa' },
-  { id: 'destino', label: 'Para Miami o envío a Cuba' },
-  { id: 'pago', label: 'Cash o financiado' },
-  { id: 'urgencia', label: 'Para cuándo lo quiere' },
-  { id: 'contacto', label: 'Nombre y horario para llamarlo' }
+  { id: 'producto', label: 'Qué producto le interesa', req: true },
+  { id: 'destino', label: 'Miami o envío a Cuba', req: true },
+  { id: 'pago', label: 'Cash o financiado', req: true },
+  { id: 'urgencia', label: 'Para cuándo lo quiere', req: true },
+  { id: 'contacto', label: 'Nombre y horario para llamarlo', req: true },
+  { id: 'presupuesto', label: 'Presupuesto de otro lado', req: false }
 ];
-const MIN_CAMPOS = 4; // con 4 de 5 ya se le pasa a Octa
+const MIN_CAMPOS = 4; // con 4 de los 5 obligatorios ya se le pasa a Octa
 
-/* Configuración por defecto. Se guarda en DATA_DIR/asistente.json y
-   Octa la edita desde el CRM (sección "Asistente IA"). El bloque de
-   estilo y los ejemplos son PROVISORIOS: se reemplazan con el tono
-   real sacado de sus conversaciones exportadas de WhatsApp. */
 const DEFAULT_CFG = {
   activo: false,              // apagado hasta que haya número de WhatsApp conectado
   soloAnuncios: true,         // solo contesta a quien llega por un anuncio (m.referral)
@@ -37,6 +43,15 @@ const DEFAULT_CFG = {
   horaDesde: '08:00',         // fuera de este horario espera hasta la mañana
   horaHasta: '22:00',
   avisarPush: true,           // push al celu cuando un lead queda listo para llamar
+
+  /* --- Estrategia de venta --- */
+  sinPrecios: true,           // el bot nunca dice un precio; el precio es de la llamada
+  maxPedidosPrecio: 3,        // si insiste tantas veces por el precio, se lo pasa a Octa
+  instagram: '',              // ej: @ridersmiamimotorcycles — vacío = no lo menciona
+  maps: '',                   // link de Google Maps — vacío = no lo menciona
+  reviews: '',                // ej: "casi 700 reseñas y 4.9 estrellas en Google"
+  mejoraPresupuesto: true,    // ofrecer mejorar cualquier cotización que traiga
+
   estilo: [
     'Escribí en español de Miami, como se le habla a un cliente cubano.',
     'Usá "tú" SIEMPRE (tienes, quieres, para ti). Nunca "usted" y nunca "vos".',
@@ -46,9 +61,9 @@ const DEFAULT_CFG = {
   ].join('\n'),
   ejemplos: [
     { cliente: 'Hola, precio de la moto?', yo: 'Hola! Cuál te gustó, la de la foto del anuncio?' },
-    { cliente: 'si esa', yo: 'Esa es la Titan 250cc, sale 4500 cash.\nEs para ti aquí o para mandarla a Cuba?' },
-    { cliente: 'para mandar a cuba, se puede financiar?', yo: 'Sí, financiamos. Hay varias opciones según tu crédito.\nDe cuánto tienes el score más o menos?' },
-    { cliente: 'no se, nunca lo mire', yo: 'No hay problema, lo chequeamos juntos en un minuto.\nA qué hora te viene bien que te llame?' }
+    { cliente: 'si esa. cuanto sale?', yo: 'El precio te lo paso en una llamada de dos minutos, porque cambia según cómo la pagues.\nEs para ti aquí o para mandarla a Cuba?' },
+    { cliente: 'para cuba. pero dime el precio', yo: 'Te digo algo mejor: si ya tienes precio de otro lugar, mándame la foto y te lo mejoro.\nA qué hora te viene bien que te llame?' },
+    { cliente: 'y ustedes son serios?', yo: 'Mira nuestro Google, tenemos casi 700 reseñas.\nEstamos en el local hace años, puedes pasar cuando quieras.' }
   ],
   cierre: 'Dale, te llamo {horario} y lo cerramos. Cualquier cosa escríbeme.'
 };
@@ -69,14 +84,15 @@ function crearAsistente(dep) {
   }
 
   /* ---------- Estado del filtro ---------- */
+  const REQ = CAMPOS.filter(f => f.req);
   function estadoFiltro(cliente) {
     const d = (cliente && cliente.asis && cliente.asis.datos) || {};
-    const completos = CAMPOS.filter(f => String(d[f.id] || '').trim()).map(f => f.id);
-    const faltan = CAMPOS.filter(f => !completos.includes(f.id));
+    const completos = REQ.filter(f => String(d[f.id] || '').trim()).map(f => f.id);
+    const faltan = REQ.filter(f => !completos.includes(f.id));
     return {
       completos, faltan,
-      n: completos.length, total: CAMPOS.length,
-      pct: Math.round(completos.length / CAMPOS.length * 100),
+      n: completos.length, total: REQ.length,
+      pct: Math.round(completos.length / REQ.length * 100),
       listo: completos.length >= MIN_CAMPOS
     };
   }
@@ -85,25 +101,44 @@ function crearAsistente(dep) {
      Estas son las salidas de emergencia. Van por regex porque tienen
      que dispararse siempre, aunque el modelo se equivoque. */
   const RE_BOT = /\b(sos|eres|soy hablando con|est(o|oy hablando con)|es)\s*(un[ao]?\s*)?(bot|robot|m[aá]quina|maquina|ia|inteligencia artificial|chatgpt|gpt|contestador autom[aá]tico)\b|\bes autom[aá]tico\b|\bes un[ao]? (bot|ia|m[aá]quina)\b|\bhablo con (una )?(persona|humano|alguien real)\b|\bhay alguien (real|ah[ií])\b/i;
-  const RE_ENOJO = /\b(estafa|estafador|ladron|ladr[oó]n|denuncia|abogado|devolucion|devoluci[oó]n|reclamo|me robaron|basura|porqueria|porquer[ií]a)\b/i;
-  // OJO: acá NO va "llamame". Que el cliente pida que lo llamen es justo lo que
-  // queremos que pase — no es un pedido de escalar a un humano.
+  // Desconfianza normal ("hay mucha estafa", "son de fiar?") NO es un cliente
+  // enojado: es el momento exacto de mostrarle las reseñas de Google. Se chequea
+  // ANTES que el enojo porque comparten las mismas palabras.
+  const RE_DESCONFIA = /\b(hay|tanta|tanto|much[oa]s?)\s+(much[oa]s?\s+)?(estafa|estafador|ladron|ladr[oó]n)|no quiero que me estafen|no me vayan? a estafar|\bson (de )?fiar\b|\bson serios\b|\bes seguro\b|\bconfiabl|\bson confiables\b|\bes real (esto|eso)\b/i;
+  const RE_ENOJO = /\b(me estafaron|me estafaste|me robaron|esto es una estafa|es una estafa|son unos? (estafador|ladron|ladr[oó]n)|denuncia|abogado|reclamo|devoluci[oó]n|reembolso)\b|\b(que|una) (basura|porquer[ií]a)\b/i;
+  // OJO: acá NO va "llamame". Que el cliente pida que lo llamen es justo lo
+  // que queremos que pase — no es un pedido de escalar a un humano.
   const RE_HUMANO = /\b(quiero hablar con|pasame con|p[aá]same con|comunicame con|com[uú]nicame con|me atiende|que me atienda)\s*(un|una|el|la)?\s*(persona|humano|vendedor|encargado|due[ñn]o|jefe)\b/i;
+  // Pide precio: para contar cuántas veces insiste antes de pasárselo a Octa.
+  const RE_PIDE_PRECIO = /\b(precio|precios|cuanto|cu[aá]nto|vale|cuesta|sale|cotizaci[oó]n|presupuesto|barat|costo)\b/i;
 
   function esPreguntaBot(t) { return RE_BOT.test(String(t || '')); }
-  function pideHumano(t) { return RE_ENOJO.test(String(t || '')) || RE_HUMANO.test(String(t || '')); }
+  function pideHumano(t) {
+    const s = String(t || '');
+    if (RE_DESCONFIA.test(s)) return false; // eso lo contesta el bot con las reseñas
+    return RE_ENOJO.test(s) || RE_HUMANO.test(s);
+  }
+  function pidePrecio(t) { return RE_PIDE_PRECIO.test(String(t || '')); }
   function esNoTexto(t) { return /^\[(audio|image|imagen|video|document|sticker|location|ubicaci[oó]n|voice)/i.test(String(t || '').trim()); }
+  function esImagen(t) { return /^\[(image|imagen|document|photo)/i.test(String(t || '').trim()); }
 
-  /* ---------- Catálogo real para el prompt ----------
-     Solo nombre + precio de lista. Nunca comisiones ni fees: eso es
-     margen interno y el cliente no lo tiene que ver nunca. */
-  /* La categoría "kit" del inventario mezcla kits solares completos con
-     paneles, baterías e inversores sueltos. Si se los damos juntos, la IA
-     contesta "kits desde $230" cuando esos $230 son un panel solo. */
+  /* Red de seguridad: si a pesar de todo el modelo escribe un número que
+     parece un precio, ese mensaje no sale. No le pasamos los precios en
+     ningún momento, así que un número acá es una invención. */
+  const RE_PRECIO_SALIDA = /\$\s*\d|\b\d{3,5}\s*(?:d[oó]lares|dolares|usd|dls|d[oó]lar)\b|\b(?:sale|cuesta|vale|est[aá] en|precio de|ronda|arranca en|desde)\s+(?:los\s+)?\d{3,5}\b/i;
+  function tienePrecio(t) { return RE_PRECIO_SALIDA.test(String(t || '')); }
+
+  /* ---------- Catálogo para el prompt ----------
+     SIN PRECIOS cuando sinPrecios está activo: el modelo necesita los
+     nombres de los modelos para poder conversar ("la Titan 250"), pero
+     no tiene por qué conocer los números.
+     La categoría "kit" del inventario mezcla kits solares completos con
+     paneles, baterías e inversores sueltos, así que se separan. */
   const esKitCompleto = p => /^kit\b/i.test(String(p.nombre || ''));
-  function catalogoTexto(inv) {
+  function catalogoTexto(inv, cfg) {
+    const sinPrecios = !cfg || cfg.sinPrecios !== false;
     const act = (inv || []).filter(p => p && p.activo !== false);
-    const linea = p => `- ${p.nombre}${p.motor ? ' (' + p.motor + ')' : ''}: $${p.precio}`;
+    const linea = p => `- ${p.nombre}${p.motor ? ' (' + p.motor + ')' : ''}` + (sinPrecios ? '' : `: $${p.precio}`);
     const grupo = f => act.filter(f).map(linea).join('\n');
     return [
       'MOTOS:\n' + (grupo(p => p.cat === 'moto') || '(sin stock cargado)'),
@@ -113,23 +148,17 @@ function crearAsistente(dep) {
       + (grupo(p => p.cat === 'kit' && !esKitCompleto(p)) || '(nada cargado)')
     ].join('\n\n');
   }
-  /* Los modelos de IA son malos buscando el mínimo de una lista larga: en la
-     prueba dijo que la moto más barata era de $3600 cuando hay una de $1600.
-     Se lo calculamos nosotros y se lo damos masticado. */
-  function masBaratosTexto(inv) {
-    const act = (inv || []).filter(p => p && p.activo !== false && Number(p.precio) > 0);
-    const min = f => act.filter(f).sort((a, b) => a.precio - b.precio)[0];
-    const l = [
-      ['la moto', p => p.cat === 'moto'],
-      ['el triciclo', p => p.cat === 'triciclo'],
-      ['el kit solar completo', p => p.cat === 'kit' && esKitCompleto(p)]
-    ].map(([n, f]) => { const p = min(f); return p ? `- ${n} más barato/a es ${p.nombre}: $${p.precio}` : ''; })
-      .filter(Boolean);
+
+  /* Los argumentos de venta que reemplazan al precio. Solo se le dan al
+     modelo los que Octa cargó: si no hay Instagram, no lo puede inventar. */
+  function argumentosTexto(cfg) {
+    const l = [];
+    if (cfg.reviews) l.push(`- Reseñas: ${cfg.reviews}. Es tu argumento más fuerte, usalo cuando duden de si somos serios.`);
+    if (cfg.maps) l.push(`- Google Maps del local (mandá el link tal cual): ${cfg.maps}`);
+    if (cfg.instagram) l.push(`- Instagram (mandalo tal cual): ${cfg.instagram}`);
+    if (cfg.mejoraPresupuesto) l.push('- Si ya tiene precio de otro lugar: pedile que te mande una FOTO del presupuesto, que se lo mejoramos. Es la mejor forma de sacarlo del "solo estoy preguntando".');
+    if (!l.length) return '(todavía no hay material cargado: no menciones Instagram, Google Maps ni reseñas, no inventes links ni números de reseñas)';
     return l.join('\n');
-  }
-  function financierasTexto(fin) {
-    // Solo nombres y días de uso. El fee es interno.
-    return (fin || []).map(f => `- ${f.n} (${f.dias || 'consultar'})`).join('\n');
   }
 
   /* ---------- Historial de la charla para el prompt ---------- */
@@ -149,26 +178,43 @@ function crearAsistente(dep) {
   function armarPrompt(cliente, texto, cfg, inv, fin) {
     const est = estadoFiltro(cliente);
     const d = (cliente.asis && cliente.asis.datos) || {};
+    const vecesPrecio = (cliente.asis && cliente.asis.precioPedido) || 0;
     const anuncio = cliente.adReferral && cliente.adReferral.titulo
       ? `Escribió desde el anuncio: "${cliente.adReferral.titulo}". Ya sabés por dónde vino, no le preguntes de dónde nos conoció.`
       : '';
-    const nDatos = CAMPOS.map(f => `- ${f.label}: ${d[f.id] ? d[f.id] : '(FALTA)'}`).join('\n');
+    const nDatos = CAMPOS.map(f => `- ${f.label}${f.req ? '' : ' (opcional pero muy valioso)'}: ${d[f.id] ? d[f.id] : '(FALTA)'}`).join('\n');
+
+    const bloquePrecio = cfg.sinPrecios === false ? '' : `
+LO MÁS IMPORTANTE DE TODO: NO HABLÁS DE PRECIOS
+Nunca, bajo ninguna circunstancia, digas un precio, un rango, una cuota, un monto de entrada, ni "desde tanto". No tenés los precios y no los vas a tener.
+El motivo real es este: el cliente que escribe por un anuncio casi siempre ya preguntó en otros lugares. Si le tirás un número, deja de escuchar y se pone a comparar números. El precio lo da ${cfg.agente} por teléfono, donde puede escuchar qué necesita y mejorarle lo que le hayan ofrecido.
+
+Cuando te pregunten el precio (te lo van a preguntar enseguida), no lo esquives con vueltas: dale un motivo concreto y seguí. Cosas ciertas que podés decir:
+- Que el precio final cambia según cómo lo pague (cash, tarjeta o financiado) y según si va para Cuba, así que se lo pasás bien en la llamada.
+- Que si ya tiene un precio de otro lugar, te mande una foto del presupuesto y se lo mejoran.
+- Que la llamada son dos minutos.
+Ya te preguntó el precio ${vecesPrecio} vez/veces. Si te lo pregunta más de ${cfg.maxPedidosPrecio || 3} veces, ya no lo esquives más: poné handoff en true con el motivo "insiste con el precio".
+No repitas la misma excusa dos veces seguidas, cambiá el ángulo.
+`;
 
     return `Sos ${cfg.agente}, vendedor de ${cfg.negocio}, una concesionaria en Miami que vende motos, triciclos y kits solares. Muchos clientes compran acá para enviarle el producto a un familiar en Cuba.
 
 Estás contestando por WhatsApp a una persona que escribió desde un anuncio de Facebook. ${anuncio}
 
 TU OBJETIVO
-Averiguar en pocos mensajes estos 5 datos y después pasarle el cliente a un vendedor para que lo llame por teléfono. NO tenés que cerrar la venta por chat.
+Que esta persona acepte una llamada telefónica. En el camino averiguás lo que puedas de esta lista. NO cerrás la venta por chat y NO das precios.
 
 ${nDatos}
 
-Ya juntaste ${est.n} de 5. Preguntá por lo que FALTA, de a UNA cosa por mensaje. Lo que ya sabés no lo vuelvas a preguntar.
-
+Ya juntaste ${est.n} de ${est.total} datos obligatorios. Preguntá por lo que FALTA, de a UNA cosa por mensaje. Lo que ya sabés no lo vuelvas a preguntar.
+${bloquePrecio}
 CÓMO CERRÁS
-Con ${MIN_CAMPOS} de los 5 datos ya alcanza. Si con este mensaje que te acaba de mandar llegás a ${MIN_CAMPOS} o más, NO preguntes nada más: despedite confirmando la llamada, corto y natural. Algo del estilo de "${cfg.cierre || 'Dale, te llamo y lo cerramos.'}". El que llama es un vendedor de verdad, así que no prometas nada más que la llamada.
+Con ${MIN_CAMPOS} de los ${est.total} datos obligatorios ya alcanza. Si con este mensaje que te acaba de mandar llegás a ${MIN_CAMPOS} o más, NO preguntes nada más: despedite confirmando la llamada, corto y natural. Algo del estilo de "${cfg.cierre || 'Dale, te llamo y lo cerramos.'}".
 
-CÓMO ESCRIBÍS (esto es lo más importante)
+TUS ARGUMENTOS (esto es lo que usás en lugar del precio)
+${argumentosTexto(cfg)}
+
+CÓMO ESCRIBÍS (esto es lo más importante después de lo del precio)
 ${cfg.estilo}
 - Mensajes cortos, de una o dos líneas. Como escribe una persona por WhatsApp.
 - Podés mandar como máximo 2 mensajes seguidos. Normalmente uno solo.
@@ -178,21 +224,18 @@ ${cfg.estilo}
 - No repitas la última cosa que dijiste con otras palabras.
 - Si te dice que no le interesa o que solo estaba mirando: insistí UNA sola vez, corto. Si te dice que no de nuevo, despedite bien y devolvé "frio": true.
 
-CATÁLOGO: LO MÁS BARATO DE CADA CATEGORÍA (usá esto si te preguntan por el más barato, NO busques a ojo en la lista)
-${masBaratosTexto(inv)}
-
-QUÉ PODÉS DECIR Y QUÉ NO
-- Precios: SOLO los del catálogo de abajo, exactos. Si te piden algo que no está, decí que lo confirmás en la llamada.
+QUÉ MÁS NO PODÉS HACER
 - NUNCA inventes descuentos, promociones, plazos de entrega, cuotas ni montos de financiación.
 - NUNCA hables de comisiones, fees ni de cuánto gana el negocio.
 - NUNCA prometas que la financiación va a salir aprobada. Se chequea en la llamada.
+- NUNCA inventes un link, un usuario de Instagram ni una cantidad de reseñas: usá solo los de la lista de arriba.
 - Del envío a Cuba: podés decir que se maneja, los detalles se ven en la llamada.
 
-CATÁLOGO REAL (precios cash, en dólares)
-${catalogoTexto(inv)}
+MODELOS QUE TENEMOS (para poder conversar; los precios NO están acá a propósito)
+${catalogoTexto(inv, cfg)}
 
-FINANCIERAS CON LAS QUE TRABAJAMOS (podés nombrarlas, sin dar detalles de costos)
-${financierasTexto(fin)}
+FINANCIERAS CON LAS QUE TRABAJAMOS (podés decir que financiamos y nombrarlas, sin dar ningún costo)
+${(fin || []).map(f => '- ' + f.n).join('\n')}
 
 CONVERSACIÓN HASTA AHORA
 ${historialTexto(cliente, 20)}
@@ -207,7 +250,7 @@ Hoy es ${hoy()}, son las ${ahora()} en Miami.
 
 Devolvé SOLO este JSON, sin nada más:
 {"mensajes":["texto del mensaje 1","texto del mensaje 2 (opcional, o borrá este)"],
- "datos":{"producto":"","destino":"","pago":"","urgencia":"","contacto":""},
+ "datos":{"producto":"","destino":"","pago":"","urgencia":"","contacto":"","presupuesto":""},
  "handoff":false,
  "motivo":"",
  "descartar":false,
@@ -216,11 +259,11 @@ Devolvé SOLO este JSON, sin nada más:
 
 Reglas del JSON:
 - "mensajes": 1 o 2 mensajes. Si handoff es true, dejalo vacío ([]).
-- "frio": true si te dijo dos veces que no le interesa, que está caro y se va, o que solo estaba mirando. En ese caso mandá un mensaje corto de despedida amable y nada más.
-- "datos": copiá TODO lo que ya sabías y agregá lo nuevo que sacaste de este mensaje. Lo que no sepas, string vacío. NO ADIVINES: si el cliente no dijo si es para Miami o para Cuba, dejá "destino" vacío aunque te parezca obvio. Lo mismo con el resto. Para "producto" poné el modelo exacto del catálogo si lo mencionó. Para "destino" poné "Miami" o "Cuba". Para "pago" poné "Cash" o "Financiado". Para "contacto" poné el nombre y el horario que dio.
-- "handoff": true SOLO si te preguntan si sos un bot, si piden hablar con una persona, si están enojados, o si preguntan algo que no podés contestar sin inventar. Tener los datos completos NO es motivo de handoff: en ese caso mandás el mensaje de despedida con handoff en false y listo.
+- "datos": copiá TODO lo que ya sabías y agregá lo nuevo que sacaste de este mensaje. Lo que no sepas, string vacío. NO ADIVINES: si el cliente no dijo si es para Miami o para Cuba, dejá "destino" vacío aunque te parezca obvio. Lo mismo con el resto. Para "producto" poné el modelo exacto de la lista si lo mencionó. Para "destino" poné "Miami" o "Cuba". Para "pago" poné "Cash" o "Financiado". Para "contacto" poné el nombre y el horario que dio. Para "presupuesto" poné lo que haya contado de precios que le dieron en otro lado.
+- "handoff": true SOLO si te preguntan si sos un bot, si piden hablar con una persona, si están enojados, si insisten demasiado con el precio, o si preguntan algo que no podés contestar sin inventar. Tener los datos completos NO es motivo de handoff: en ese caso mandás el mensaje de despedida con handoff en false.
+- "frio": true si te dijo dos veces que no le interesa o que solo estaba mirando. En ese caso mandá un mensaje corto de despedida amable y nada más.
 - "descartar": true si claramente no es un cliente (spam, se equivocó de número, ofrece servicios).
-- "resumen": una línea con lo que hay que saber antes de llamarlo. Ejemplo: "Quiere una Titan 250 para mandar a Cuba, financiado, llamar después de las 6".`;
+- "resumen": una línea con lo que hay que saber antes de llamarlo. Si tiene un presupuesto de otro lado, ponelo SIEMPRE. Ejemplo: "Quiere una Titan 250 para Cuba, financiado, le ofrecieron 4800 en otro lugar, llamar después de las 6".`;
   }
 
   /* ---------- Respuesta ---------- */
@@ -233,16 +276,21 @@ Reglas del JSON:
 
     cliente.asis = cliente.asis || { datos: {}, msgs: 0, estado: 'activo' };
     const asis = cliente.asis;
+    if (pidePrecio(texto)) asis.precioPedido = (asis.precioPedido || 0) + 1;
 
     // --- Salidas de emergencia, antes de gastar una llamada a la IA ---
     if (esPreguntaBot(texto))
       return corte(cliente, 'Preguntó si es un bot', cfg, true);
     if (pideHumano(texto))
-      return corte(cliente, 'Pidió hablar con una persona', cfg, true);
+      return corte(cliente, RE_ENOJO.test(texto) ? '⚠️ Cliente enojado — entrá vos' : 'Pidió hablar con una persona', cfg, true, RE_ENOJO.test(texto));
+    if (esImagen(texto) && asis.pidioPresupuesto)
+      return corte(cliente, '📸 Mandó el presupuesto de la competencia — entrá a verlo', cfg, true, true);
     if (esNoTexto(texto))
       return corte(cliente, 'Mandó un audio o una foto', cfg, true);
     if (asis.msgs >= (cfg.maxMensajes || 12))
       return corte(cliente, 'La charla se hizo larga (' + asis.msgs + ' mensajes)', cfg, true);
+    if (cfg.sinPrecios !== false && asis.precioPedido > (cfg.maxPedidosPrecio || 3))
+      return corte(cliente, 'Insiste con el precio — llamalo vos', cfg, true, true);
 
     // --- Cerebro ---
     // Se intenta dos veces: la IA de vez en cuando devuelve el JSON envuelto
@@ -288,12 +336,25 @@ Reglas del JSON:
     let mensajes = (Array.isArray(a.mensajes) ? a.mensajes : [a.mensajes])
       .map(m => String(m || '').trim()).filter(Boolean).slice(0, 2);
     mensajes = mensajes.map(limpiarMensaje).filter(Boolean);
+
+    // Red de seguridad del precio: si se le escapó un número, ese mensaje no sale.
+    let fugaPrecio = false;
+    if (cfg.sinPrecios !== false) {
+      const antes = mensajes.length;
+      mensajes = mensajes.filter(m => !tienePrecio(m));
+      fugaPrecio = mensajes.length < antes;
+      if (fugaPrecio && !mensajes.length)
+        return corte(cliente, 'La IA quiso dar un precio — mejor llamalo vos', cfg, true, true);
+    }
     if (!mensajes.length)
       return corte(cliente, 'La IA no escribió ninguna respuesta', cfg, true);
 
     asis.msgs = (asis.msgs || 0) + mensajes.length;
+    // ¿Le pidió el presupuesto de la competencia? Si después manda una foto,
+    // sabemos que es la cotización y se la pasamos a Octa marcada como caliente.
+    if (/present?upuesto|cotizaci[oó]n|foto del precio|lo que te ofrecieron|mejorar?telo/i.test(mensajes.join(' ')))
+      asis.pidioPresupuesto = true;
 
-    // ¿Ya está listo para la llamada?
     const est = estadoFiltro(cliente);
     if (a.frio) asis.estado = 'frio';
     else if (est.listo && asis.estado === 'activo') asis.estado = 'listo';
@@ -301,16 +362,17 @@ Reglas del JSON:
     return {
       ok: true, mensajes, datos: asis.datos, resumen: asis.resumen,
       listo: est.listo && !a.frio, frio: !!a.frio, filtro: est,
-      handoff: false, motivo: '',
+      handoff: false, motivo: '', fugaPrecio,
       delays: calcularDelays(mensajes, cfg, msIA), modelo: r.model, msIA
     };
   }
 
-  /* Corta la charla y se la pasa a un humano. */
-  function corte(cliente, motivo, cfg, marcar) {
+  /* Corta la charla y se la pasa a un humano. `caliente` marca los cortes
+     que son buena noticia (mandó cotización, insiste con el precio). */
+  function corte(cliente, motivo, cfg, marcar, caliente) {
     if (marcar && cliente.asis) cliente.asis.estado = 'handoff';
     return {
-      ok: true, mensajes: [], handoff: true, motivo,
+      ok: true, mensajes: [], handoff: true, motivo, caliente: !!caliente,
       datos: (cliente.asis && cliente.asis.datos) || {},
       resumen: (cliente.asis && cliente.asis.resumen) || '',
       filtro: estadoFiltro(cliente), listo: false
@@ -367,7 +429,7 @@ Reglas del JSON:
     const d = res.datos || {};
     const partes = [d.producto, d.destino, d.pago, d.urgencia].filter(Boolean).join(' · ');
     return {
-      title: res.listo ? '✅ Lead listo para llamar' : '🙋 Te necesitan en un chat',
+      title: res.listo ? '✅ Lead listo para llamar' : (res.caliente ? '🔥 Llamalo ya' : '🙋 Te necesitan en un chat'),
       body: (cliente.nombre || cliente.whatsapp || 'Lead') + (partes ? ' — ' + partes : '') +
         (res.motivo ? ' (' + res.motivo + ')' : '')
     };
@@ -376,8 +438,8 @@ Reglas del JSON:
   return {
     CAMPOS, MIN_CAMPOS, DEFAULT_CFG,
     cargarCfg, guardarCfg, responder, estadoFiltro,
-    enHorario, avisoLead, calcularDelays, limpiarMensaje,
-    esPreguntaBot, pideHumano, armarPrompt, catalogoTexto
+    enHorario, avisoLead, calcularDelays, limpiarMensaje, parseJSON,
+    esPreguntaBot, pideHumano, pidePrecio, tienePrecio, armarPrompt, catalogoTexto
   };
 }
 
