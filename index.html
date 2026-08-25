@@ -1709,8 +1709,8 @@ function _adRender(){
   const wrap=document.createElement('div');wrap.className='ad-back';wrap.id='modal-date';
   wrap.innerHTML='<div class="ad-pop" id="ad-pop">'
     +'<div class="ad-nav"><button type="button" class="mini" onclick="_adMonth(-1)">‹</button><b>'+_AD_MESES[mo-1]+' '+y+'</b><button type="button" class="mini" onclick="_adMonth(1)">›</button></div>'
-    +'<div class="ad-grid" style="margin-bottom:2px">'+_AD_DOW.map(d=>'<div class="ad-dowc">'+d+'</div>').join('')+'</div>'
-    +'<div class="ad-grid">'+cells+'</div>'
+    +'<div class="ad-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:2px">'+_AD_DOW.map(d=>'<div class="ad-dowc" style="display:block">'+d+'</div>').join('')+'</div>'
+    +'<div class="ad-grid" id="ad-dias" style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">'+cells+'</div>'
     +'<div class="ad-foot">'+(S.clearable?'<button type="button" onclick="_adPick(\'\')">Limpiar</button>':'')+'<button type="button" onclick="_adPick(\''+t+'\')">Hoy</button></div>'
     +'</div>';
   wrap.onclick=e=>{if(e.target===wrap)_adClose();};document.body.appendChild(wrap);
@@ -1718,6 +1718,13 @@ function _adRender(){
 }
 function _adPlace(){
   const pop=document.getElementById('ad-pop');if(!pop)return;
+  // Red de seguridad: si algun estilo del entorno aplasta la grilla, se fuerza a mano.
+  try{const gd=document.getElementById('ad-dias');
+    if(gd&&gd.getBoundingClientRect().height<40){
+      gd.style.cssText='display:grid!important;grid-template-columns:repeat(7,1fr);gap:1px;visibility:visible!important';
+      pop.querySelectorAll('.ad-cell').forEach(function(c){if(!c.classList.contains('empty'))c.style.cssText='display:block!important;visibility:visible!important;padding:5px 0;font-size:11.5px;border:none;background:transparent;color:var(--txt);border-radius:6px;cursor:pointer';});
+      pop.querySelectorAll('.ad-dowc').forEach(function(c){c.style.cssText='display:block!important;visibility:visible!important;text-align:center;font-size:9.5px;color:var(--muted);font-weight:600';});
+    }}catch(e){}
   const a=_adState&&_adState.anchor,W=innerWidth,H=innerHeight,w=pop.offsetWidth,h=pop.offsetHeight,M=8;
   if(!a||!document.body.contains(a)){pop.style.left=Math.max(M,(W-w)/2)+'px';pop.style.top=Math.max(M,(H-h)/2)+'px';return;}
   const r=a.getBoundingClientRect();

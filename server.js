@@ -568,10 +568,13 @@ function checkDue(){
         const k=c.id+'|'+c.proximo+'|'+(c.proximoHora||'');
         if(nt[k])continue;
         const vend=users.find(u=>u.id===c.vendedorId);
-        const txt='🔔 Recordatorio: es hora de tu '+(c.proximoTipo||'seguimiento')+' con '+c.nombre+(c.whatsapp?' ('+c.whatsapp+')':'');
+        // Un cliente recien llegado (nunca contactado) se avisa como NUEVO, no como seguimiento
+        const esNuevo=((c.etapa||'nuevo')==='nuevo')&&!(c.log&&c.log.length)&&!c.ultimoContacto;
+        const quien=c.nombre+(c.whatsapp?' ('+c.whatsapp+')':'');
+        const txt=esNuevo?('🆕 *Nuevo cliente*: '+quien+' — contactalo'):('🔔 Recordatorio: es hora de tu '+(c.proximoTipo||'seguimiento')+' con '+quien);
         let sent=false;
         if(vend&&vend.telegramChatId){tg('sendMessage',{chat_id:vend.telegramChatId,text:txt});sent=true;}
-        if(typeof pushToUser==='function'&&vend){try{if(pushToUser(vend.id,{title:'Recordatorio de contacto',body:'Es hora de tu '+(c.proximoTipo||'seguimiento')+' con '+c.nombre,cid:c.id}))sent=true;}catch(e){}}
+        if(typeof pushToUser==='function'&&vend){try{if(pushToUser(vend.id,{title:esNuevo?'🆕 Nuevo cliente':'Recordatorio de contacto',body:esNuevo?('Contactá a '+c.nombre):('Es hora de tu '+(c.proximoTipo||'seguimiento')+' con '+c.nombre),cid:c.id}))sent=true;}catch(e){}}
         if(sent){nt[k]=now;changed=true;}
       }
     }
