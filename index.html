@@ -913,6 +913,17 @@ function startResize(e){
   function up(){document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);if(rz&&rz.classList)rz.classList.remove('drag');document.body.classList.remove('resizing');localStorage.setItem('convW',convW);}
   document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);document.body.classList.add('resizing');
 }
+// Como se MUESTRA un telefono guardado: +1 (786) 376-0737. Si no es de EE.UU. se deja como esta.
+function telVer(v){
+  const raw=String(v==null?'':v).trim();
+  if(!raw)return '';
+  // Si trae prefijo de otro pais (ej. Cuba +53) se respeta tal cual
+  if(raw.charAt(0)==='+'&&raw.charAt(1)!=='1')return raw;
+  let d='';for(let i=0;i<raw.length;i++){const k=raw.charCodeAt(i);if(k>=48&&k<=57)d+=raw[i];}
+  if(d.length===11&&d[0]==='1')d=d.slice(1);
+  if(d.length===10)return '+1 ('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);
+  return raw;
+}
 function fmtTel(v){
   v=v||'';
   // Autoformato lindo de EE.UU. SOLO si arranca con "+1" y hay dígitos después.
@@ -1090,7 +1101,7 @@ function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.bod
 // Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
 function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados();return base.filter(c=>!filtro||(c.nombre+c.whatsapp+c.producto).toLowerCase().includes(filtro.toLowerCase()));}
-function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(c.whatsapp):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
+function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(telVer(c.whatsapp)):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
 function convListItems(){const l=filteredConvs();return l.map(convRow).join('')||'<div class="empty" style="margin:14px">Sin clientes</div>';}
 // Al buscar: actualiza SOLO la lista y el contador, sin redibujar la ficha (evita el parpadeo).
 function filtrarChats(v){filtro=v;const cl=document.querySelector('.conv-list');if(cl)cl.innerHTML=convListItems();const l=filteredConvs();const n=document.querySelector('.conv-top .auto-note');if(n)n.innerHTML=inboxCtx?('💬 '+l.length+' en esta sección · <a href="#" onclick="inboxCtx=null;render();return false" style="color:var(--accent);text-decoration:none">ver todos los chats</a>'):('💬 '+l.length+' conversaciones · '+l.filter(needsReply).length+' para responder');}
@@ -1114,7 +1125,7 @@ function chatHTML(c){
   for(const m of c.mensajes){if(m.fecha!==ld){msgs+=`<div class="daysep">${relTime(m.fecha)}</div>`;ld=m.fecha;}msgs+=`<div class="msg ${m.de==='yo'?'out':'in'}">${esc(m.texto)}<div class="t">${m.hora||''}</div></div>`;}
   const h=waHref(c);
   const reply=h?`<a class="wa-btn" href="${h}" target="_blank" rel="noopener" style="margin:0">${WA_SVG}<span>Responder por WhatsApp</span></a>`:`<div class="wa-none" style="margin:0">Sin número guardado — no puedo abrir el chat.</div>`;
-  return `<div class="chat-head"><button class="backbtn" onclick="document.body.classList.remove('chat-open')">←</button><div class="av" style="width:38px;height:38px;background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div><div class="nm">${esc(c.nombre)}</div><div class="sub">${esc(c.whatsapp||'sin número')} · WhatsApp</div></div>${t?`<span class="temp-tag" style="background:${t.color}22;color:${t.color}">${t.emoji} ${t.label}</span>`:''}<button class="ficha-toggle" onclick="document.body.classList.toggle('ficha-open')" title="Ver ficha del cliente">ℹ️</button></div>
+  return `<div class="chat-head"><button class="backbtn" onclick="document.body.classList.remove('chat-open')">←</button><div class="av" style="width:38px;height:38px;background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div><div class="nm">${esc(c.nombre)}</div><div class="sub">${esc(telVer(c.whatsapp)||'sin número')} · WhatsApp</div></div>${t?`<span class="temp-tag" style="background:${t.color}22;color:${t.color}">${t.emoji} ${t.label}</span>`:''}<button class="ficha-toggle" onclick="document.body.classList.toggle('ficha-open')" title="Ver ficha del cliente">ℹ️</button></div>
     <div class="messages" id="messages">${msgs}</div>
     <div class="reply-bar">
       ${reply}
@@ -1132,7 +1143,7 @@ function crmHTML(c){
     return `<div class="logitem"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
   }).join('')||'<div class="empty">Todavía no hay notas. Escribí la primera abajo 👇</div>';
   const prox=c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';
-  return `<div class="crm-h"><button class="backbtn" onclick="history.back()" aria-label="Volver">←</button><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="nm">${esc(c.nombre)}</div><div class="wa">${esc(c.whatsapp||'Sin número guardado')}</div><button class="edit-cli" onclick="editarCliente('${c.id}')" title="Editar nombre y teléfono">✏️</button></div>
+  return `<div class="crm-h"><button class="backbtn" onclick="history.back()" aria-label="Volver">←</button><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="nm">${esc(c.nombre)}</div><div class="wa">${esc(telVer(c.whatsapp)||'Sin número guardado')}</div><button class="edit-cli" onclick="editarCliente('${c.id}')" title="Editar nombre y teléfono">✏️</button></div>
     <div class="crm-b">${waBtnBig(c)}
       ${banner}
       <div class="section-t" style="margin-top:2px">🏷️ Etiqueta manual</div>
@@ -1287,7 +1298,7 @@ function googleCal(id){
     dates=f.replace(/-/g,'')+'/'+(''+nd.getFullYear()+pad(nd.getMonth()+1)+pad(nd.getDate()));
   }
   const title=tp+' - '+c.nombre;
-  const det=['Cliente: '+c.nombre,c.whatsapp?('WhatsApp: '+c.whatsapp):'',c.producto?('Producto: '+c.producto):'',c.operacion?('Operación: '+c.operacion):''].filter(Boolean).join('\n');
+  const det=['Cliente: '+c.nombre,c.whatsapp?('WhatsApp: '+telVer(c.whatsapp)):'',c.producto?('Producto: '+c.producto):'',c.operacion?('Operación: '+c.operacion):''].filter(Boolean).join('\n');
   const url='https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+dates+'&details='+encodeURIComponent(det);
   window.open(url,'_blank','noopener');
 }
@@ -1296,7 +1307,7 @@ function completarProximo(id){const c=clientes.find(x=>x.id===id);if(!c)return;c
 /* ---- CLIENTES ---- */
 function creaKey(c){return c.creadoTs||(c.creado?(Date.parse(c.creado+'T00:00:00')||0):0);}
 function listFiltered(){const q=(filtro||'').toLowerCase();let l=activos().filter(c=>!q||(c.nombre+' '+c.whatsapp+' '+c.producto).toLowerCase().includes(q));if(filtroVend)l=l.filter(c=>c.vendedorId===filtroVend);if(filtroEtapa)l=l.filter(c=>c.etapa===filtroEtapa);return l.sort((a,b)=>creaKey(b)-creaKey(a));}
-function listRowsHTML(){const list=listFiltered();let r='';for(const c of list){const e=etapaDe(c.etapa),t=temperatura(c);r+=`<tr onclick="verFicha('${c.id}')"><td><b>${esc(c.nombre)}</b></td><td>${esc(c.whatsapp||'—')}</td><td>${esc(c.producto)}</td><td><span class="tag" style="background:${e.color}22;color:${e.color}">${e.nombre}</span></td><td>${t?`<span style="color:${t.color};font-weight:700">${t.emoji} ${t.label}</span>`:'—'}</td><td>${c.proximo?fmtFecha(c.proximo):'—'}</td><td>${waIc(c)}</td></tr>`;}return r||`<tr><td colspan="7"><div class="empty" style="padding:14px">Sin resultados${filtro?' para "'+esc(filtro)+'"':''}</div></td></tr>`;}
+function listRowsHTML(){const list=listFiltered();let r='';for(const c of list){const e=etapaDe(c.etapa),t=temperatura(c);r+=`<tr onclick="verFicha('${c.id}')"><td><b>${esc(c.nombre)}</b></td><td>${esc(telVer(c.whatsapp)||'—')}</td><td>${esc(c.producto)}</td><td><span class="tag" style="background:${e.color}22;color:${e.color}">${e.nombre}</span></td><td>${t?`<span style="color:${t.color};font-weight:700">${t.emoji} ${t.label}</span>`:'—'}</td><td>${c.proximo?fmtFecha(c.proximo):'—'}</td><td>${waIc(c)}</td></tr>`;}return r||`<tr><td colspan="7"><div class="empty" style="padding:14px">Sin resultados${filtro?' para "'+esc(filtro)+'"':''}</div></td></tr>`;}
 // Al buscar: actualiza SOLO la tabla, sin redibujar la página (sin parpadeo).
 function filtrarLista(v){filtro=v;const tb=document.getElementById('cli-tbody');if(tb)tb.innerHTML=listRowsHTML();const sub=document.getElementById('list-sub');if(sub)sub.textContent=activos().length+' clientes en total'+(v?(' · '+listFiltered().length+' coinciden'):'');}
 // Vista agrupada por vendedor (para supervisor/dueño): en vez de una lista suelta, cada vendedor
@@ -1312,7 +1323,7 @@ function gruposHTML(){
     const cs=byVend[vid].sort((a,b)=>(esCalienteT(b)?1:0)-(esCalienteT(a)?1:0));
     const nom=nombreVend(vid),nCal=cs.filter(esCalienteT).length,nAtr=cs.filter(c=>enBucket(c,'atrasado')).length;
     h+=`<div class="panelcard"><h3 style="display:flex;align-items:center;gap:9px"><span class="av" style="width:28px;height:28px;background:${avColor(vid)};font-size:11px">${iniciales(nom)}</span><span>${esc(nom)}</span><span class="faint" style="font-weight:600;font-size:12px">· ${cs.length} cliente(s)${nCal?' · <span style="color:#ff3b30">🔥 '+nCal+'</span>':''}${nAtr?' · <span style="color:#ff3b30">🔴 '+nAtr+' atras.</span>':''}</span></h3>`;
-    for(const c of cs){const e=etapaDe(c.etapa);h+=`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:32px;height:32px;background:${avColor(c.id)};font-size:11px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12px;color:var(--muted)">${esc(c.whatsapp||'sin número')} · <span style="color:${e.color}">${e.nombre}</span>${c.proximo?' · 📅 '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):''):''}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;}
+    for(const c of cs){const e=etapaDe(c.etapa);h+=`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:32px;height:32px;background:${avColor(c.id)};font-size:11px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12px;color:var(--muted)">${esc(telVer(c.whatsapp)||'sin número')} · <span style="color:${e.color}">${e.nombre}</span>${c.proximo?' · 📅 '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):''):''}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;}
     h+='</div>';
   }
   return h;
@@ -1342,7 +1353,7 @@ function renderSeg(){
   for(const id of ['caliente','seguimiento','sinContacto','perdido']){const t=TEMPS[id],cs=list.filter(c=>temperatura(c).id===id);
     h+=`<div class="panelcard"><h3>${t.emoji} ${t.label} <span style="color:var(--muted);font-weight:600">· ${cs.length}</span></h3>`;
     if(!cs.length)h+='<div class="empty">Nadie por ahora</div>';
-    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','seg')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.whatsapp||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
+    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','seg')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(telVer(c.whatsapp)||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
     h+='</div>';}
   main.innerHTML=h+'</div>';
 }
@@ -1356,7 +1367,7 @@ function renderCalientes(){
     const cs=list.filter(c=> g.id==='sinfecha' ? !c.proximo : enBucket(c,g.id));
     if(!cs.length)continue;
     h+=`<div class="panelcard"><h3>${g.emoji} ${g.label} <span style="color:var(--muted);font-weight:600">· ${cs.length}</span></h3>`;
-    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','calientes')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${c.proximo?('📅 '+esc(c.proximoTipo||'Seguimiento')+' · '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):'')):esc(c.whatsapp||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
+    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','calientes')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${c.proximo?('📅 '+esc(c.proximoTipo||'Seguimiento')+' · '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):'')):esc(telVer(c.whatsapp)||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
     h+='</div>';
   }
   main.innerHTML=h+'</div>';
@@ -1367,7 +1378,7 @@ function renderFrios(){
   let h=`<div class="page"><h1>❄️ Fríos — sin contactar</h1><div class="sub">${list.length} clientes con los que casi no tuviste contacto. Dales un primer toque para activarlos.</div><div class="note">💡 <div>Son leads que entraron pero quedaron sin seguimiento. Tocá el botón verde para escribirles por WhatsApp.</div></div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay clientes fríos 🎉</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','frios')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div>${waIc(c)}</div>`;
+  for(const c of list)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','frios')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div>${waIc(c)}</div>`;
   main.innerHTML=h+'</div></div>';
 }
 /* ---- POR ANOTAR (sin nota propia) ---- */
@@ -1379,7 +1390,7 @@ function renderPorAnotar(){
   let h=`<div class="page"><h1>📝 Por anotar</h1><div class="sub">${list.length} clientes sin ninguna nota tuya — o que solo tienen la etiqueta importada. Abrilos y anotá lo que sabés.</div><div class="note">💡 <div>Acá caen los clientes donde todavía no escribiste nada propio. Tocá uno para abrir su ficha y agregar una nota o programar un próximo contacto.</div></div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">¡Todos tienen al menos una nota tuya! 🎉</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list){const soloEtiqueta=(c.log||[]).length>0;h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','anotar')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(c.whatsapp):''}</div></div><span class="chip">${soloEtiqueta?'Solo etiqueta':'Sin nada'}</span>${waIc(c)}</div>`;}
+  for(const c of list){const soloEtiqueta=(c.log||[]).length>0;h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','anotar')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div><span class="chip">${soloEtiqueta?'Solo etiqueta':'Sin nada'}</span>${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
 /* ---- NUEVO CLIENTE (modal) ---- */
@@ -2066,7 +2077,7 @@ function _ncRows(){
   for(const c of list){
     const last=(c.mensajes&&c.mensajes.length)?c.mensajes[c.mensajes.length-1].texto:(c.log&&c.log.length?c.log[c.log.length-1].texto:'');
     const ad=c.origen==='ad'?` <span class="chip" style="background:#34c75922;color:#248a3d">📣 Anuncio</span>`:'';
-    h+=`<div class="frow" style="cursor:pointer" onclick="abrirConsulta('${c.id}')"><div class="av" style="width:36px;height:36px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${ad}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.whatsapp||'')}${last?' · '+esc(last):''}</div></div><span class="faint" style="font-size:11.5px;white-space:nowrap;margin-right:8px">${esc(_haceCuanto(_consultaTs(c)))}</span>${waIc(c)}<button class="btn sm" onclick="event.stopPropagation();abrirConsulta('${c.id}')">Atender</button></div>`;
+    h+=`<div class="frow" style="cursor:pointer" onclick="abrirConsulta('${c.id}')"><div class="av" style="width:36px;height:36px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${ad}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(telVer(c.whatsapp))}${last?' · '+esc(last):''}</div></div><span class="faint" style="font-size:11.5px;white-space:nowrap;margin-right:8px">${esc(_haceCuanto(_consultaTs(c)))}</span>${waIc(c)}<button class="btn sm" onclick="event.stopPropagation();abrirConsulta('${c.id}')">Atender</button></div>`;
   }
   cont.innerHTML=h;
 }
@@ -2075,7 +2086,7 @@ function renderPapelera(){
   const esAdmin=!!(me&&me.rol==='admin');
   const ord=(a,b)=>String((b.descartadoFecha||b.borradoFecha)||'').localeCompare(String((a.descartadoFecha||a.borradoFecha)||''));
   const fila=(c,eq)=>{
-    const meta=[esc(c.producto||'')+(c.whatsapp?' · '+esc(c.whatsapp):'')];
+    const meta=[esc(c.producto||'')+(c.whatsapp?' · '+esc(telVer(c.whatsapp)):'')];
     if(eq)meta.push('cartera de '+esc(nombreVend(c.vendedorId)));
     if(c.descartado)meta.push('<span style="color:#ff3b30">❌ descartado por '+esc(c.descartadoPor||nombreVend(c.vendedorId))+(c.descartadoFecha?' el '+fmtFecha(c.descartadoFecha):'')+'</span>');
     else if(c.borradoFecha)meta.push('borrado el '+fmtFecha(c.borradoFecha));
@@ -2643,7 +2654,7 @@ function verVentaDetalle(id){
   wrap.innerHTML='<div class="modal" style="width:min(480px,calc(100vw - 32px));max-height:92vh;display:flex;flex-direction:column">'
     +'<div class="modal-h"><b>🧾 Ficha de venta'+(c.ventaNum?' · N° '+_padNum(c.ventaNum):'')+'</b><button class="mini" onclick="cerrarVentaDet()">✕</button></div>'
     +'<div class="modal-b" style="overflow-y:auto">'
-    +'<div class="vdet-head"><div class="av" style="width:40px;height:40px;background:'+avColor(c.id)+'">'+iniciales(c.nombre)+'</div><div style="flex:1"><div class="nm">'+esc(c.nombre)+'</div><div style="font-size:12.5px;color:var(--muted)">'+esc(c.whatsapp||'sin número')+' · 👤 '+esc(vend)+(_colabNom(c)?' · 🤝 '+esc(_colabNom(c)):'')+'</div></div>'+fondBadge+'</div>'
+    +'<div class="vdet-head"><div class="av" style="width:40px;height:40px;background:'+avColor(c.id)+'">'+iniciales(c.nombre)+'</div><div style="flex:1"><div class="nm">'+esc(c.nombre)+'</div><div style="font-size:12.5px;color:var(--muted)">'+esc(telVer(c.whatsapp)||'sin número')+' · 👤 '+esc(vend)+(_colabNom(c)?' · 🤝 '+esc(_colabNom(c)):'')+'</div></div>'+fondBadge+'</div>'
     +estVentaSel
     +body
     +fondBtn
@@ -4371,7 +4382,7 @@ function renderAgendaSec(estado){
   let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s). ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list){const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}</div>${c.whatsapp?`<div style="font-size:12.5px;color:var(--muted)">${esc(c.whatsapp)}</div>`:''}</div>${waIc(c)}</div>`;}
+  for(const c of list){const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}</div>${c.whatsapp?`<div style="font-size:12.5px;color:var(--muted)">${esc(telVer(c.whatsapp))}</div>`:''}</div>${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
 /* ---- AGENDA (reuniones / llamadas) ---- */
