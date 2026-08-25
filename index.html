@@ -2013,15 +2013,34 @@ function eliminarDefinitivo(id){const c=clientes.find(x=>x.id===id);if(!c)return
   }
 }
 /* ---- NUEVAS CONSULTAS (llegan solas desde WhatsApp/ads) ---- */
+// Momento real en que entro la consulta: ultimo mensaje recibido, si no la marca de creacion.
+function _consultaTs(c){
+  const hh=h=>{h=String(h||'').trim();if(!/^\d{1,2}:\d{2}/.test(h))return '00:00';return h.length===4?('0'+h):h.slice(0,5);};
+  const ms=(c.mensajes||[]);
+  if(ms.length){const m=ms[ms.length-1];const t=Date.parse((m.fecha||'')+'T'+hh(m.hora)+':00');if(!isNaN(t))return t;}
+  if(c.creadoTs){const n=Number(c.creadoTs);if(n)return n;}
+  const t2=Date.parse((c.creado||c.ultimoContacto||'')+'T00:00:00');
+  return isNaN(t2)?0:t2;
+}
+function _haceCuanto(ts){
+  if(!ts)return '';
+  const min=Math.floor((Date.now()-ts)/60000);
+  if(min<1)return 'recién';
+  if(min<60)return 'hace '+min+' min';
+  const hs=Math.floor(min/60); if(hs<24)return 'hace '+hs+' h';
+  const d=Math.floor(hs/24); if(d===1)return 'ayer';
+  if(d<7)return 'hace '+d+' días';
+  return fmtFecha(new Date(ts).toISOString().slice(0,10));
+}
 function renderNuevas(){
-  const list=activos().filter(c=>c.sinAtender).sort((a,b)=>String(b.ultimoContacto||'').localeCompare(String(a.ultimoContacto||'')));
+  const list=activos().filter(c=>c.sinAtender).sort((a,b)=>_consultaTs(b)-_consultaTs(a)); // cronologico: la mas nueva primero
   let h=`<div class="page"><h1>🆕 Nuevas consultas</h1><div class="sub">${list.length} consulta(s) sin atender. Tocá una para atenderla y empezar a cargar notas, interés y etiquetas.</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay consultas nuevas por ahora 🎉<br><span class="faint" style="font-size:12px">Cuando conectemos WhatsApp, las consultas de tus anuncios van a aparecer acá solas.</span></div></div>';return;}
   h+='<div class="panelcard">';
   for(const c of list){
     const last=(c.mensajes&&c.mensajes.length)?c.mensajes[c.mensajes.length-1].texto:(c.log&&c.log.length?c.log[c.log.length-1].texto:'');
     const ad=c.origen==='ad'?' <span class="chip" style="background:#34c75922;color:#248a3d">📣 Anuncio</span>':'';
-    h+=`<div class="frow" style="cursor:pointer" onclick="abrirConsulta('${c.id}')"><div class="av" style="width:36px;height:36px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${ad}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.whatsapp||'')}${last?' · '+esc(last):''}</div></div>${waIc(c)}<button class="btn sm" onclick="event.stopPropagation();abrirConsulta('${c.id}')">Atender</button></div>`;
+    h+=`<div class="frow" style="cursor:pointer" onclick="abrirConsulta('${c.id}')"><div class="av" style="width:36px;height:36px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${ad}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.whatsapp||'')}${last?' · '+esc(last):''}</div></div><span class="faint" style="font-size:11.5px;white-space:nowrap;margin-right:8px">${esc(_haceCuanto(_consultaTs(c)))}</span>${waIc(c)}<button class="btn sm" onclick="event.stopPropagation();abrirConsulta('${c.id}')">Atender</button></div>`;
   }
   main.innerHTML=h+'</div></div>';
 }
