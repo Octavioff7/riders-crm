@@ -2032,17 +2032,42 @@ function _haceCuanto(ts){
   if(d<7)return 'hace '+d+' días';
   return fmtFecha(new Date(ts).toISOString().slice(0,10));
 }
+let _ncQ='';
+function _soloDig(v){v=String(v==null?'':v);let o='';for(let i=0;i<v.length;i++){const k=v.charCodeAt(i);if(k>=48&&k<=57)o+=v[i];}return o;}
+// Busca por nombre o por cualquier tramo del numero de corrido (ej: los ultimos 4 digitos)
+function _ncMatch(c,q){
+  q=String(q||'').trim();if(!q)return true;
+  const nom=String(c.nombre||'').toLowerCase();
+  if(nom.indexOf(q.toLowerCase())>=0)return true;
+  const qd=_soloDig(q);
+  if(qd){const nd=_soloDig(c.whatsapp||'');if(nd&&nd.indexOf(qd)>=0)return true;}
+  return false;
+}
 function renderNuevas(){
-  const list=activos().filter(c=>c.sinAtender).sort((a,b)=>_consultaTs(b)-_consultaTs(a)); // cronologico: la mas nueva primero
-  let h=`<div class="page"><h1>🆕 Nuevas consultas</h1><div class="sub">${list.length} consulta(s) sin atender. Tocá una para atenderla y empezar a cargar notas, interés y etiquetas.</div>`;
-  if(!list.length){main.innerHTML=h+'<div class="empty">No hay consultas nuevas por ahora 🎉<br><span class="faint" style="font-size:12px">Cuando conectemos WhatsApp, las consultas de tus anuncios van a aparecer acá solas.</span></div></div>';return;}
-  h+='<div class="panelcard">';
+  const all=activos().filter(c=>c.sinAtender).sort((a,b)=>_consultaTs(b)-_consultaTs(a)); // cronologico: la mas nueva primero
+  let h=`<div class="page"><h1>🆕 Nuevas consultas</h1><div class="sub" id="nc-sub"></div>`;
+  if(!all.length){main.innerHTML=h+`<div class="empty">No hay consultas nuevas por ahora 🎉<br><span class="faint" style="font-size:12px">Cuando conectemos WhatsApp, las consultas de tus anuncios van a aparecer acá solas.</span></div></div>`;return;}
+  h+=`<div class="vf-bar" style="margin:12px 0 10px"><input class="vf-search" id="nc-q" placeholder="🔎 Buscar por nombre o número (sirven los últimos dígitos)…" value="${esc(_ncQ)}" oninput="_ncQ=this.value;_ncRows()">${_ncQ?`<button class="vf-clear" onclick="_ncClear()">✕ Limpiar</button>`:''}</div>`;
+  h+=`<div class="panelcard" id="nc-list"></div>`;
+  main.innerHTML=h+`</div>`;
+  _ncRows();
+  const inp=document.getElementById('nc-q');if(inp&&_ncQ){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);}
+}
+function _ncClear(){_ncQ='';renderNuevas();}
+function _ncRows(){
+  const cont=document.getElementById('nc-list');if(!cont)return;
+  const all=activos().filter(c=>c.sinAtender).sort((a,b)=>_consultaTs(b)-_consultaTs(a));
+  const list=all.filter(c=>_ncMatch(c,_ncQ));
+  const sub=document.getElementById('nc-sub');
+  if(sub)sub.textContent=_ncQ?(list.length+' de '+all.length+' consulta(s) coinciden con la búsqueda.'):(all.length+' consulta(s) sin atender. Tocá una para atenderla y empezar a cargar notas, interés y etiquetas.');
+  if(!list.length){cont.innerHTML=`<div class="empty" style="padding:26px;text-align:center">No encontré consultas con ese nombre o número.</div>`;return;}
+  let h='';
   for(const c of list){
     const last=(c.mensajes&&c.mensajes.length)?c.mensajes[c.mensajes.length-1].texto:(c.log&&c.log.length?c.log[c.log.length-1].texto:'');
-    const ad=c.origen==='ad'?' <span class="chip" style="background:#34c75922;color:#248a3d">📣 Anuncio</span>':'';
+    const ad=c.origen==='ad'?` <span class="chip" style="background:#34c75922;color:#248a3d">📣 Anuncio</span>`:'';
     h+=`<div class="frow" style="cursor:pointer" onclick="abrirConsulta('${c.id}')"><div class="av" style="width:36px;height:36px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${ad}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.whatsapp||'')}${last?' · '+esc(last):''}</div></div><span class="faint" style="font-size:11.5px;white-space:nowrap;margin-right:8px">${esc(_haceCuanto(_consultaTs(c)))}</span>${waIc(c)}<button class="btn sm" onclick="event.stopPropagation();abrirConsulta('${c.id}')">Atender</button></div>`;
   }
-  main.innerHTML=h+'</div></div>';
+  cont.innerHTML=h;
 }
 function abrirConsulta(id){const c=clientes.find(x=>x.id===id);if(c&&c.sinAtender){c.sinAtender=false;save();}verFicha(id);}
 function renderPapelera(){
