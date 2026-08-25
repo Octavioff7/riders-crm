@@ -794,6 +794,7 @@
         <button data-view="papelera"><span class="ic" aria-hidden="true">🗑️</span><span class="lbl">Papelera</span><span class="count" id="cnt-papelera"></span></button>
         <button class="owner-only" data-view="inicioAdmin"><span class="ic" aria-hidden="true">🏠</span><span class="lbl">Inicio</span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
+        <button class="admin-only" data-view="asistente"><span class="ic" aria-hidden="true" style="background:#5e5ce6">🤖</span><span class="lbl">Asistente IA</span></button>
         <button class="admin-only" data-view="ventas"><span class="ic" aria-hidden="true">🧾</span><span class="lbl">Ventas</span></button>
         <button class="admin-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
         <button class="admin-only" data-view="financieras"><span class="ic" aria-hidden="true">🏦</span><span class="lbl">Financieras</span></button>
@@ -991,6 +992,7 @@ function render(){
   else if(view==='cuentas')renderCuentas();
   else if(view==='vendidos')renderVendidos();
   else if(view==='ventas')renderVentasAdmin();
+  else if(view==='asistente')renderAsistente();
   else if(view==='inicioAdmin')renderInicioAdmin();
   else if(view==='inventario')renderInventario();
   else if(view==='financieras')renderFinancieras();
@@ -2928,6 +2930,161 @@ function _invImportApply(modo){
   else{_importProds.forEach(np=>{const ex=INVENTARIO.find(p=>(p.nombre||'').toLowerCase()===String(np.nombre).toLowerCase()&&p.cat===np.cat);if(ex){Object.assign(ex,clean(np),{imagenes:ex.imagenes,info:ex.info});}else INVENTARIO.push(clean(np));});}
   _invRenum();_invPersist();_importProds=null;cerrarImport();render();
 }
+/* ============ ASISTENTE IA DE WHATSAPP (admin) ============
+   Contesta a los leads que llegan por los anuncios de Facebook, junta los
+   5 datos del filtro y avisa cuando el lead está listo para la llamada.
+   Esta pantalla sirve para probarlo (simulador) y para ajustarle el tono. */
+let _asisCfg=null,_asisMeta={},_asisSim={cliente:null},_asisBusy=false;
+const _ASIS_CAMPOS=[['producto','Qué producto le interesa'],['destino','Miami o envío a Cuba'],['pago','Cash o financiado'],['urgencia','Para cuándo lo quiere'],['contacto','Nombre y horario para llamarlo']];
+function _asisCSS(){
+  if(document.getElementById('asis-css'))return;
+  const s=document.createElement('style');s.id='asis-css';
+  s.textContent=`
+  .asx-grid{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+  @media(max-width:1000px){.asx-grid{grid-template-columns:1fr}}
+  .asx-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 16px}
+  @media(max-width:700px){.asx-cards{grid-template-columns:1fr}}
+  .asx-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .asx-card .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .asx-card .v{font-size:15px;font-weight:600;margin-top:3px}
+  .asx-card .s{font-size:12px;color:var(--muted);margin-top:2px}
+  .asx-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .asx-chat{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-height:420px}
+  .asx-chat-hd{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;font-size:13px}
+  .asx-body{flex:1;padding:14px;overflow-y:auto;max-height:52vh;background:var(--bg2,transparent);display:flex;flex-direction:column;gap:8px}
+  .asx-msg{max-width:78%;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+  .asx-msg.cli{align-self:flex-start;background:var(--line);border-bottom-left-radius:4px}
+  .asx-msg.yo{align-self:flex-end;background:#34c759;color:#fff;border-bottom-right-radius:4px}
+  .asx-sys{align-self:center;font-size:12px;color:var(--muted);background:transparent;text-align:center;max-width:90%;padding:6px 10px;border:1px dashed var(--line);border-radius:10px}
+  .asx-bar{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
+  .asx-bar input{flex:1;border:1px solid var(--line);border-radius:20px;padding:9px 14px;font-size:14px;background:var(--card);color:inherit}
+  .asx-side .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+  .asx-side h3{font-size:13px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .asx-f{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;padding:6px 0;border-bottom:1px solid var(--line)}
+  .asx-f:last-child{border-bottom:0}
+  .asx-f .tk{width:18px;flex:0 0 18px;text-align:center}
+  .asx-f .val{color:var(--muted);font-size:12.5px}
+  .asx-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;font-size:13.5px}
+  .asx-row input[type=text],.asx-row input[type=number],.asx-row input[type=time]{width:96px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:var(--card);color:inherit;text-align:right}
+  .asx-ta{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px;font:inherit;font-size:13px;background:var(--card);color:inherit;resize:vertical;line-height:1.5}
+  .asx-ej{border:1px solid var(--line);border-radius:9px;padding:9px;margin-bottom:8px;font-size:12.5px}
+  .asx-ej b{display:block;color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+  .asx-ej textarea{width:100%;border:0;background:transparent;color:inherit;font:inherit;font-size:12.5px;resize:vertical;padding:0;margin-bottom:6px}
+  .asx-warn{background:#fff4e5;border:1px solid #ffcc80;color:#8a5300;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+  body.dark .asx-warn{background:#3a2c14;border-color:#7a5a1e;color:#ffd08a}
+  .asx-sw{position:relative;width:44px;height:26px;flex:0 0 44px;border-radius:13px;background:var(--line);cursor:pointer;transition:.18s}
+  .asx-sw.on{background:#34c759}
+  .asx-sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .asx-sw.on i{left:21px}`;
+  document.head.appendChild(s);
+}
+function renderAsistente(){
+  _asisCSS();
+  if(!_asisCfg){main.innerHTML='<div class="page"><h1>🤖 Asistente IA</h1><p class="sub">Cargando…</p></div>';_asisLoad();return;}
+  const c=_asisCfg,estado=c.activo?(c.simulacion||!_asisMeta.numeroListo?'borrador':'activo'):'apagado';
+  const EST={apagado:['#8e8e93','Apagado','No contesta nada'],borrador:['#ff9f0a','Modo borrador','Escribe la respuesta pero no la manda'],activo:['#34c759','Activo','Contestando por WhatsApp']}[estado];
+  const card=(l,v,s,col)=>'<div class="asx-card"><div class="l">'+l+'</div><div class="v">'+(col?'<span class="asx-dot" style="background:'+col+'"></span>':'')+v+'</div><div class="s">'+s+'</div></div>';
+  let h='<div class="page page-wide"><div class="conv-head-row"><h1>🤖 Asistente IA</h1><button class="btn" onclick="_asisReset()">↺ Empezar otra charla</button></div>';
+  h+='<p class="sub">Contesta a la gente que escribe desde los anuncios, junta los datos que hacen falta y te avisa cuando el lead está listo para que lo llames.</p>';
+  h+='<div class="asx-cards">'
+    +card('Estado',EST[1],EST[2],EST[0])
+    +card('Cerebro (IA)',_asisMeta.iaListo?'Conectado':'Sin clave',_asisMeta.iaListo?'Gemini responde':'Falta cargar GEMINI_KEY',_asisMeta.iaListo?'#34c759':'#ff3b30')
+    +card('Número de WhatsApp',_asisMeta.numeroListo?'Conectado':'Sin conectar',_asisMeta.numeroListo?'Puede enviar mensajes':'Hasta que haya número, solo escribe borradores',_asisMeta.numeroListo?'#34c759':'#ff9f0a')
+    +'</div>';
+  if(!_asisMeta.numeroListo)h+='<div class="asx-warn"><b>Todavía no hay número de WhatsApp conectado.</b> El asistente ya funciona: podés probarlo acá abajo escribiendo como si fueras el cliente. Cuando conectemos el número, empieza a contestar solo.</div>';
+
+  // --- Simulador ---
+  const sim=_asisSim.cliente,ms=(sim&&sim.mensajes)||[];
+  h+='<div class="asx-grid"><div class="asx-chat">';
+  h+='<div class="asx-chat-hd"><span class="asx-dot" style="background:#34c759"></span><b>Simulador</b> <span class="faint">— escribí como si fueras el cliente que vio el anuncio</span></div>';
+  h+='<div class="asx-body" id="asx-body">';
+  if(!ms.length)h+='<div class="asx-sys">Probá con algo típico: «Hola, vi el anuncio de las motos» o «cuánto sale el kit solar?»</div>';
+  ms.forEach(m=>{h+='<div class="asx-msg '+(m.de==='cliente'?'cli':'yo')+'">'+esc(m.texto)+'</div>';});
+  if(_asisSim.nota)h+='<div class="asx-sys">'+esc(_asisSim.nota)+'</div>';
+  h+='</div>';
+  h+='<div class="asx-bar"><input id="asx-in" placeholder="Escribí como el cliente…" '+(_asisBusy?'disabled':'')+' onkeydown="if(event.key===\'Enter\')_asisEnviar()"><button class="btn" onclick="_asisEnviar()" '+(_asisBusy?'disabled':'')+'>'+(_asisBusy?'…':'Enviar')+'</button></div>';
+  h+='</div>';
+
+  // --- Panel derecho ---
+  const d=(sim&&sim.asis&&sim.asis.datos)||{};
+  h+='<div class="asx-side">';
+  h+='<div class="box"><h3>Filtro del lead</h3>';
+  _ASIS_CAMPOS.forEach(([id,lbl])=>{const v=String(d[id]||'').trim();
+    h+='<div class="asx-f"><span class="tk">'+(v?'✅':'⬜')+'</span><span><div>'+lbl+'</div>'+(v?'<div class="val">'+esc(v)+'</div>':'')+'</span></div>';});
+  const n=_ASIS_CAMPOS.filter(([id])=>String(d[id]||'').trim()).length;
+  h+='<div class="sub" style="margin-top:10px">'+n+' de 5 · '+(n>=4?'<b style="color:#34c759">Listo para llamar</b>':'faltan '+(4-n)+' para pasártelo')+'</div>';
+  if(sim&&sim.asis&&sim.asis.resumen)h+='<div class="asx-ej" style="margin-top:10px"><b>Resumen para la llamada</b>'+esc(sim.asis.resumen)+'</div>';
+  h+='</div>';
+
+  h+='<div class="box"><h3>Cómo trabaja</h3>';
+  h+=_asisSwitch('activo','Asistente encendido',c.activo);
+  h+=_asisSwitch('simulacion','Modo borrador (no envía)',c.simulacion);
+  h+=_asisSwitch('soloAnuncios','Solo leads de anuncios',c.soloAnuncios);
+  h+=_asisSwitch('avisarPush','Avisarme al celu',c.avisarPush);
+  h+='<div class="asx-row"><span>Tarda entre</span><span><input type="number" min="0" max="300" value="'+(c.delayMin)+'" onchange="_asisSet(\'delayMin\',+this.value)" style="width:56px"> y <input type="number" min="1" max="600" value="'+(c.delayMax)+'" onchange="_asisSet(\'delayMax\',+this.value)" style="width:56px"> seg</span></div>';
+  h+='<div class="asx-row"><span>Contesta de</span><span><input type="time" value="'+esc(c.horaDesde)+'" onchange="_asisSet(\'horaDesde\',this.value)" style="width:auto"> a <input type="time" value="'+esc(c.horaHasta)+'" onchange="_asisSet(\'horaHasta\',this.value)" style="width:auto"></span></div>';
+  h+='<div class="asx-row"><span>Corta después de</span><span><input type="number" min="2" max="40" value="'+(c.maxMensajes)+'" onchange="_asisSet(\'maxMensajes\',+this.value)" style="width:56px"> mensajes</span></div>';
+  h+='</div>';
+
+  h+='<div class="box"><h3>Cómo escribe</h3>';
+  h+='<div class="sub" style="margin-bottom:8px">Reglas de tono. Se reemplazan con tu forma real de escribir cuando pasemos tus chats.</div>';
+  h+='<textarea class="asx-ta" rows="6" onchange="_asisSet(\'estilo\',this.value)">'+esc(c.estilo)+'</textarea>';
+  h+='</div>';
+
+  h+='<div class="box"><h3>Ejemplos de tu forma de hablar</h3>';
+  (c.ejemplos||[]).forEach((e,i)=>{
+    h+='<div class="asx-ej"><b>Cliente</b><textarea rows="1" onchange="_asisEj('+i+',\'cliente\',this.value)">'+esc(e.cliente)+'</textarea>'
+      +'<b>Vos</b><textarea rows="2" onchange="_asisEj('+i+',\'yo\',this.value)">'+esc(e.yo)+'</textarea>'
+      +'<button class="vt-ic vt-del" title="Borrar" onclick="_asisEjDel('+i+')">🗑️</button></div>';});
+  h+='<button class="btn ghost" onclick="_asisEjAdd()">＋ Agregar ejemplo</button>';
+  h+='</div></div></div></div>';
+  main.innerHTML=h;
+  const b=document.getElementById('asx-body');if(b)b.scrollTop=b.scrollHeight;
+  const inp=document.getElementById('asx-in');if(inp&&!_asisBusy)inp.focus();
+}
+function _asisSwitch(k,label,on){
+  return '<div class="asx-row"><span>'+label+'</span><span class="asx-sw'+(on?' on':'')+'" onclick="_asisSet(\''+k+'\',!'+(!!on)+')"><i></i></span></div>';
+}
+function _asisLoad(){
+  if(!SERVER)return;
+  api('/api/asistente/config').then(r=>r.json()).then(j=>{
+    if(j.error)return;
+    _asisCfg=j.cfg;_asisMeta={numeroListo:j.numeroListo,iaListo:j.iaListo};
+    if(view==='asistente')renderAsistente();
+  }).catch(()=>{});
+}
+function _asisGuardar(){
+  if(!SERVER||!_asisCfg)return;
+  api('/api/asistente/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_asisCfg)}).catch(()=>{});
+}
+function _asisSet(k,v){if(!_asisCfg)return;_asisCfg[k]=v;_asisGuardar();renderAsistente();}
+function _asisEj(i,campo,v){if(!_asisCfg||!_asisCfg.ejemplos[i])return;_asisCfg.ejemplos[i][campo]=v;_asisGuardar();}
+function _asisEjAdd(){if(!_asisCfg)return;_asisCfg.ejemplos=(_asisCfg.ejemplos||[]).concat([{cliente:'',yo:''}]);_asisGuardar();renderAsistente();}
+function _asisEjDel(i){if(!_asisCfg)return;_asisCfg.ejemplos.splice(i,1);_asisGuardar();renderAsistente();}
+function _asisReset(){_asisSim={cliente:null};renderAsistente();}
+function _asisEnviar(){
+  const inp=document.getElementById('asx-in');if(!inp)return;
+  const t=inp.value.trim();if(!t||_asisBusy)return;
+  inp.value='';_asisBusy=true;_asisSim.nota='';
+  // Mostrar el mensaje del cliente al instante
+  _asisSim.cliente=_asisSim.cliente||{mensajes:[],asis:{datos:{},msgs:0,estado:'activo'}};
+  _asisSim.cliente.mensajes.push({de:'cliente',texto:t});
+  _asisSim.nota='escribiendo…';renderAsistente();
+  api('/api/asistente/sim',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({texto:t,cliente:Object.assign({},_asisSim.cliente,{mensajes:_asisSim.cliente.mensajes.slice(0,-1)})})})
+  .then(r=>r.json()).then(j=>{
+    _asisBusy=false;
+    if(j.error){_asisSim.nota='⚠️ '+j.error;return renderAsistente();}
+    _asisSim.cliente=j.cliente;
+    const r2=j.res||{};
+    if(r2.handoff)_asisSim.nota='🙋 Acá corta y te pasa el chat a vos — '+(r2.motivo||'');
+    else if(r2.frio)_asisSim.nota='❄️ Lo marca como frío y deja de contestarle.';
+    else if(r2.listo)_asisSim.nota='✅ Lead listo para llamar. Te llega el aviso al celu.';
+    else _asisSim.nota='Tardó '+Math.round((j.ms||0)/1000)+'s en pensar · en WhatsApp esperaría '+Math.round((r2.delays&&r2.delays[0]||0)/1000)+'s antes de mandarlo';
+    renderAsistente();
+  }).catch(e=>{_asisBusy=false;_asisSim.nota='⚠️ No se pudo conectar';renderAsistente();});
+}
+
 /* ---- GESTIÓN DE FINANCIERAS (admin) ---- */
 function _finPersist(){_rebuildFin();if(SERVER)api('/api/financieras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_FIN)}).catch(()=>{});}
 let _finQ='';let _finFiltro='todas';
@@ -4381,8 +4538,8 @@ function applyRoleUI(){
   // Menú por rol. Supervisión (dueño/supervisor) = menú acotado a herramientas de equipo, sin las
   // secciones de tarea diaria de vendedor (Hoy/Calientes/Atrasados/etc.) que aparecían como listas sueltas.
   const nav=document.querySelectorAll('#nav button');
-  if(owner){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','finanzas','pedidos','auditoria','equipo']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
-  else if(sup){const allow=new Set(['inicioAdmin','dueno','ventas','inventario','financieras','finanzas','pedidos','auditoria','equipo','cuentas']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
+  if(owner){const allow=new Set(['inicioAdmin','dueno','asistente','ventas','inventario','financieras','finanzas','pedidos','auditoria','equipo']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
+  else if(sup){const allow=new Set(['inicioAdmin','dueno','asistente','ventas','inventario','financieras','finanzas','pedidos','auditoria','equipo','cuentas']);nav.forEach(b=>b.style.display=(allow.has(b.dataset.view)&&!b.classList.contains('vend-only'))?'':'none');}
   else{nav.forEach(b=>{if(!b.classList.contains('owner-only')&&!b.classList.contains('sv-only')&&!b.classList.contains('admin-only')&&!b.classList.contains('vend-only'))b.style.display='';});}
   const av=document.getElementById('nav-avisos');if(av)av.style.display=''; // "Avisos por Telegram" siempre visible, para todos los roles
 }

@@ -231,6 +231,7 @@ function adminUser(){return loadUsers().find(u=>u.rol==='admin');}
 function procesarWebhook(body){
   if(!body||!Array.isArray(body.entry))return;
   const clientes=loadClientes();const map=loadWaMap();const admin=adminUser();let changed=false;
+  const paraResponder=[]; // {id,texto} → los contesta el asistente después de guardar
   for(const e of body.entry){
     for(const ch of (e.changes||[])){
       const v=ch.value||{};const pnid=(v.metadata&&v.metadata.phone_number_id)||'';
@@ -253,11 +254,15 @@ function procesarWebhook(body){
           clientes.push(c);
           try{if(typeof pushToUser==='function'&&vendId)pushToUser(vendId,{title:'🆕 Nueva consulta',body:nombre+': '+String(texto).slice(0,80)});}catch(e){}
         }
+        paraResponder.push({id:c.id,texto:texto});
         changed=true;
       }
     }
   }
   if(changed)saveClientes(clientes);
+  // El asistente contesta aparte: tarda (delay humano + IA) y el webhook de
+  // Meta tiene que responder 200 al instante o reintenta el mensaje.
+  paraResponder.forEach(x=>{setTimeout(()=>asistenteResponder(x.id,x.texto),0);});
 }
 
 /* ---------- Notificaciones push al celular (Web Push, sin Telegram) ---------- */
@@ -453,6 +458,72 @@ async function geminiVision(images,prompt){
   return geminiChain(parts);
 }
 
+/* ---------- Asistente de WhatsApp para leads de anuncios ---------- */
+const ASIS=require('./asistente.js')({fs,path,DATA_DIR,geminiChain,hoy,ahora});
+// Credenciales de la API de WhatsApp (Meta). Mientras no estén, el asistente
+// trabaja en MODO BORRADOR: escribe la respuesta y la deja anotada en el chat
+// del cliente para que Octa la vea, pero no la manda.
+const WA_TOKEN=process.env.WHATSAPP_TOKEN||CFG.whatsappToken||'';
+const WA_PHONE_ID=process.env.WHATSAPP_PHONE_ID||CFG.whatsappPhoneId||'';
+const WA_LISTO=!!(WA_TOKEN&&WA_PHONE_ID);
+function waEnviar(to,texto){return new Promise(resolve=>{
+  if(!WA_LISTO)return resolve({ok:false,reason:'sin-numero'});
+  const body=JSON.stringify({messaging_product:'whatsapp',to:String(to).replace(/\D/g,''),type:'text',text:{preview_url:false,body:String(texto).slice(0,4000)}});
+  const req=https.request('https://graph.facebook.com/v21.0/'+WA_PHONE_ID+'/messages',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+WA_TOKEN,'Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>resolve({ok:r.statusCode>=200&&r.statusCode<300,status:r.statusCode,body:d}));});
+  req.setTimeout(15000,()=>{req.destroy();resolve({ok:false,reason:'timeout'});});
+  req.on('error',e=>resolve({ok:false,reason:e.message}));req.write(body);req.end();
+});}
+
+// Contesta un mensaje entrante. Se llama desde el webhook y no bloquea la
+// respuesta HTTP a Meta: espera el delay humano y recién ahí manda.
+async function asistenteResponder(clienteId,texto){
+  const cfg=ASIS.cargarCfg();
+  if(!cfg.activo)return;
+  try{
+    let arr=loadClientes();let c=arr.find(x=>x.id===clienteId);
+    if(!c)return;
+    if(cfg.soloAnuncios&&c.origen!=='ad')return;
+    if(c.asis&&['handoff','descartado','frio'].includes(c.asis.estado))return; // ya está en manos de un humano (o descartado)
+    if(!ASIS.enHorario(cfg))return; // fuera de horario: contesta a la mañana el humano
+
+    const res=await ASIS.responder({cliente:c,texto,cfg,inventario:loadInventario()||DEFAULT_INVENTARIO,financieras:loadFinancieras()||DEFAULT_FINANCIERAS});
+
+    // Espera humana antes del primer mensaje
+    const delays=res.delays||[];
+    for(let i=0;i<res.mensajes.length;i++){
+      await new Promise(r=>setTimeout(r,Math.min(120000,delays[i]||3000)));
+      const envio=(cfg.simulacion||!WA_LISTO)?{ok:false,reason:'borrador'}:await waEnviar(c.whatsapp,res.mensajes[i]);
+      // Releer siempre: pudo haber cambiado mientras esperábamos
+      arr=loadClientes();c=arr.find(x=>x.id===clienteId);if(!c)return;
+      c.mensajes=c.mensajes||[];
+      c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:res.mensajes[i],canal:'whatsapp',bot:true,borrador:!envio.ok});
+      c.ultimoContacto=hoy();c.respondioUltimo='yo';
+      saveClientes(arr);
+    }
+
+    // Guardar el estado del filtro sobre el cliente ya persistido
+    arr=loadClientes();c=arr.find(x=>x.id===clienteId);if(!c)return;
+    c.asis=res.cliente&&res.cliente.asis?res.cliente.asis:c.asis;
+    c.asis=c.asis||{datos:{},msgs:0,estado:'activo'};
+    Object.assign(c.asis.datos=c.asis.datos||{},res.datos||{});
+    if(res.resumen)c.asis.resumen=res.resumen;
+    if(res.handoff){c.asis.estado='handoff';c.asis.motivo=res.motivo||'';c.sinAtender=true;}
+    if(res.listo){c.asis.estado='listo';c.etapa=c.etapa==='nuevo'?'interesado':c.etapa;c.tags=Array.from(new Set([...(c.tags||[]),'caliente']));c.sinAtender=true;}
+    if(res.frio){c.asis.estado='frio';c.tags=Array.from(new Set([...(c.tags||[]),'frio']));}
+    if(res.descartar)c.asis.estado='descartado';
+    if(res.datos&&res.datos.producto&&(!c.producto||c.producto==='Otro'))c.producto=detProducto(res.datos.producto)||c.producto;
+    if(res.datos&&res.datos.pago)c.operacion=/financ/i.test(res.datos.pago)?'Financiado':'Cash';
+    c.log=c.log||[];
+    if(res.handoff)c.log.push({fecha:hoy(),hora:ahora(),texto:'🤖 El asistente pasó el chat a un humano: '+(res.motivo||'')});
+    if(res.listo)c.log.push({fecha:hoy(),hora:ahora(),texto:'🤖 Lead calificado — '+(res.resumen||'listo para llamar')});
+    saveClientes(arr);
+
+    if(cfg.avisarPush&&(res.listo||res.handoff)){
+      try{if(c.vendedorId)pushToUser(c.vendedorId,ASIS.avisoLead(c,res));}catch(e){}
+    }
+  }catch(e){console.log('[asistente] error:',e.message);}
+}
+
 async function geminiBrain(clientes,text){
   const activos=clientes.filter(c=>!c.borrado);
   const lista=activos.map(c=>({nombre:c.nombre,whatsapp:c.whatsapp,producto:c.producto,etapa:c.etapa})).slice(0,80);
@@ -646,6 +717,37 @@ http.createServer((req,res)=>{
   if(u==='/api/inventario'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveInventario(b);json(200,{ok:true});});}
   if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
+  /* ---- Asistente de WhatsApp (admin/supervisor/dueño) ---- */
+  if(u==='/api/asistente/config'&&req.method==='GET'){
+    if(!esAdminRol)return json(403,{error:'Sin permiso'});
+    return json(200,{cfg:ASIS.cargarCfg(),campos:ASIS.CAMPOS,minCampos:ASIS.MIN_CAMPOS,numeroListo:WA_LISTO,iaListo:!!(CFG.geminiKey&&CFG.geminiKey.length>10)});
+  }
+  if(u==='/api/asistente/config'&&req.method==='POST'){
+    if(!esAdminRol)return json(403,{error:'Sin permiso'});
+    return readBody(b=>json(200,{cfg:ASIS.guardarCfg(b||{})}));
+  }
+  // Simulador: Octa escribe como si fuera el cliente y ve qué contestaría.
+  // No toca clientes.json — el "cliente" de prueba va y vuelve en el body.
+  if(u==='/api/asistente/sim'&&req.method==='POST'){
+    if(!esAdminRol)return json(403,{error:'Sin permiso'});
+    return readBody(async b=>{
+      try{
+        const cfg=Object.assign(ASIS.cargarCfg(),b.cfg||{});
+        const c=b.cliente&&typeof b.cliente==='object'?b.cliente:{};
+        c.id=c.id||'sim';c.nombre=c.nombre||'Cliente de prueba';c.whatsapp=c.whatsapp||'+10000000000';
+        c.origen=c.origen||'ad';c.mensajes=Array.isArray(c.mensajes)?c.mensajes:[];
+        c.asis=c.asis||{datos:{},msgs:0,estado:'activo'};
+        const texto=String(b.texto||'').slice(0,1500);
+        if(!texto)return json(400,{error:'texto'});
+        c.mensajes.push({de:'cliente',fecha:hoy(),hora:ahora(),texto,canal:'whatsapp'});
+        const t0=Date.now();
+        const res=await ASIS.responder({cliente:c,texto,cfg,inventario:loadInventario()||DEFAULT_INVENTARIO,financieras:loadFinancieras()||DEFAULT_FINANCIERAS});
+        res.mensajes.forEach(m=>c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:m,canal:'whatsapp',bot:true}));
+        if(res.handoff)c.asis.estado='handoff';
+        json(200,{cliente:c,res,ms:Date.now()-t0,filtro:ASIS.estadoFiltro(c)});
+      }catch(e){json(500,{error:e.message});}
+    });
+  }
   if(u==='/api/ordenes'&&req.method==='GET')return json(200,loadOrdenes()||[]);
   if(u==='/api/ordenes'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});const cur=loadOrdenes()||[];const byId={};cur.forEach(o=>{if(o&&o.id)byId[o.id]=o;});b.forEach(o=>{if(o&&o.id)byId[o.id]=o;});saveOrdenes(Object.values(byId));json(200,{ok:true});});}
   if(u==='/api/seq'&&req.method==='POST'){if(!me)return json(401,{error:'auth'});return readBody(b=>{const name=String(b&&b.name||'').replace(/[^a-z]/gi,'')||'x';json(200,{n:nextSeq(name)});});}
