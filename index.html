@@ -791,6 +791,7 @@
         <button data-view="anotar"><span class="ic" aria-hidden="true">📝</span><span class="lbl">Por anotar</span><span class="count" id="cnt-anotar"></span></button>
         <button data-view="vendidos"><span class="ic" aria-hidden="true">✅</span><span class="lbl">Vendidos</span><span class="count" id="cnt-vendidos"></span></button>
         <button class="vend-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
+        <button class="vend-only" data-view="financieras"><span class="ic" aria-hidden="true">🏦</span><span class="lbl">Financieras</span></button>
         <button data-view="papelera"><span class="ic" aria-hidden="true">🗑️</span><span class="lbl">Papelera</span><span class="count" id="cnt-papelera"></span></button>
         <button class="owner-only" data-view="inicioAdmin"><span class="ic" aria-hidden="true">🏠</span><span class="lbl">Inicio</span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
@@ -3092,10 +3093,17 @@ function _finActiva(f){return f.activa!==false;}
 function _finConfig(f){return Number(f.fee)>0||!!f.tax||(f.diasSel&&f.diasSel.length&&f.diasSel.length<7)||!!(f.cuotas&&String(f.cuotas).trim());}
 function _finTieneCuotas(f){return !!(f.cuotas&&String(f.cuotas).trim());}
 function _finCalc(f){return 'Fee '+_pctLabel(f.fee)+(f.tax?' + 7% tax':' · sin tax');}
+// Puede editar el catalogo de financieras: admin, supervisor y dueno. El vendedor solo consulta.
+function _canEditFin(){return !!(me&&(me.rol==='admin'||me.rol==='supervisor'||me.rol==='dueno'));}
+function _finDiasDe(f){return (f.diasSel&&f.diasSel.length)?f.diasSel:_parseDias(f.dias);}
+function _finHoyNombre(){return _DIAS_SEM[(new Date().getDay()+6)%7];}
+// Se puede usar hoy: activa y con el dia de hoy habilitado
+function _finHoyDisp(f){return _finActiva(f)&&_finDiasDe(f).indexOf(_finHoyNombre())>=0;}
 function _finFiltrada(){
   return _FIN.map((f,idx)=>({f,idx})).filter(({f})=>{
     if(_finFiltro==='activas'&&!_finActiva(f))return false;
     if(_finFiltro==='inactivas'&&_finActiva(f))return false;
+    if(_finFiltro==='hoy'&&!_finHoyDisp(f))return false;
     if(_finQ){const s=(f.n+' '+(f.codigo||'')+' '+(f.cuotas||'')+' '+(f.razonSocial||'')).toLowerCase();if(s.indexOf(_finQ)<0)return false;}
     return true;
   });
@@ -3103,11 +3111,12 @@ function _finFiltrada(){
 function renderFinancieras(){
   const total=_FIN.length,act=_FIN.filter(_finActiva).length,inact=total-act,conf=_FIN.filter(_finConfig).length,cuo=_FIN.filter(_finTieneCuotas).length;
   const card=(l,v,s)=>'<div class="fin-card"><div class="fc-l">'+l+'</div><div class="fc-v">'+v+'</div><div class="fc-s">'+s+'</div></div>';
-  let h='<div class="page page-wide"><div class="conv-head-row"><h1>🏦 Financieras</h1><button class="btn" onclick="_finModal(-1)">＋ Agregar financiera</button></div>';
-  h+='<div class="fin-cards">'+card('Activas',act,'Disponibles para operar')+card('Inactivas',inact,'No visibles en ventas')+card('Configuradas',conf,'Con fee o reglas')+card('Con cuotas',cuo,'Con plan de cuotas')+'</div>';
+  let h='<div class="page page-wide"><div class="conv-head-row"><h1>🏦 Financieras</h1>'+(_canEditFin()?'<button class="btn" onclick="_finModal(-1)">＋ Agregar financiera</button>':'')+'</div>';
+  const hoyN=_FIN.filter(_finHoyDisp).length;
+  h+='<div class="fin-cards">'+card('Se pueden usar hoy',hoyN,_finHoyNombre()+' · habilitadas')+card('Activas',act,'Disponibles para operar')+card('Inactivas',inact,'No visibles en ventas')+card('Con cuotas',cuo,'Con plan de cuotas')+'</div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, código o cuotas…" value="'+esc(_finQ)+'" oninput="_finQ=this.value.toLowerCase();_finRenderRows()">';
-  h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
-  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Código','Financiera','Fee','Estado','Cuotas','Cálculo','Acciones'].map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
+  h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas'],['hoy','Hoy']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
+  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Código','Financiera','Fee','Estado','Cuotas','Cálculo'].concat(_canEditFin()?['Acciones']:[]).map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
   h+='<div class="sub" id="fin-foot" style="margin-top:8px"></div>';
   main.innerHTML=h+'</div>';
   _finRenderRows();
@@ -3117,16 +3126,17 @@ function _finRenderRows(){
   const tb=document.getElementById('fin-tbody');if(!tb)return;
   const rows=_finFiltrada();
   const estBadge=f=>_finActiva(f)?'<span class="vt-badge ok">Activa</span>':'<span class="vt-badge">Inactiva</span>';
-  if(!rows.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron financieras.</td></tr>';}
+  const _ncol=_canEditFin()?8:7;
+  if(!rows.length){tb.innerHTML='<tr><td colspan="'+_ncol+'" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron financieras.</td></tr>';}
   else tb.innerHTML=rows.map(({f,idx})=>'<tr>'
     +'<td><span class="fin-logo" style="background:'+avColor(f.n)+'">'+esc(iniciales(f.n))+'</span></td>'
     +'<td>'+esc(f.codigo||'—')+'</td>'
-    +'<td><b>'+esc(f.n)+'</b><div class="faint" style="font-size:11.5px">'+esc(f.dias||'')+'</div></td>'
+    +'<td><b>'+esc(f.n)+'</b>'+(_finHoyDisp(f)?' <span class="vt-badge ok" title="Se puede usar hoy">Hoy</span>':'')+'<div class="faint" style="font-size:11.5px">'+esc(f.dias||'')+'</div></td>'
     +'<td class="num">'+_pctLabel(f.fee)+'</td>'
     +'<td>'+estBadge(f)+'</td>'
     +'<td>'+esc(f.cuotas||'—')+'</td>'
     +'<td class="faint" style="font-size:12px">'+esc(_finCalc(f))+'</td>'
-    +'<td style="white-space:nowrap"><button class="vt-ic" style="background:'+(_finActiva(f)?'#8e8e93':'#34c759')+'" title="'+(_finActiva(f)?'Desactivar':'Activar')+'" onclick="_finToggle('+idx+')">'+(_finActiva(f)?'⏸':'▶')+'</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_finModal('+idx+')">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_finDel('+idx+')">🗑️</button></td>'
+    +(_canEditFin()?('<td style="white-space:nowrap"><button class="vt-ic" style="background:'+(_finActiva(f)?'#8e8e93':'#34c759')+'" title="'+(_finActiva(f)?'Desactivar':'Activar')+'" onclick="_finToggle('+idx+')">'+(_finActiva(f)?'⏸':'▶')+'</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_finModal('+idx+')">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_finDel('+idx+')">🗑️</button></td>'):'')
     +'</tr>').join('');
   const foot=document.getElementById('fin-foot');if(foot)foot.textContent=rows.length?(rows.length+' financiera(s)'):'Sin resultados';
   try{_segSlideAll();}catch(e){}
