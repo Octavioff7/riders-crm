@@ -304,7 +304,9 @@ function ensureSetup(){
 function teamIds(users,sup){return users.filter(u=>u.supervisorId===sup.id).map(u=>u.id).concat(sup.id);}
 function canSeeCliente(user,c,users){
   if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')return true; // dueño y supervisor ven toda la operación (solo lectura)
-  if(user.rol==='vendedor')return c.vendedorId===user.id&&!c.descartado; // los descartados quedan solo para el admin
+  // El vendedor recibe todos sus clientes, incluidos los que descarto: no aparecen en sus listas
+  // (el front los filtra) pero se necesitan para sus metricas de la semana.
+  if(user.rol==='vendedor')return c.vendedorId===user.id;
   return false;
 }
 function scopedClientes(user){const cl=loadClientes(),users=loadUsers();return cl.filter(c=>canSeeCliente(user,c,users));}

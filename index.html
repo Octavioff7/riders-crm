@@ -4408,7 +4408,9 @@ function _segSlideAll(){document.querySelectorAll('.fin-tabs,.in-seg').forEach(_
 function renderPanel(){
   const T=c=>temperatura(c);
   const AA=activos();
-  const NUEV=misTodos(); // incluye los enviados a papelera: mide los leads reales que entraron
+  // Alcance de las metricas: por vendedor. El vendedor ve lo suyo; supervisor y dueno, todo el equipo.
+  const _scoped=c=>filtroVend?(c.vendedorId===filtroVend):((me&&me.rol==='admin')?(c.vendedorId===me.id):true);
+  const NUEV=clientes.filter(_scoped); // incluye papelera y descartados: mide los leads reales que entraron
   const total=AA.length;
   const cal=AA.filter(c=>{const x=T(c);return x&&x.id==='caliente';});
   const frios=AA.filter(c=>{const x=T(c);return x&&x.id==='sinContacto';});
@@ -4428,7 +4430,6 @@ function renderPanel(){
   const conv=total?Math.round((AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length/total)*100):0;
   let seguimSemana=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguimSemana++;}));
   const nuevosSemana=NUEV.filter(c=>(c.creado||'')>=weekAgo).length;
-  const _scoped=c=>filtroVend?(c.vendedorId===filtroVend):((me&&me.rol==='admin')?(c.vendedorId===me.id):true);
   const descartadosSem=clientes.filter(c=>c.descartado&&_scoped(c)&&(c.descartadoFecha||'')>=weekAgo).length;
   const _dow=(new Date().getDay()+6)%7;const _mon=new Date();_mon.setHours(0,0,0,0);_mon.setDate(_mon.getDate()-_dow);
   const semanaDias=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());semanaDias.push({l:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i],n:NUEV.filter(c=>(c.creado||'')===ds).length});}
