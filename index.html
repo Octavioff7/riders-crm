@@ -4181,16 +4181,19 @@ function _adbDonut(segs){
 /* ---- Barras horizontales por usuario ---- */
 function _adbHBarSVG(items){
   if(!items.length)return '<div class="faint" style="padding:40px;text-align:center">Sin datos.</div>';
-  const n=items.length,rowH=30,W=540,pL=118,pR=34,pT=6,pB=26,ph=n*rowH,H=pT+ph+pB,pw=W-pL-pR;
+  // Alto fijo (igual que el grafico de al lado): las filas se reparten y se centran, asi con pocos
+  // usuarios las barras quedan gruesas y no sobra espacio en blanco.
+  const n=items.length,W=540,pL=118,pR=34,pT=10,pB=28,H=330,ph=H-pT-pB,pw=W-pL-pR;
+  const rowH=Math.min(64,ph/n),off=pT+(ph-rowH*n)/2;
   let maxX=1;items.forEach(it=>maxX=Math.max(maxX,it.mov,it.alta));maxX=_niceMax(maxX);
-  const X=v=>pL+(v/maxX)*pw,bh=Math.max(5,Math.min(9,(rowH-8)/2));
-  let g='';for(let i=0;i<n;i++){const yy=pT+i*rowH+rowH/2;g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--grid)" stroke-dasharray="3 3"/>';}
-  for(let k=0;k<=4;k++){const val=maxX*k/4,xx=X(val);g+='<line x1="'+xx+'" y1="'+pT+'" x2="'+xx+'" y2="'+(pT+ph)+'" stroke="var(--grid)" stroke-dasharray="3 3"/><text x="'+xx+'" y="'+(H-9)+'" text-anchor="middle" font-size="8.5" fill="var(--muted)">'+_kFmt(val)+'</text>';}
+  const X=v=>pL+(v/maxX)*pw,bh=Math.max(6,Math.min(16,(rowH-10)/2));
+  let g='';for(let i=0;i<n;i++){const yy=off+i*rowH+rowH/2;g+='<line x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'" stroke="var(--grid)" stroke-dasharray="3 3"/>';}
+  for(let k=0;k<=4;k++){const val=maxX*k/4,xx=X(val);g+='<line x1="'+xx+'" y1="'+pT+'" x2="'+xx+'" y2="'+(pT+ph)+'" stroke="var(--grid)" stroke-dasharray="3 3"/><text x="'+xx+'" y="'+(H-9)+'" text-anchor="middle" font-size="11" fill="var(--muted)">'+_kFmt(val)+'</text>';}
   let bars='',hov='';
-  items.forEach((it,i)=>{const y=pT+i*rowH,y1=y+rowH/2-bh-1,y2=y+rowH/2+1;
+  items.forEach((it,i)=>{const y=off+i*rowH,y1=y+rowH/2-bh-1,y2=y+rowH/2+1;
     bars+='<rect x="'+pL+'" y="'+y1+'" width="'+Math.max(0,X(it.mov)-pL)+'" height="'+bh+'" rx="1.5" fill="#3a7bd5"/>';
     bars+='<rect x="'+pL+'" y="'+y2+'" width="'+Math.max(0,X(it.alta)-pL)+'" height="'+bh+'" rx="1.5" fill="#2f9e6a"/>';
-    bars+='<text x="'+(pL-8)+'" y="'+(y+rowH/2+3)+'" text-anchor="end" font-size="9.5" fill="var(--txt)">'+esc(it.name.length>16?it.name.slice(0,15)+'…':it.name)+'</text>';
+    bars+='<text x="'+(pL-8)+'" y="'+(y+rowH/2+3)+'" text-anchor="end" font-size="11" fill="var(--txt)">'+esc(it.name.length>16?it.name.slice(0,15)+'…':it.name)+'</text>';
     const tip=_pvJs(it.name)+'<br>'+_pvJs('Movimientos : '+it.mov)+'<br>'+_pvJs('Altas : '+it.alta);
     hov+='<rect class="adb-col" x="0" y="'+y+'" width="'+W+'" height="'+rowH+'" onmousemove="_pvTip(event,\''+tip+'\')" onmouseleave="_pvTipHide()"/>';});
   return '<svg viewBox="0 0 '+W+' '+H+'" class="pv-svg" preserveAspectRatio="xMidYMid meet">'+g+bars+hov+'</svg>';
