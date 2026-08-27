@@ -4428,7 +4428,11 @@ function renderPanel(){
   const pad=n=>String(n).padStart(2,'0');
   const money=v=>'$'+Number(v||0).toLocaleString('es-AR');
   const mesAct=hoy().slice(0,7);
-  const _wa=new Date(Date.now()-6*86400000);const weekAgo=_wa.getFullYear()+'-'+pad(_wa.getMonth()+1)+'-'+pad(_wa.getDate());
+  // La semana va de lunes a domingo: cada lunes los contadores vuelven a cero.
+  const _lun=new Date();_lun.setHours(0,0,0,0);_lun.setDate(_lun.getDate()-((new Date().getDay()+6)%7));
+  const weekAgo=_lun.getFullYear()+'-'+pad(_lun.getMonth()+1)+'-'+pad(_lun.getDate());
+  // Fecha en que un cliente salio de circulacion (papelera o descartado): se usa la mas reciente.
+  const _fueraFecha=c=>[c.descartadoFecha,c.borradoFecha].filter(Boolean).sort().pop()||'';
   const vendidosMes=AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===mesAct);
   const ventasMesMonto=vendidosMes.reduce((s,c)=>s+(Number(c.valor)||0),0);
   const gananciaMes=vendidosMes.reduce((s,c)=>s+_comisionVenta(c),0);
@@ -4439,13 +4443,12 @@ function renderPanel(){
   const nuevosSemana=NUEV.filter(c=>(c.creado||'')>=weekAgo).length;
   // Sacados de circulacion esta semana: cuenta tanto los mandados a papelera como los descartados
   // (se toma la fecha mas reciente de las dos, para no contar dos veces al mismo cliente).
-  const _fueraFecha=c=>[c.descartadoFecha,c.borradoFecha].filter(Boolean).sort().pop()||'';
   const descartadosSem=clientes.filter(c=>_scoped(c)&&(c.descartado||c.borrado)&&_fueraFecha(c)>=weekAgo).length;
   const _dow=(new Date().getDay()+6)%7;const _mon=new Date();_mon.setHours(0,0,0,0);_mon.setDate(_mon.getDate()-_dow);
   const semanaDias=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());semanaDias.push({l:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i],n:NUEV.filter(c=>(c.creado||'')===ds).length});}
   const maxDia=Math.max(1,...semanaDias.map(d=>d.n));
   const _mesLbl=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:NUEV.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg});}
+  const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:NUEV.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg,desc:NUEV.filter(c=>(c.descartado||c.borrado)&&_fueraFecha(c).slice(0,7)===ym).length});}
   // --- Métricas prácticas: enfriándose, ventas semana/mes, objetivos ---
   const OBJ_SEM=5, OBJ_MES=20;
   const esVenta=c=>(c.etapa==='vendido'||c.etapa==='posventa');
@@ -4489,7 +4492,7 @@ function renderPanel(){
     </div>
     <div class="earnings-card" onclick="toggleEarn()" style="cursor:pointer" title="Tocá para cambiar entre este mes y el total">${earnCardHTML()}</div>
     <div class="dash-cols">${chartVentas('📊 Ventas — Semana',ventasWk,ventasSemTotal,OBJ_SEM,_dow)}${chartVentas('📊 Ventas — Mes',ventasMo,qtyMes,OBJ_MES,hoyDiaIdx)}</div>
-    <div class="panelcard"><h3>📈 Evolución mensual <span class="muted" style="font-weight:500">· seguimiento a largo plazo</span></h3><table class="mtable"><thead><tr><th>Mes</th><th>Clientes nuevos</th><th>Ventas</th><th>Seguimientos</th></tr></thead><tbody>${meses.slice().reverse().map(m=>`<tr><td><b>${m.label}</b></td><td>${m.nuevos}</td><td>${m.ventas}</td><td>${m.seg}</td></tr>`).join('')}</tbody></table></div>
+    <div class="panelcard"><h3>📈 Evolución mensual <span class="muted" style="font-weight:500">· seguimiento a largo plazo</span></h3><table class="mtable"><thead><tr><th>Mes</th><th>Clientes nuevos</th><th>Ventas</th><th>Seguimientos</th><th>Descartados</th></tr></thead><tbody>${meses.slice().reverse().map(m=>`<tr><td><b>${m.label}</b></td><td>${m.nuevos}</td><td>${m.ventas}</td><td>${m.seg}</td><td>${m.desc}</td></tr>`).join('')}</tbody></table></div>
   </div>`;
   earnApply();
 }
