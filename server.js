@@ -253,6 +253,10 @@ function procesarWebhook(body){
           if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:'')});}
           clientes.push(c);
           try{if(typeof pushToUser==='function'&&vendId)pushToUser(vendId,{title:'🆕 Nueva consulta',body:nombre+': '+String(texto).slice(0,80)});}catch(e){}
+          // Ya se avisa "Nueva consulta": damos por enviado el recordatorio de hoy para que no llegue
+          // ademas "es hora de tu seguimiento" por el mismo cliente que acaba de entrar. Si mas adelante
+          // el vendedor agenda un seguimiento real (otra fecha/hora), ese si se avisa.
+          try{const _nt=loadNotif();_nt[c.id+'|'+c.proximo+'|'+(c.proximoHora||'')]=Date.now();saveNotif();}catch(e){}
         }
         paraResponder.push({id:c.id,texto:texto});
         changed=true;
