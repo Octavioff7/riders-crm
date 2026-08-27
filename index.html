@@ -4437,7 +4437,10 @@ function renderPanel(){
   const conv=total?Math.round((AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length/total)*100):0;
   let seguimSemana=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguimSemana++;}));
   const nuevosSemana=NUEV.filter(c=>(c.creado||'')>=weekAgo).length;
-  const descartadosSem=clientes.filter(c=>c.descartado&&_scoped(c)&&(c.descartadoFecha||'')>=weekAgo).length;
+  // Sacados de circulacion esta semana: cuenta tanto los mandados a papelera como los descartados
+  // (se toma la fecha mas reciente de las dos, para no contar dos veces al mismo cliente).
+  const _fueraFecha=c=>[c.descartadoFecha,c.borradoFecha].filter(Boolean).sort().pop()||'';
+  const descartadosSem=clientes.filter(c=>_scoped(c)&&(c.descartado||c.borrado)&&_fueraFecha(c)>=weekAgo).length;
   const _dow=(new Date().getDay()+6)%7;const _mon=new Date();_mon.setHours(0,0,0,0);_mon.setDate(_mon.getDate()-_dow);
   const semanaDias=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());semanaDias.push({l:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i],n:NUEV.filter(c=>(c.creado||'')===ds).length});}
   const maxDia=Math.max(1,...semanaDias.map(d=>d.n));
