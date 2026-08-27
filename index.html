@@ -4183,7 +4183,10 @@ function _adbHBarSVG(items){
   if(!items.length)return '<div class="faint" style="padding:40px;text-align:center">Sin datos.</div>';
   // Alto fijo (igual que el grafico de al lado): las filas se reparten y se centran, asi con pocos
   // usuarios las barras quedan gruesas y no sobra espacio en blanco.
-  const n=items.length,W=540,pL=118,pR=34,pT=10,pB=28,H=330,ph=H-pT-pB,pw=W-pL-pR;
+  const n=items.length,W=540,pR=34,pT=10,pB=28,H=330,ph=H-pT-pB;
+  // El margen izquierdo se ajusta al nombre mas largo: con nombres cortos el grafico arranca mas a la izquierda.
+  const _lbl=items.reduce((m,it)=>Math.max(m,Math.min(16,String(it.name||'').length)),0);
+  const pL=Math.max(42,Math.min(118,Math.round(_lbl*6.2)+14)),pw=W-pL-pR;
   const rowH=Math.min(64,ph/n),off=pT+(ph-rowH*n)/2;
   let maxX=1;items.forEach(it=>maxX=Math.max(maxX,it.mov,it.alta));maxX=_niceMax(maxX);
   const X=v=>pL+(v/maxX)*pw,bh=Math.max(6,Math.min(16,(rowH-10)/2));
