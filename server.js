@@ -88,11 +88,11 @@ const DEFAULT_INVENTARIO=[
   {n:47,nombre:'DELTA PRO',modelo:'ECOFLOW DELTA PRO',cat:'kit',color:'',precio:2900,comision:300,activo:true}
 ];
 const DEFAULT_FINANCIERAS=[
-  {n:'US BANK CARITAS',fee:0.04,tax:true,dias:'Todos los días'},{n:'US BANK EVERLY',fee:0.08,tax:true,dias:'Todos los días'},
-  {n:'KIWIPAY (FL)',fee:0.18,tax:false,dias:'Todos los días'},{n:'ÁCIMA',fee:0,tax:true,dias:'Lun a Mié'},
-  {n:'KAFENE (FL)',fee:0.10,tax:false,dias:'Mié a Vie'},{n:'PROGRESSIVE',fee:0.10,tax:false,dias:'Lun a Mié'},
-  {n:'KOALAFI',fee:0.10,tax:false,dias:'Mié a Vie'},{n:'SNAP',fee:0.10,tax:false,dias:'Lun a Mié'},
-  {n:'AFF',fee:0.15,tax:false,dias:'Mié a Vie'},{n:'EASYPAY (FL)',fee:0.10,tax:false,dias:'Lun a Mié'}
+  {n:'US BANK CARITAS',fee:0.04,tax:true,dias:'Todos los días'},{n:'US BANK EVERLY',tipo:'Personal Loan',fee:0.08,tax:true,dias:'Todos los días'},
+  {n:'KIWIPAY (FL)',tipo:'Personal Loan',fee:0.18,tax:false,dias:'Todos los días'},{n:'ÁCIMA',tipo:'Personal Loan',fee:0,tax:true,dias:'Lun a Mié'},
+  {n:'KAFENE (FL)',tipo:'Lease to own',fee:0.10,tax:false,dias:'Mié a Vie'},{n:'PROGRESSIVE',tipo:'Lease to own',fee:0.10,tax:false,dias:'Lun a Mié'},
+  {n:'KOALAFI',tipo:'Lease to own',fee:0.10,tax:false,dias:'Mié a Vie'},{n:'SNAP',tipo:'Lease to own',fee:0.10,tax:false,dias:'Lun a Mié'},
+  {n:'AFF',tipo:'Lease to own',fee:0.15,tax:false,dias:'Mié a Vie'},{n:'EASYPAY (FL)',tipo:'Lease to own',fee:0.10,tax:false,dias:'Lun a Mié'}
 ];
 function loadInventario(){try{return JSON.parse(fs.readFileSync(INVPATH,'utf8'))}catch(e){return null}}
 function saveInventario(a){fs.writeFileSync(INVPATH,JSON.stringify(a,null,1))}

@@ -457,6 +457,9 @@
   .fin-card .fc-l{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
   .fin-card .fc-v{font-size:26px;font-weight:800;color:var(--txt);margin:2px 0}
   .fin-card .fc-s{font-size:12px;color:var(--muted)}
+  .vtbl th.fin-c,.vtbl td.fin-c{text-align:center}
+  .fin-link{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:var(--hover);color:var(--accent);text-decoration:none;font-size:12px;margin-left:6px;vertical-align:middle}
+  .fin-link:hover{background:var(--accent);color:#fff}
   .fin-tabs{position:relative;display:inline-flex;background:var(--hover);border-radius:10px;padding:3px;gap:2px;flex:none}
   .fin-tab{position:relative;z-index:1;border:none;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:inherit;transition:color .28s ease}
   .fin-tab.on{color:var(--accent)}
@@ -3167,6 +3170,34 @@ function _asisEnviar(){
 /* ---- GESTIÓN DE FINANCIERAS (admin) ---- */
 function _finPersist(){_rebuildFin();if(SERVER)api('/api/financieras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_FIN)}).catch(()=>{});}
 let _finQ='';let _finFiltro='todas';
+const _FIN_TIPOS=['Lease to own','Personal Loan'];
+// Tipo ya conocido de las financieras que usa Riders. Solo se aplica si nunca se toco el campo:
+// apenas se edita una financiera, manda lo que quedo guardado.
+const _FIN_TIPO_CONOCIDO=[['ACIMA','Personal Loan'],['EVERLY','Personal Loan'],['LENDMARK','Personal Loan'],['KIWI','Personal Loan'],
+  ['EASYPAY','Lease to own'],['SNAP','Lease to own'],['KOALAFI','Lease to own'],['KAFENE','Lease to own'],['PROGRESSIVE','Lease to own']];
+function _finNorm(v){
+  const t=String(v||'').toUpperCase();
+  const ac='ÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇ', si='AAAAAEEEEIIIIOOOOOUUUUNC';
+  let o='';
+  for(const ch of t){const i=ac.indexOf(ch);const c=i>=0?si[i]:ch;if((c>='A'&&c<='Z')||(c>='0'&&c<='9'))o+=c;}
+  return o;
+}
+// Link del sitio de la financiera. Solo se aceptan direcciones web normales.
+function _finLink(f){
+  const u=String((f&&f.link)||'').trim();
+  if(!u)return '';
+  const low=u.toLowerCase();
+  if(low.indexOf('http://')===0||low.indexOf('https://')===0)return u;
+  if(u.indexOf(':')>=0)return '';   // cualquier otro esquema se descarta por seguridad
+  return 'https://'+u;
+}
+function _finTipo(f){
+  if(f&&f.tipo!==undefined)return f.tipo;            // ya se definio a mano (aunque sea vacio)
+  const k=_finNorm(f&&f.n);
+  if(k==='AFF')return 'Lease to own';
+  for(const [pat,tp] of _FIN_TIPO_CONOCIDO){if(k.indexOf(pat)>=0)return tp;}
+  return '';
+}
 function _finActiva(f){return f.activa!==false;}
 function _finConfig(f){return Number(f.fee)>0||!!f.tax||(f.diasSel&&f.diasSel.length&&f.diasSel.length<7)||!!(f.cuotas&&String(f.cuotas).trim());}
 function _finTieneCuotas(f){return !!(f.cuotas&&String(f.cuotas).trim());}
@@ -3194,7 +3225,7 @@ function renderFinancieras(){
   h+='<div class="fin-cards">'+card('Se pueden usar hoy',hoyN,_finHoyNombre()+' · habilitadas')+card('Activas',act,'Disponibles para operar')+card('Inactivas',inact,'No visibles en ventas')+card('Con cuotas',cuo,'Con plan de cuotas')+'</div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, código o cuotas…" value="'+esc(_finQ)+'" oninput="_finQ=this.value.toLowerCase();_finRenderRows()">';
   h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas'],['hoy','Hoy']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
-  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Código','Financiera','Fee','Estado','Cuotas','Cálculo'].concat(_canEditFin()?['Acciones']:[]).map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
+  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Código','Financiera','Tipo','Fee','Estado','Cuotas','Cálculo'].concat(_canEditFin()?['Acciones']:[]).map(c=>'<th'+(c==='Fee'?' class="fin-c"':'')+'>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
   h+='<div class="sub" id="fin-foot" style="margin-top:8px"></div>';
   main.innerHTML=h+'</div>';
   _finRenderRows();
@@ -3204,13 +3235,13 @@ function _finRenderRows(){
   const tb=document.getElementById('fin-tbody');if(!tb)return;
   const rows=_finFiltrada();
   const estBadge=f=>_finActiva(f)?'<span class="vt-badge ok">Activa</span>':'<span class="vt-badge">Inactiva</span>';
-  const _ncol=_canEditFin()?8:7;
+  const _ncol=_canEditFin()?9:8;
   if(!rows.length){tb.innerHTML='<tr><td colspan="'+_ncol+'" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron financieras.</td></tr>';}
   else tb.innerHTML=rows.map(({f,idx})=>'<tr>'
     +'<td><span class="fin-logo" style="background:'+avColor(f.n)+'">'+esc(iniciales(f.n))+'</span></td>'
-    +'<td>'+esc(f.codigo||'—')+'</td>'
+    +'<td style="white-space:nowrap">'+esc(f.codigo||'—')+(_finLink(f)?'<a class="fin-link" href="'+esc(_finLink(f))+'" target="_blank" rel="noopener noreferrer" title="Abrir el sitio de la financiera" onclick="event.stopPropagation()">🔗</a>':'')+'</td>'
     +'<td><b>'+esc(f.n)+'</b>'+(_finHoyDisp(f)?' <span class="vt-badge ok" title="Se puede usar hoy">Hoy</span>':'')+'<div class="faint" style="font-size:11.5px">'+esc(f.dias||'')+'</div></td>'
-    +'<td class="num">'+_pctLabel(f.fee)+'</td>'
+    +'<td>'+(_finTipo(f)?'<span class="vt-badge">'+esc(_finTipo(f))+'</span>':'—')+'</td>'+'<td class="fin-c">'+_pctLabel(f.fee)+'</td>'
     +'<td>'+estBadge(f)+'</td>'
     +'<td>'+esc(f.cuotas||'—')+'</td>'
     +'<td class="faint" style="font-size:12px">'+esc(_finCalc(f))+'</td>'
@@ -3243,6 +3274,8 @@ function _finModal(idx){
   wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(nw?'Agregar financiera':'Editar financiera')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
     +'<label>Nombre</label><input id="fin-n" value="'+esc(f.n)+'">'
     +'<label>Código (opcional)</label><input id="fin-cod" value="'+esc(f.codigo||'')+'" placeholder="Ej: CARITAS, KP01…">'
+    +'<label>Link del sitio (opcional)</label><input id="fin-link" value="'+esc(f.link||'')+'" placeholder="Ej: portal.kafene.com">'
+    +'<label>Tipo</label><select id="fin-tipo">'+['',..._FIN_TIPOS].map(t=>'<option value="'+esc(t)+'"'+(_finTipo(f)===t?' selected':'')+'>'+(t||'— Sin definir —')+'</option>').join('')+'</select>'
     +'<label>Fee (%)</label><input id="fin-fee" type="number" inputmode="decimal" value="'+(Math.round((f.fee||0)*10000)/100)+'">'
     +'<label>Cuotas / plan (opcional)</label><input id="fin-cuotas" value="'+esc(f.cuotas||'')+'" placeholder="Ej: 3, 6, 12 meses">'
     +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="fin-tax" style="width:auto;margin:0"'+(f.tax?' checked':'')+'> Lleva 7% de taxes</label>'
@@ -3256,7 +3289,7 @@ function _finSave(idx){
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const n=g('fin-n');if(!n){alert('Poné un nombre.');return;}
   const sel=_DIAS_SEM.filter(d=>_finDiasSel.indexOf(d)>=0);
-  const item={n,codigo:g('fin-cod'),fee:(parseFloat(g('fin-fee'))||0)/100,cuotas:g('fin-cuotas'),tax:document.getElementById('fin-tax').checked,activa:document.getElementById('fin-activa').checked,dias:_diasLabel(sel),diasSel:sel};
+  const item={n,tipo:g('fin-tipo'),codigo:g('fin-cod'),link:g('fin-link'),fee:(parseFloat(g('fin-fee'))||0)/100,cuotas:g('fin-cuotas'),tax:document.getElementById('fin-tax').checked,activa:document.getElementById('fin-activa').checked,dias:_diasLabel(sel),diasSel:sel};
   if(idx<0)_FIN.push(item);else _FIN[idx]=Object.assign({},_FIN[idx],item);
   _finPersist();_audit({modulo:'FINANCIERAS',entidad:'FINANCIERA',accion:idx<0?'ALTA':'MODIFICACION',metodo:idx<0?'POST':'PUT',referencia:'Financiera '+n,cambios:1});cerrarModal();render();
 }
