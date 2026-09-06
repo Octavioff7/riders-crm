@@ -228,6 +228,27 @@ function consumeTgCode(code){const o=loadTgCodes();const e=o[code];if(!e||e.exp<
 function adminUser(){return loadUsers().find(u=>u.rol==='admin');}
 
 /* ---------- WhatsApp: entra un mensaje → se crea/actualiza la consulta en el CRM ---------- */
+/* Diagnostico: guarda en memoria los ultimos webhooks que llegaron, para poder
+   verificar la conexion con WhatsApp sin depender de los logs de Render.
+   Se ve en /api/wadebug (solo admin). No persiste: se borra al reiniciar. */
+const WA_LOG=[];
+function waLog(body){
+  try{
+    const ev={ts:Date.now(),campo:"",pnid:"",msgs:[]};
+    for(const e of ((body&&body.entry)||[])){
+      for(const ch of (e.changes||[])){
+        const v=ch.value||{};
+        ev.campo=ch.field||"";
+        ev.pnid=(v.metadata&&v.metadata.phone_number_id)||"";
+        for(const m of (v.messages||[]))ev.msgs.push({de:m.from||"",tipo:m.type||"",deAnuncio:!!m.referral,texto:m.text?String(m.text.body).slice(0,80):""});
+        if(v.statuses)ev.estados=v.statuses.length;
+      }
+    }
+    if(!ev.campo){try{ev.crudo=JSON.stringify(body).slice(0,300);}catch(x){}}
+    WA_LOG.unshift(ev);
+    if(WA_LOG.length>60)WA_LOG.length=60;
+  }catch(x){}
+}
 function procesarWebhook(body){
   if(!body||!Array.isArray(body.entry))return;
   const clientes=loadClientes();const map=loadWaMap();const admin=adminUser();let changed=false;
@@ -694,7 +715,7 @@ http.createServer((req,res)=>{
     if(qp.get('hub.mode')==='subscribe'&&qp.get('hub.verify_token')===WA_VERIFY){res.writeHead(200,{'Content-Type':'text/plain'});return res.end(qp.get('hub.challenge')||'');}
     res.writeHead(403);return res.end('no');
   }
-  if(u==='/webhook'&&req.method==='POST')return readBody(body=>{try{procesarWebhook(body);}catch(e){console.log('[webhook] error:',e.message);}json(200,{ok:true});});
+  if(u==='/webhook'&&req.method==='POST')return readBody(body=>{try{waLog(body);}catch(e){}try{procesarWebhook(body);}catch(e){console.log('[webhook] error:',e.message);}json(200,{ok:true});});
 
   // Login (sin auth)
   if(u==='/api/login'&&req.method==='POST')return readBody(body=>{
@@ -714,6 +735,8 @@ http.createServer((req,res)=>{
 
   if(u==='/api/logout'&&req.method==='POST'){return json(200,{ok:true});}
   if(u==='/api/me'&&req.method==='GET')return json(200,{user:publicUser(me)});
+  // Diagnostico del webhook de WhatsApp: que llego y desde que numero (solo admin).
+  if(u==='/api/wadebug'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{phoneIdConfigurado:WA_PHONE_ID||'',tokenCargado:!!WA_TOKEN,mapeo:loadWaMap(),recibidos:WA_LOG.length,eventos:WA_LOG});}
   if(u==='/api/bot-status'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{tokenSet:!!(CFG.telegramToken&&CFG.telegramToken.length>10),allowedChatId:CFG.allowedChatId||null,lastOkSecondsAgo:botLastOk?Math.round((Date.now()-botLastOk)/1000):null,lastErr:botLastErr||''});}
   if(u==='/api/tg/code'&&req.method==='POST')return json(200,{code:genTgCode(me.id),bot:botUsername||CFG.telegramBotUser});
   if(u==='/api/push/pubkey'&&req.method==='GET')return json(200,{key:pushPubKey(),enabled:!!webpush});
