@@ -3183,6 +3183,17 @@ function _finNorm(v){
   return o;
 }
 // Link del sitio de la financiera. Solo se aceptan direcciones web normales.
+// Copia el link de la financiera para mandarselo al cliente.
+function _finCopyLink(i,btn){
+  const u=_finLink(_FIN[i]);if(!u)return;
+  const aviso=()=>{const t=btn.innerHTML;btn.innerHTML='✅ Copiado';setTimeout(()=>{btn.innerHTML=t;},1500);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(aviso).catch(()=>_finCopyFallback(u,aviso));}
+  else _finCopyFallback(u,aviso);
+}
+function _finCopyFallback(u,aviso){
+  try{const ta=document.createElement('textarea');ta.value=u;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();aviso();}
+  catch(e){alert('No pude copiar. El link es: '+u);}
+}
 function _finLink(f){
   const u=String((f&&f.link)||'').trim();
   if(!u)return '';
@@ -3225,7 +3236,7 @@ function renderFinancieras(){
   h+='<div class="fin-cards">'+card('Se pueden usar hoy',hoyN,_finHoyNombre()+' · habilitadas')+card('Activas',act,'Disponibles para operar')+card('Inactivas',inact,'No visibles en ventas')+card('Con cuotas',cuo,'Con plan de cuotas')+'</div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, código o cuotas…" value="'+esc(_finQ)+'" oninput="_finQ=this.value.toLowerCase();_finRenderRows()">';
   h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas'],['hoy','Hoy']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
-  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Código','Financiera','Tipo','Fee','Estado','Cuotas','Cálculo'].concat(_canEditFin()?['Acciones']:[]).map(c=>'<th'+(c==='Fee'?' class="fin-c"':'')+'>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
+  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Link','Financiera','Tipo','Fee','Estado','Cuotas','Cálculo'].concat(_canEditFin()?['Acciones']:[]).map(c=>'<th'+(c==='Fee'?' class="fin-c"':'')+'>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
   h+='<div class="sub" id="fin-foot" style="margin-top:8px"></div>';
   main.innerHTML=h+'</div>';
   _finRenderRows();
@@ -3239,7 +3250,7 @@ function _finRenderRows(){
   if(!rows.length){tb.innerHTML='<tr><td colspan="'+_ncol+'" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron financieras.</td></tr>';}
   else tb.innerHTML=rows.map(({f,idx})=>'<tr>'
     +'<td><span class="fin-logo" style="background:'+avColor(f.n)+'">'+esc(iniciales(f.n))+'</span></td>'
-    +'<td style="white-space:nowrap">'+esc(f.codigo||'—')+(_finLink(f)?'<a class="fin-link" href="'+esc(_finLink(f))+'" target="_blank" rel="noopener noreferrer" title="Abrir el sitio de la financiera" onclick="event.stopPropagation()">🔗</a>':'')+'</td>'
+    +'<td style="white-space:nowrap">'+(_finLink(f)?('<button class="btn sm ghost" title="Copiar el link para mandarselo al cliente" onclick="event.stopPropagation();_finCopyLink('+idx+',this)">📋 Copiar</button><a class="fin-link" href="'+esc(_finLink(f))+'" target="_blank" rel="noopener noreferrer" title="Abrir el sitio" onclick="event.stopPropagation()">🔗</a>'):'—')+'</td>'
     +'<td><b>'+esc(f.n)+'</b>'+(_finHoyDisp(f)?' <span class="vt-badge ok" title="Se puede usar hoy">Hoy</span>':'')+'<div class="faint" style="font-size:11.5px">'+esc(f.dias||'')+'</div></td>'
     +'<td>'+(_finTipo(f)?'<span class="vt-badge">'+esc(_finTipo(f))+'</span>':'—')+'</td>'+'<td class="fin-c">'+_pctLabel(f.fee)+'</td>'
     +'<td>'+estBadge(f)+'</td>'
