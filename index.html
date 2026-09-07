@@ -1173,7 +1173,7 @@ function crmHTML(c){
       <div class="section-t">📝 Notas del seguimiento</div>
       <div class="nota-add"><textarea id="nueva-nota" placeholder="Escribí una nota…  (se guarda con la fecha de hoy)" oninput="autoGrow(this)"></textarea><button class="btn" onclick="agregarNota('${c.id}')">Agregar nota</button></div>
       <div style="margin-top:12px">${notas}</div>
-      ${c.sinAtender?`<div class="row2" style="margin-top:18px"><button class="btn" onclick="guardarConsulta('${c.id}')">💾 Guardar</button><button class="btn danger" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button></div>`:`<button class="btn danger" style="width:100%;margin-top:18px" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button>`}
+      ${c.sinAtender?`<div class="row2" style="margin-top:18px"><button class="btn" onclick="guardarConsulta('${c.id}')">Guardar</button><button class="btn danger" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button></div>`:`<button class="btn danger" style="width:100%;margin-top:18px" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button>`}
     </div>`;
 }
 function pick(id){selectedId=id;document.body.classList.add('chat-open');renderInbox();pushHistory();}
