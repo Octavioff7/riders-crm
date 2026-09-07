@@ -1090,6 +1090,7 @@ function ctxList(ctx){const A=activos();
   const byProxAsc=(a,b)=>proxDateTime(a)-proxDateTime(b);         // fecha más temprana/atrasada arriba
   const byProxDesc=(a,b)=>proxDateTime(b)-proxDateTime(a);        // fecha más nueva arriba
   const byVenta=(a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')); // venta más nueva arriba
+  if(ctx==='nuevas')return A.filter(c=>c.sinAtender).sort((a,b)=>_consultaTs(b)-_consultaTs(a));
   if(ctx==='calientes')return A.filter(c=>{const t=temperatura(c);return t&&t.id==='caliente';}).sort(byNuevo);
   if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');}).sort(byNuevo);
   if(ctx==='seg')return A.filter(c=>temperatura(c)).sort(byNuevo);
@@ -1099,7 +1100,7 @@ function ctxList(ctx){const A=activos();
   if(['hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)).sort(byProxDesc);
   return null;
 }
-const CTX_LABEL={atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
+const CTX_LABEL={nuevas:'🆕 Nuevas consultas',atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
 function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 // Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
 function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
@@ -1172,7 +1173,7 @@ function crmHTML(c){
       <div class="section-t">📝 Notas del seguimiento</div>
       <div class="nota-add"><textarea id="nueva-nota" placeholder="Escribí una nota…  (se guarda con la fecha de hoy)" oninput="autoGrow(this)"></textarea><button class="btn" onclick="agregarNota('${c.id}')">Agregar nota</button></div>
       <div style="margin-top:12px">${notas}</div>
-      <button class="btn danger" style="width:100%;margin-top:18px" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button>
+      ${c.sinAtender?`<div class="row2" style="margin-top:18px"><button class="btn" onclick="guardarConsulta('${c.id}')">💾 Guardar</button><button class="btn danger" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button></div>`:`<button class="btn danger" style="width:100%;margin-top:18px" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button>`}
     </div>`;
 }
 function pick(id){selectedId=id;document.body.classList.add('chat-open');renderInbox();pushHistory();}
@@ -2091,7 +2092,9 @@ function _ncRows(){
   }
   cont.innerHTML=h;
 }
-function abrirConsulta(id){const c=clientes.find(x=>x.id===id);if(c&&c.sinAtender){c.sinAtender=false;save();}verFicha(id);}
+function abrirConsulta(id){abrirEnCtx(id,'nuevas');}
+// Guardar: recien aca la consulta deja de estar "sin atender" y pasa a la seccion que le corresponda.
+function guardarConsulta(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.sinAtender=false;save();document.body.classList.remove('chat-open');inboxCtx=null;view='nuevas';render();pushHistory();}
 function renderPapelera(){
   const esAdmin=!!(me&&me.rol==='admin');
   const ord=(a,b)=>String((b.descartadoFecha||b.borradoFecha)||'').localeCompare(String((a.descartadoFecha||a.borradoFecha)||''));
