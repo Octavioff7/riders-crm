@@ -249,6 +249,12 @@ function waLog(body){
     if(WA_LOG.length>60)WA_LOG.length=60;
   }catch(x){}
 }
+// Producto de una consulta nueva: primero por el anuncio que toco el cliente (titulo y cuerpo),
+// despues por lo que escribio. Si no se reconoce nada queda 'Otro' y lo elige el vendedor.
+function productoDeConsulta(m,texto){
+  const r=(m&&m.referral)||{};
+  return detProducto((r.headline||'')+' '+(r.body||''))||detProducto(String(texto||''))||'Otro';
+}
 function procesarWebhook(body){
   if(!body||!Array.isArray(body.entry))return;
   const clientes=loadClientes();const map=loadWaMap();const admin=adminUser();let changed=false;
@@ -269,8 +275,9 @@ function procesarWebhook(body){
         if(c){
           c.mensajes=c.mensajes||[];c.mensajes.push({de:'cliente',fecha,hora,texto,canal:'whatsapp'});
           c.ultimoContacto=fecha;c.respondioUltimo='cliente';
+          if(!c.producto||c.producto==='Otro'){const p=productoDeConsulta(m,texto);if(p!=='Otro')c.producto=p;}
         }else{
-          c={id:uid(),nombre,whatsapp:'+'+dig,producto:'Otro',etapa:'nuevo',valor:0,proximo:fecha,proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
+          c={id:uid(),nombre,whatsapp:'+'+dig,producto:productoDeConsulta(m,texto),etapa:'nuevo',valor:0,proximo:fecha,proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
           if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:'')});}
           clientes.push(c);
           try{if(typeof pushToUser==='function'&&vendId)pushToUser(vendId,{title:'🆕 Nueva consulta',body:nombre+': '+String(texto).slice(0,80)});}catch(e){}
