@@ -1104,7 +1104,7 @@ const CTX_LABEL={nuevas:'🆕 Nuevas consultas',atrasado:'🔴 Atrasados',hoy:'�
 function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 // Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
 function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
-function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados();return base.filter(c=>!filtro||(c.nombre+c.whatsapp+c.producto).toLowerCase().includes(filtro.toLowerCase()));}
+function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados();return base.filter(c=>_buscaCliente(c,filtro));}
 function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(telVer(c.whatsapp)):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
 function convListItems(){const l=filteredConvs();return l.map(convRow).join('')||'<div class="empty" style="margin:14px">Sin clientes</div>';}
 // Al buscar: actualiza SOLO la lista y el contador, sin redibujar la ficha (evita el parpadeo).
@@ -1310,7 +1310,12 @@ function completarProximo(id){const c=clientes.find(x=>x.id===id);if(!c)return;c
 
 /* ---- CLIENTES ---- */
 function creaKey(c){return c.creadoTs||(c.creado?(Date.parse(c.creado+'T00:00:00')||0):0);}
-function listFiltered(){const q=(filtro||'').toLowerCase();let l=activos().filter(c=>!q||(c.nombre+' '+c.whatsapp+' '+c.producto).toLowerCase().includes(q));if(filtroVend)l=l.filter(c=>c.vendedorId===filtroVend);if(filtroEtapa)l=l.filter(c=>c.etapa===filtroEtapa);return l.sort((a,b)=>creaKey(b)-creaKey(a));}
+// Busca por nombre/producto (texto) o por telefono (digitos de corrido: sirve escribir 786769 aunque este guardado como +1 (786) 769-...).
+function _buscaCliente(c,q){q=String(q||'').trim().toLowerCase();if(!q)return true;
+  if(((c.nombre||'')+' '+(c.producto||'')+' '+(c.whatsapp||'')).toLowerCase().indexOf(q)>=0)return true;
+  const qd=_soloDig(q);if(qd.length>=2){const nd=_soloDig(c.whatsapp||'');if(nd&&nd.indexOf(qd)>=0)return true;}
+  return false;}
+function listFiltered(){const q=(filtro||'');let l=activos().filter(c=>_buscaCliente(c,q));if(filtroVend)l=l.filter(c=>c.vendedorId===filtroVend);if(filtroEtapa)l=l.filter(c=>c.etapa===filtroEtapa);return l.sort((a,b)=>creaKey(b)-creaKey(a));}
 function listRowsHTML(){const list=listFiltered();let r='';for(const c of list){const e=etapaDe(c.etapa),t=temperatura(c);r+=`<tr onclick="verFicha('${c.id}')"><td><b>${esc(c.nombre)}</b></td><td>${esc(telVer(c.whatsapp)||'—')}</td><td>${esc(c.producto)}</td><td><span class="tag" style="background:${e.color}22;color:${e.color}">${e.nombre}</span></td><td>${t?`<span style="color:${t.color};font-weight:700">${t.emoji} ${t.label}</span>`:'—'}</td><td>${c.proximo?fmtFecha(c.proximo):'—'}</td><td>${waIc(c)}</td></tr>`;}return r||`<tr><td colspan="7"><div class="empty" style="padding:14px">Sin resultados${filtro?' para "'+esc(filtro)+'"':''}</div></td></tr>`;}
 // Al buscar: actualiza SOLO la tabla, sin redibujar la página (sin parpadeo).
 function filtrarLista(v){filtro=v;const tb=document.getElementById('cli-tbody');if(tb)tb.innerHTML=listRowsHTML();const sub=document.getElementById('list-sub');if(sub)sub.textContent=activos().length+' clientes en total'+(v?(' · '+listFiltered().length+' coinciden'):'');}
