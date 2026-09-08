@@ -2099,7 +2099,7 @@ function _ncRows(){
 }
 function abrirConsulta(id){abrirEnCtx(id,'nuevas');}
 // Guardar: recien aca la consulta deja de estar "sin atender" y pasa a la seccion que le corresponda.
-function guardarConsulta(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.sinAtender=false;save();document.body.classList.remove('chat-open');inboxCtx=null;view='nuevas';render();pushHistory();}
+function guardarConsulta(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.sinAtender=false;save();renderInboxKeepScroll();} // se queda donde esta: misma seccion, misma ficha
 function renderPapelera(){
   const esAdmin=!!(me&&me.rol==='admin');
   const ord=(a,b)=>String((b.descartadoFecha||b.borradoFecha)||'').localeCompare(String((a.descartadoFecha||a.borradoFecha)||''));
