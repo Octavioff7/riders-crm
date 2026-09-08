@@ -4471,7 +4471,8 @@ function renderAgenda(){
 function _vcHover(ev,rect,cx,cy,tip){const svg=rect.ownerSVGElement||rect.closest('svg');const h=svg&&svg.querySelector('.vhl');if(h){h.setAttribute('cx',cx);h.setAttribute('cy',cy);h.style.display='';}_pvTip(ev,tip);}
 function _vcLeave(rect){const svg=rect.ownerSVGElement||rect.closest('svg');const h=svg&&svg.querySelector('.vhl');if(h)h.style.display='none';_pvTipHide();}
 // Pulgar deslizante para los switches segmentados (mismo estilo que el toggle de ganancias)
-function _segSlide(seg){if(!seg)return;const on=seg.querySelector('.on');const th=seg.querySelector('.seg-thumb');if(!on||!th)return;const w=on.offsetWidth;if(!w)return;th.style.width=w+'px';th.style.transform='translateX('+on.offsetLeft+'px)';}
+function _segSlide(seg,tries){if(!seg)return;const on=seg.querySelector('.on');const th=seg.querySelector('.seg-thumb');if(!on||!th)return;const w=on.offsetWidth;if(!w){if((tries||0)<10)setTimeout(()=>_segSlide(seg,(tries||0)+1),50);return;} // recien insertado / aun sin layout: reintenta un poco despues
+th.style.width=w+'px';th.style.transform='translateX('+on.offsetLeft+'px)';}
 function _segSlideAll(){document.querySelectorAll('.fin-tabs,.in-seg').forEach(_segSlide);}
 // Rosca de clientes por producto (panel de inicio). Reusa el donut del dashboard de auditoria.
 const _PROD_COLOR={'Moto':'#0a84ff','Triciclo':'#34c759','Kit solar':'#ff9f0a','Otro':'#8e8e93'};
@@ -4571,8 +4572,7 @@ function renderPanel(){
       <div class="tile cold"><div class="n">❄️ ${frios.length}</div><div class="l">Sin contactar</div></div>
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
-    <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;
-  try{_segSlideAll();}catch(e){}}).join('')}</div>
+    <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;}).join('')}</div>
     <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
     <div class="dash-cols">
       <div class="panelcard" id="pd-card" style="display:flex;flex-direction:column">${_prodDonutCard(AA)}</div>
@@ -4582,6 +4582,7 @@ function renderPanel(){
     <div class="dash-cols">${chartVentas('📊 Ventas — Semana',ventasWk,ventasSemTotal,OBJ_SEM,_dow)}${chartVentas('📊 Ventas — Mes',ventasMo,qtyMes,OBJ_MES,hoyDiaIdx)}</div>
     <div class="panelcard"><h3>📈 Evolución mensual <span class="muted" style="font-weight:500">· seguimiento a largo plazo</span></h3><table class="mtable"><thead><tr><th>Mes</th><th>Clientes nuevos</th><th>Ventas</th><th>Seguimientos</th><th>Descartados</th></tr></thead><tbody>${meses.slice().reverse().map(m=>`<tr><td><b>${m.label}</b></td><td>${m.nuevos}</td><td>${m.ventas}</td><td>${m.seg}</td><td>${m.desc}</td></tr>`).join('')}</tbody></table></div>
   </div>`;
+  try{_segSlideAll();}catch(e){}
   earnApply();
 }
 document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.view){view=b.dataset.view;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();document.body.classList.remove('side-open');}});
