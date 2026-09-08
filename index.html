@@ -1061,11 +1061,11 @@ function nuevoNombre(t){const m=t.match(/(?:cargá|carga|agregá|agrega|nuevo cl
 function procesar(text){
   const acc=[];let c=findClient(text);
   const crearKW=/(cargá|carga|agregá|agrega|nuevo cliente|nuevo lead|anotá a|anota a|sumá a|suma a)/i.test(text);
-  if(!c&&crearKW){const nom=nuevoNombre(text);if(nom){c={id:uid(),nombre:nom,whatsapp:'',producto:detProducto(text)||'Moto',ubicacion:'',etapa:'nuevo',valor:0,proximo:hoy(),proximoTipo:'Seguimiento',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'cliente',log:[],mensajes:[]};clientes.push(c);acc.push('creé el cliente <b>'+esc(nom)+'</b>');}}
+  if(!c&&crearKW){const nom=nuevoNombre(text);if(nom){c={id:uid(),nombre:nom,whatsapp:'',producto:detProducto(text)||'Moto',ubicacion:'',etapa:'nuevo',valor:0,proximo:hoy(),proximoAuto:true,proximoTipo:'Seguimiento',creado:hoy(),ultimoContacto:hoy(),respondioUltimo:'cliente',log:[],mensajes:[]};clientes.push(c);acc.push('creé el cliente <b>'+esc(nom)+'</b>');}}
   if(!c)return 'No identifiqué de qué cliente hablás. Probá con el nombre — ej: <i>"Yosvani quiere la moto roja"</i>. Para uno nuevo: <i>"Cargá a Juan, preguntó por un triciclo"</i>.';
   const p=detProducto(text);if(p&&p!==c.producto){c.producto=p;acc.push('producto → <b>'+p+'</b>');}
   const e=detEtapa(text);if(e&&e!==c.etapa){c.etapa=e;acc.push('etapa → <b>'+etapaDe(e).nombre+'</b>');}
-  const f=detFecha(text);if(f){c.proximo=f;acc.push('seguimiento → <b>'+f+'</b>');}
+  const f=detFecha(text);if(f){c.proximo=f;c.proximoAuto=false;acc.push('seguimiento → <b>'+f+'</b>');}
   c.log=c.log||[];c.log.push({fecha:hoy(),texto});acc.push('anoté la nota en su ficha');
   save();
   return '✅ Listo, en <b>'+esc(c.nombre)+'</b>: '+acc.join(', ')+'.<br><span style="color:#71798a;font-size:12.5px">Miralo en Clientes o Seguimiento.</span>';
@@ -1249,7 +1249,7 @@ function setProximo(id,silent){
   const fe=document.getElementById('prox-fecha'),he=document.getElementById('prox-hora'),te=document.getElementById('prox-tipo');
   const f=fe?fe.value:'',h=he?he.value:'',tp=te?te.value:'Llamada';
   if(!f){if(!silent)alert('Elegí una fecha para el contacto.');return;}
-  c.proximo=f;c.proximoHora=h||'';c.proximoTipo=tp;
+  c.proximo=f;c.proximoHora=h||'';c.proximoTipo=tp;c.proximoAuto=false; // agendado a mano: este si avisa
   c.log=c.log||[];
   const txt='📅 Agendado: '+tp+' para el '+f+(h?' '+h:'');
   const last=c.log[c.log.length-1];
@@ -1450,7 +1450,7 @@ async function guardarNuevoCliente(){
       if(!confirm(msg))return;
     }
   }catch(e){}}
-  const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,vendedorId:filtroVend||(me&&me.id)||'',proximo:hoy(),proximoTipo:'Seguimiento',proximoHora:ahora(),creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
+  const c={id:uid(),nombre,whatsapp:wa,producto:g('nc-prod')||'Otro',operacion:g('nc-op')||'',ubicacion:'',etapa:g('nc-etapa')||'nuevo',valor:Number(g('nc-valor'))||0,vendedorId:filtroVend||(me&&me.id)||'',proximo:hoy(),proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:ahora(),creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'yo',canal:'whatsapp',log:seg?[{fecha:hoy(),hora:ahora(),texto:seg}]:[],mensajes:[]};
   clientes.push(c);save();_audit({modulo:'CLIENTES',entidad:'CLIENTE',accion:'ALTA',metodo:'POST',referencia:'Cliente '+nombre,cambios:1,detalle:{producto:c.producto,etapa:c.etapa}});cerrarModal();selectedId=c.id;view='list';render();
 }
 /* ===== CARGAR VENTA — wizard de 3 pasos con escaneo de documentos por IA ===== */

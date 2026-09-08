@@ -270,7 +270,7 @@ function procesarWebhook(body){
           c.mensajes=c.mensajes||[];c.mensajes.push({de:'cliente',fecha,hora,texto,canal:'whatsapp'});
           c.ultimoContacto=fecha;c.respondioUltimo='cliente';
         }else{
-          c={id:uid(),nombre,whatsapp:'+'+dig,producto:'Otro',etapa:'nuevo',valor:0,proximo:fecha,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
+          c={id:uid(),nombre,whatsapp:'+'+dig,producto:'Otro',etapa:'nuevo',valor:0,proximo:fecha,proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
           if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:'')});}
           clientes.push(c);
           try{if(typeof pushToUser==='function'&&vendId)pushToUser(vendId,{title:'🆕 Nueva consulta',body:nombre+': '+String(texto).slice(0,80)});}catch(e){}
@@ -436,11 +436,11 @@ function nuevoNombre(t){const m=t.match(/(?:cargá|carga|agregá|agrega|nuevo cl
 function parseBrain(clientes,text){
   const acc=[];let c=findClient(clientes,text);
   const crearKW=/(cargá|carga|agregá|agrega|nuevo cliente|nuevo lead|anotá a|anota a|sumá a|suma a)/i.test(text);
-  if(!c&&crearKW){const nom=nuevoNombre(text);if(nom){c={id:uid(),nombre:nom,whatsapp:'',producto:detProducto(text)||'Otro',ubicacion:'',etapa:'nuevo',valor:0,proximo:hoy(),proximoTipo:'Seguimiento',creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'cliente',log:[],mensajes:[]};clientes.push(c);acc.push('creé el cliente *'+nom+'*');}}
+  if(!c&&crearKW){const nom=nuevoNombre(text);if(nom){c={id:uid(),nombre:nom,whatsapp:'',producto:detProducto(text)||'Otro',ubicacion:'',etapa:'nuevo',valor:0,proximo:hoy(),proximoAuto:true,proximoTipo:'Seguimiento',creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'cliente',log:[],mensajes:[]};clientes.push(c);acc.push('creé el cliente *'+nom+'*');}}
   if(!c)return {reply:'🤔 No identifiqué de qué cliente hablás. Probá con el nombre — ej: _"Oscar quiere financiar"_. Para uno nuevo: _"cargá a Juan, preguntó por una moto"_.',changed:false};
   const p=detProducto(text);if(p&&p!==c.producto){c.producto=p;acc.push('producto → *'+p+'*');}
   const e=detEtapa(text);if(e&&e!==c.etapa){c.etapa=e;acc.push('etapa → *'+ETAPAS[e]+'*');}
-  const f=detFecha(text);if(f){c.proximo=f;const tp=detTipo(text);if(tp)c.proximoTipo=tp;acc.push('agendado → *'+(c.proximoTipo||'seguimiento')+' el '+f+'*');}
+  const f=detFecha(text);if(f){c.proximo=f;c.proximoAuto=false;const tp=detTipo(text);if(tp)c.proximoTipo=tp;acc.push('agendado → *'+(c.proximoTipo||'seguimiento')+' el '+f+'*');}
   c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:text});
   if(f||e||p)c.ultimoContacto=hoy();
   acc.push('anoté la nota');
@@ -598,7 +598,7 @@ Reglas: si pide agregar seguimiento o nota, accion "actualizar" con el texto en 
   if(!c){
     if(accion==='crear'){
       const num=a.whatsapp||(/\d{6,}/.test(String(a.cliente||''))?a.cliente:'');
-      c={id:uid(),nombre:a.cliente||num||'Nuevo',whatsapp:num||'',producto:a.producto||'Otro',operacion:a.operacion||'',ubicacion:'',etapa:a.etapa||'nuevo',valor:a.valor||0,proximo:hoy(),proximoTipo:'Seguimiento',creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'cliente',canal:'whatsapp',log:[],mensajes:[]};
+      c={id:uid(),nombre:a.cliente||num||'Nuevo',whatsapp:num||'',producto:a.producto||'Otro',operacion:a.operacion||'',ubicacion:'',etapa:a.etapa||'nuevo',valor:a.valor||0,proximo:hoy(),proximoAuto:true,proximoTipo:'Seguimiento',creado:hoy(),creadoTs:Date.now(),ultimoContacto:hoy(),respondioUltimo:'cliente',canal:'whatsapp',log:[],mensajes:[]};
       clientes.push(c);
     } else return {reply:a.respuesta||'No identifiqué el cliente. Decime el nombre o el número, o pedime crearlo.',changed:false};
   }
@@ -607,7 +607,7 @@ Reglas: si pide agregar seguimiento o nota, accion "actualizar" con el texto en 
   if(a.operacion)c.operacion=a.operacion;
   if(a.etapa)c.etapa=a.etapa;
   if(a.valor)c.valor=a.valor;
-  if(a.agendarFecha){c.proximo=a.agendarFecha;c.proximoTipo=a.agendarTipo||'Seguimiento';}
+  if(a.agendarFecha){c.proximo=a.agendarFecha;c.proximoAuto=false;c.proximoTipo=a.agendarTipo||'Seguimiento';}
   c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:a.nota||text});
   c.ultimoContacto=hoy();
   return {reply:'✅ '+(a.respuesta||('Anoté en '+c.nombre)),changed:true};
@@ -664,7 +664,9 @@ function checkDue(){
   try{
     const now=Date.now(),cl=loadClientes(),users=loadUsers(),nt=loadNotif();let changed=false;
     for(const c of cl){
-      if(c.borrado)continue;const due=dueTime(c);if(due===null)continue;
+      if(c.borrado)continue;
+      if(c.proximoAuto)continue; // fecha puesta sola al crear el cliente: nadie agendo nada, no avisar
+      const due=dueTime(c);if(due===null)continue;
       if(due<=now&&due>=now-6*3600000){
         const k=c.id+'|'+c.proximo+'|'+(c.proximoHora||'');
         if(nt[k])continue;
@@ -967,7 +969,7 @@ http.createServer((req,res)=>{
   console.log('Cerebro: '+((CFG.geminiKey&&CFG.geminiKey.length>10)?'Gemini IA':'Parser simple (sin clave de Gemini todavía)'));
   console.log('Bot de Telegram escuchando...');
   // Migración: ningún cliente queda sin fecha de próximo contacto → los sin fecha se agendan para hoy.
-  try{const _cs=loadClientes();let _ch=0;const _h=hoy();_cs.forEach(c=>{if(!c.proximo&&!c.borrado&&!c.descartado){c.proximo=_h;if(!c.proximoTipo)c.proximoTipo='Seguimiento';_ch++;}});if(_ch){saveClientes(_cs);console.log('Migración: '+_ch+' cliente(s) sin fecha → agendados para hoy.');}}catch(e){console.log('[migracion proximo] '+e.message);}
+  try{const _cs=loadClientes();let _ch=0;const _h=hoy();_cs.forEach(c=>{if(!c.proximo&&!c.borrado&&!c.descartado){c.proximo=_h;c.proximoAuto=true;if(!c.proximoTipo)c.proximoTipo='Seguimiento';_ch++;}});if(_ch){saveClientes(_cs);console.log('Migración: '+_ch+' cliente(s) sin fecha → agendados para hoy.');}}catch(e){console.log('[migracion proximo] '+e.message);}
   poll();
   fetchBotUsername();setTimeout(fetchBotUsername,10000); // averigua el @usuario real del bot
   // Copias de seguridad: intenta el backup diario al arrancar y luego cada hora.
