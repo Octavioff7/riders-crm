@@ -4475,10 +4475,28 @@ function _segSlide(seg){if(!seg)return;const on=seg.querySelector('.on');const t
 function _segSlideAll(){document.querySelectorAll('.fin-tabs,.in-seg').forEach(_segSlide);}
 // Rosca de clientes por producto (panel de inicio). Reusa el donut del dashboard de auditoria.
 const _PROD_COLOR={'Moto':'#0a84ff','Triciclo':'#34c759','Kit solar':'#ff9f0a','Otro':'#8e8e93'};
-function _prodDonut(list){
+let _pdMode='dia',_pdList=[];
+function _pdFiltrar(list,m){
+  const d0=new Date();d0.setHours(0,0,0,0);
+  if(m==='dia')return list.filter(c=>creaKey(c)>=d0.getTime());
+  if(m==='sem'){const l=new Date(d0);l.setDate(l.getDate()-((d0.getDay()+6)%7));return list.filter(c=>creaKey(c)>=l.getTime());} // desde el lunes
+  const m0=new Date(d0.getFullYear(),d0.getMonth(),1);return list.filter(c=>creaKey(c)>=m0.getTime());
+}
+const _PD_TXT={dia:'hoy',sem:'esta semana',mes:'este mes'};
+function _prodDonutCard(list){
+  _pdList=list;const l=_pdFiltrar(list,_pdMode);
+  const seg=[['dia','Diario'],['sem','Semanal'],['mes','Mensual']].map(o=>'<button class="'+(_pdMode===o[0]?'on':'')+'" data-m="'+o[0]+'" onclick="_pdSet(this.dataset.m)">'+o[1]+'</button>').join('');
+  return '<div class="pv-cardhead" style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">🍩 Clientes por producto <span class="muted" id="pd-cnt">· '+l.length+'</span></h3><div class="in-seg"><span class="seg-thumb"></span>'+seg+'</div></div><div id="pd-body">'+_prodDonut(l,_pdMode)+'</div>';
+}
+function _pdSet(m){_pdMode=m;const el=document.getElementById('pd-card');if(!el)return;
+  el.querySelectorAll('.in-seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));_segSlide(el.querySelector('.in-seg'));
+  const l=_pdFiltrar(_pdList,m);const cnt=document.getElementById('pd-cnt');if(cnt)cnt.textContent='· '+l.length;
+  const body=document.getElementById('pd-body');if(body)body.innerHTML=_prodDonut(l,m);
+}
+function _prodDonut(list,m){
   const cnt={};for(const c of list){const p=PRODUCTOS.includes(c.producto)?c.producto:'Otro';cnt[p]=(cnt[p]||0)+1;}
   const segs=PRODUCTOS.map(p=>({label:p,value:cnt[p]||0,color:_PROD_COLOR[p]||'#8e8e93'}));
-  if(!segs.some(x=>x.value>0))return '<div class="empty">Todavía no tenés clientes cargados.</div>';
+  if(!segs.some(x=>x.value>0))return '<div class="empty">Sin clientes cargados '+(_PD_TXT[m]||'')+'.</div>';
   return '<div style="display:flex;flex-direction:column;align-items:center;gap:6px">'+_adbDonut(segs)+'</div>';
 }
 function renderPanel(){
@@ -4553,10 +4571,11 @@ function renderPanel(){
       <div class="tile cold"><div class="n">❄️ ${frios.length}</div><div class="l">Sin contactar</div></div>
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
-    <div class="panelcard"><h3>🫧 Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;}).join('')}</div>
+    <div class="panelcard"><h3>🫧 Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;
+  try{_segSlideAll();}catch(e){}}).join('')}</div>
     <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
     <div class="dash-cols">
-      <div class="panelcard" style="display:flex;flex-direction:column"><h3>🍩 Clientes por producto <span class="muted">· ${AA.length}</span></h3>${_prodDonut(AA)}</div>
+      <div class="panelcard" id="pd-card" style="display:flex;flex-direction:column">${_prodDonutCard(AA)}</div>
       <div class="panelcard act-card"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">${ventasSemLista.length}</div><div class="l">Ventas cerradas</div></div><div><div class="n">🗑️ ${descartadosSem}</div><div class="l">Descartados</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
     </div>
     <div class="earnings-card" onclick="toggleEarn()" style="cursor:pointer" title="Tocá para cambiar entre este mes y el total">${earnCardHTML()}</div>
