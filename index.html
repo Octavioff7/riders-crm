@@ -767,6 +767,16 @@
     .fin-tab{flex:0 0 auto;white-space:nowrap}
     .og-cols{grid-template-columns:1fr}
   }
+  /* Copiloto: chat con la IA sobre los datos del CRM */
+  .cp-wrap{display:flex;flex-direction:column;height:calc(100vh - 210px);min-height:420px;background:var(--card);border:1px solid var(--sep);border-radius:14px;overflow:hidden}
+  .cp-msgs{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+  .cp-msg{max-width:78%;padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+  .cp-msg.copi{align-self:flex-start;background:var(--hover);border-bottom-left-radius:4px}
+  .cp-msg.yo{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+  .cp-sys{align-self:center;font-size:12.5px;color:var(--muted);text-align:center;max-width:560px;padding:6px 0}
+  .cp-bar{display:flex;gap:8px;padding:10px;border-top:1px solid var(--sep);background:var(--card)}
+  .cp-bar textarea{flex:1;resize:none;min-height:42px;max-height:120px;padding:10px 12px;border:1px solid var(--sep-strong);border-radius:10px;font:inherit;font-size:14px;background:var(--bg);color:inherit}
+  @media(max-width:760px){.cp-wrap{height:calc(100vh - 190px)}.cp-msg{max-width:90%}}
 </style>
 </head>
 <body>
@@ -800,6 +810,7 @@
         <button class="owner-only" data-view="inicioAdmin"><span class="ic" aria-hidden="true">🏠</span><span class="lbl">Inicio</span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
         <button class="admin-only" data-view="asistente"><span class="ic" aria-hidden="true" style="background:#5e5ce6">🤖</span><span class="lbl">Asistente IA</span></button>
+        <button class="admin-only" data-view="copiloto"><span class="ic" aria-hidden="true" style="background:#0a84ff">🧭</span><span class="lbl">Copiloto</span></button>
         <button class="admin-only" data-view="ventas"><span class="ic" aria-hidden="true">🧾</span><span class="lbl">Ventas</span></button>
         <button class="admin-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
         <button class="admin-only" data-view="financieras"><span class="ic" aria-hidden="true">🏦</span><span class="lbl">Financieras</span></button>
@@ -1009,6 +1020,7 @@ function render(){
   else if(view==='vendidos')renderVendidos();
   else if(view==='ventas')renderVentasAdmin();
   else if(view==='asistente')renderAsistente();
+  else if(view==='copiloto')renderCopiloto();
   else if(view==='inicioAdmin')renderInicioAdmin();
   else if(view==='inventario')renderInventario();
   else if(view==='financieras')renderFinancieras();
@@ -3054,6 +3066,30 @@ function _asisCSS(){
   .asx-sw.on i{left:21px}`;
   document.head.appendChild(s);
 }
+/* ===== COPILOTO: chat con la IA sobre los datos del CRM (admin / dueno / supervisor) ===== */
+let _cp={hist:null,meta:null,busy:false};
+async function _cpLoad(){try{const r=await api('/api/copiloto');const d=await r.json();_cp.hist=d.hist||[];_cp.meta=d;}catch(e){_cp.hist=[];_cp.meta={};}if(view==='copiloto')renderCopiloto();}
+function renderCopiloto(){
+  if(_cp.hist===null){main.innerHTML='<div class="page"><h1>Copiloto</h1><p class="sub">Cargando…</p></div>';_cpLoad();return;}
+  const mt=_cp.meta||{};
+  let h='<div class="page page-wide"><div class="conv-head-row"><h1>Copiloto</h1><button class="btn ghost" onclick="_cpReset()">↺ Nueva charla</button></div>';
+  h+='<p class="sub">Preguntale lo que quieras sobre el CRM: leads, ventas, vendedores, inventario, financieras. '
+    +(mt.iaListo?'':'<b style="color:#ff3b30">Falta la clave de la IA (GEMINI_KEY en el servidor).</b> ')
+    +(mt.tel?('También te contesta por WhatsApp: escribile al número del negocio desde tu celular ('+esc(telVer(mt.tel))+').'):'Para que te conteste por WhatsApp, cargá tu celular en Cuentas → tu usuario → Teléfono.')
+    +(mt.waListo?'':' <span class="faint">El envío por WhatsApp se activa cuando esté cargado el token de Meta en el servidor.</span>')+'</p>';
+  h+='<div class="cp-wrap"><div class="cp-msgs" id="cp-msgs">';
+  if(!_cp.hist.length)h+='<div class="cp-sys">Ejemplos: «¿cuántos leads entraron hoy y de qué producto?» · «¿qué vendedor tiene más atrasados?» · «¿cuánto facturamos este mes?» · «¿qué financieras puedo usar hoy?»</div>';
+  _cp.hist.forEach(t=>{h+='<div class="cp-msg '+(t.de==='yo'?'yo':'copi')+'">'+esc(t.texto)+'</div>';});
+  if(_cp.busy)h+='<div class="cp-msg copi faint">Pensando…</div>';
+  h+='</div><div class="cp-bar"><textarea id="cp-in" placeholder="Escribí tu pregunta…  (Enter envía, Shift+Enter salto de línea)" onkeydown="_cpKey(event)" oninput="autoGrow(this)"></textarea><button class="btn" onclick="_cpSend()" '+(_cp.busy?'disabled':'')+'>Enviar</button></div></div></div>';
+  main.innerHTML=h;const box=document.getElementById('cp-msgs');if(box)box.scrollTop=box.scrollHeight;const inp=document.getElementById('cp-in');if(inp&&!_cp.busy)inp.focus();
+}
+function _cpKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();_cpSend();}}
+async function _cpSend(){const inp=document.getElementById('cp-in');const t=(inp?inp.value:'').trim();if(!t||_cp.busy)return;_cp.busy=true;_cp.hist.push({de:'yo',texto:t});renderCopiloto();
+  try{const r=await api('/api/copiloto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:t})});const d=await r.json();if(d.hist)_cp.hist=d.hist;else _cp.hist.push({de:'copi',texto:d.error||'Error'});}
+  catch(e){_cp.hist.push({de:'copi',texto:'No pude conectar con el servidor.'});}
+  _cp.busy=false;renderCopiloto();}
+async function _cpReset(){try{await api('/api/copiloto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reset:true})});}catch(e){}_cp.hist=[];renderCopiloto();}
 function renderAsistente(){
   _asisCSS();
   if(!_asisCfg){main.innerHTML='<div class="page"><h1>🤖 Asistente IA</h1><p class="sub">Cargando…</p></div>';_asisLoad();return;}

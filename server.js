@@ -266,7 +266,12 @@ function procesarWebhook(body){
       const contacts=v.contacts||[];
       for(const m of (v.messages||[])){
         if(!m||m.type==='reaction'||m.type==='system')continue;
-        if(!m.referral)continue; // SOLO leads que vienen de un anuncio (Click-to-WhatsApp). Ignora chats normales, grupos, etc.
+        if(!m.referral){ // no viene de un anuncio: si escribe alguien del equipo de direccion, es una pregunta para el copiloto
+          const cu=copiUsuarioPorTel(m.from);
+          if(cu&&m.type==='text'&&m.text&&m.text.body){const q=String(m.text.body);const to=m.from;
+            setTimeout(async()=>{try{const rep=await copiResponder(cu,q);const env=await waEnviar(to,rep);if(!env.ok)console.log('[copiloto] respuesta a '+cu.nombre+' no enviada por WhatsApp ('+env.reason+'); quedo en el chat del CRM');}catch(e){console.log('[copiloto] error:',e.message);}},0);}
+          continue; // SOLO leads que vienen de un anuncio (Click-to-WhatsApp). Ignora chats normales, grupos, etc.
+        }
         const from=m.from||'';const dig=String(from).replace(/\D/g,'');if(dig.length<6)continue;
         const ct=contacts.find(x=>x.wa_id===from)||{};const nombre=(ct.profile&&ct.profile.name)||('+'+dig);
         const texto=m.text?m.text.body:(m.button?m.button.text:(m.interactive&&m.interactive.button_reply?m.interactive.button_reply.title:('['+(m.type||'mensaje')+']')));
@@ -657,6 +662,69 @@ async function procesarMensajeUser(text,user){
   return r.reply;
 }
 
+/* ---------- Copiloto: asistente del dueno / admin (chat en el CRM y por WhatsApp) ---------- */
+// Contesta preguntas sobre los datos del CRM (leads, ventas, vendedores, inventario, financieras).
+// Solo para admin, dueno y supervisor. Por WhatsApp: si un numero del equipo de direccion le escribe
+// al numero del negocio (sin venir de un anuncio), la pregunta va al copiloto y la respuesta vuelve por WhatsApp.
+const COPIPATH=path.join(DATA_DIR,'copiloto.json');
+function _copiLoad(){try{return JSON.parse(fs.readFileSync(COPIPATH,'utf8'));}catch(e){return {};}}
+function _copiSave(d){try{fs.writeFileSync(COPIPATH,JSON.stringify(d));}catch(e){}}
+function _dig(v){v=String(v==null?'':v);let o='';for(let i=0;i<v.length;i++){const k=v.charCodeAt(i);if(k>=48&&k<=57)o+=v[i];}return o;}
+function copiPuede(u){return !!u&&(u.rol==='admin'||u.rol==='dueno'||u.rol==='supervisor');}
+function copiUsuarioPorTel(from){const d=_dig(from);if(d.length<7)return null;return loadUsers().find(u=>u.activo!==false&&copiPuede(u)&&(()=>{const t=_dig(u.telefono||'');return t.length>=7&&(t.endsWith(d)||d.endsWith(t));})())||null;}
+function copiContexto(user){
+  const users=loadUsers();const all=loadClientes();
+  const vis=(user.rol==='supervisor')?new Set(teamIds(users,user).concat([user.id])):null;
+  const cl=all.filter(c=>!vis||vis.has(c.vendedorId));
+  const act=cl.filter(c=>!c.borrado&&!c.descartado);
+  const H=hoy(),mes=H.slice(0,7);
+  const lun=new Date();lun.setHours(0,0,0,0);lun.setDate(lun.getDate()-((lun.getDay()+6)%7));
+  const lunS=lun.getFullYear()+'-'+String(lun.getMonth()+1).padStart(2,'0')+'-'+String(lun.getDate()).padStart(2,'0');
+  const nomV=id=>{const u=users.find(x=>x.id===id);return u?u.nombre:'sin asignar';};
+  const cnt=(arr,f)=>arr.reduce((o,c)=>{const k=f(c)||'sin dato';o[k]=(o[k]||0)+1;return o;},{});
+  const esVend=c=>(c.etapa==='vendido'||c.etapa==='posventa')&&!c.anulada;
+  const vendMes=act.filter(c=>esVend(c)&&(c.vendidoFecha||'').slice(0,7)===mes);
+  const sum=(arr,f)=>arr.reduce((t,c)=>t+(Number(f(c))||0),0);
+  const L=[];
+  L.push('FECHA Y HORA: '+hoyDesc()+' '+ahora()+' (semana desde el lunes '+lunS+')');
+  L.push('TOTALES: activos='+act.length+' | nuevas consultas sin atender='+act.filter(c=>c.sinAtender).length+' | en papelera o descartados='+cl.filter(c=>c.borrado||c.descartado).length);
+  L.push('ACTIVOS POR ETAPA: '+JSON.stringify(cnt(act,c=>ETAPAS[c.etapa]||c.etapa)));
+  L.push('ACTIVOS POR PRODUCTO: '+JSON.stringify(cnt(act,c=>c.producto)));
+  L.push('LEADS QUE ENTRARON: hoy='+cl.filter(c=>(c.creado||'')===H).length+' | esta semana='+cl.filter(c=>(c.creado||'')>=lunS).length+' | este mes='+cl.filter(c=>(c.creado||'').slice(0,7)===mes).length+' | de anuncios este mes='+cl.filter(c=>c.origen==='ad'&&(c.creado||'').slice(0,7)===mes).length);
+  L.push('LEADS DE HOY POR PRODUCTO: '+JSON.stringify(cnt(cl.filter(c=>(c.creado||'')===H),c=>c.producto)));
+  L.push('DESCARTADOS ESTA SEMANA: '+cl.filter(c=>(c.borrado||c.descartado)&&((c.descartadoFecha||c.borradoFecha||'')>=lunS)).length);
+  L.push('VENTAS DEL MES: cantidad='+vendMes.length+' | facturado=$'+sum(vendMes,c=>c.valor)+' | comisiones=$'+sum(vendMes,c=>c.comision)+' | por forma de pago/financiera: '+JSON.stringify(cnt(vendMes,c=>c.financiera||c.metodo)));
+  L.push('AGENDA: contactos atrasados='+act.filter(c=>estadoAtrasadoSrv(c)).length+' | contactos para hoy='+act.filter(c=>c.proximo===H).length);
+  const vendedores=users.filter(u=>u.activo!==false&&u.rol!=='dueno'&&(!vis||vis.has(u.id)));
+  L.push('POR VENDEDOR (nombre: clientes activos, sin atender, atrasados, seguimientos esta semana, ventas del mes, facturado, comision):');
+  vendedores.forEach(u=>{const mios=act.filter(c=>c.vendedorId===u.id);const vm=mios.filter(c=>esVend(c)&&(c.vendidoFecha||'').slice(0,7)===mes);let seg=0;mios.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'')>=lunS)seg++;}));
+    L.push('  - '+u.nombre+' ('+u.rol+'): '+mios.length+', '+mios.filter(c=>c.sinAtender).length+', '+mios.filter(c=>estadoAtrasadoSrv(c)).length+', '+seg+', '+vm.length+', $'+sum(vm,c=>c.valor)+', $'+sum(vm,c=>c.comision));});
+  const rec=act.slice().sort((a,b)=>(b.creadoTs||0)-(a.creadoTs||0)).slice(0,30);
+  L.push('ULTIMOS 30 CLIENTES (nombre | telefono | producto | etapa | vendedor | fecha alta | origen | ultimo mensaje o nota):');
+  rec.forEach(c=>{const um=(c.mensajes&&c.mensajes.length)?c.mensajes[c.mensajes.length-1].texto:((c.log&&c.log.length)?c.log[c.log.length-1].texto:'');
+    L.push('  - '+(c.nombre||'')+' | '+(c.whatsapp||'')+' | '+(c.producto||'')+' | '+(ETAPAS[c.etapa]||c.etapa)+' | '+nomV(c.vendedorId)+' | '+(c.creado||'')+' | '+(c.origen==='ad'?('anuncio'+((c.adReferral&&c.adReferral.titulo)?' "'+String(c.adReferral.titulo).slice(0,50)+'"':'')):'manual')+' | '+String(um||'').slice(0,90));});
+  if(vendMes.length){L.push('DETALLE VENTAS DEL MES (cliente | detalle | valor | comision | vendedor | fecha):');vendMes.slice(0,40).forEach(c=>L.push('  - '+c.nombre+' | '+(c.ventaDetalle||c.producto||'')+' | $'+(c.valor||0)+' | $'+(c.comision||0)+' | '+nomV(c.vendedorId)+' | '+(c.vendidoFecha||'')));}
+  try{const inv=(loadInventario()||DEFAULT_INVENTARIO).filter(i=>i.activo!==false);L.push('INVENTARIO ACTIVO ('+inv.length+') (modelo | categoria | precio | comision vendedor):');inv.slice(0,80).forEach(i=>L.push('  - '+(i.modelo||i.nombre)+' | '+(i.cat||'')+' | $'+(i.precio||0)+' | $'+(i.comision||0)));}catch(e){}
+  try{const fin=(loadFinancieras()||DEFAULT_FINANCIERAS).filter(f=>f.activo!==false&&f.activa!==false);L.push('FINANCIERAS (nombre | tipo | fee | dias que se puede usar | cobra tax):');fin.forEach(f=>L.push('  - '+f.n+' | '+(f.tipo||'')+' | '+Math.round((Number(f.fee)||0)*100)+'% | '+(f.dias||'')+' | '+(f.tax?'si':'no')));}catch(e){}
+  return L.join('\n').slice(0,16000);
+}
+// Gemini devuelve JSON (asi esta configurada la llamada): sacar el texto de adentro, tolerando fences o JSON parcial.
+function _copiTexto(raw){let t=String(raw||'').trim();
+  const pick=j=>{if(typeof j==='string')return j;if(j&&typeof j==='object'){const v=j.respuesta||j.texto||j.text||j.answer||Object.values(j).find(x=>typeof x==='string');if(typeof v==='string')return v;}return null;};
+  try{const v=pick(JSON.parse(t));if(v!==null)return v.trim();}catch(e){}
+  const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a){try{const v=pick(JSON.parse(t.slice(a,b+1)));if(v!==null)return v.trim();}catch(e){}}
+  return t.replace(/^```[a-z]*\s*/i,'').replace(/```\s*$/,'').trim();}
+async function copiResponder(user,texto){
+  const db=_copiLoad();const hist=db[user.id]||[];
+  const ctx=copiContexto(user);
+  const turnos=hist.slice(-8).map(t=>(t.de==='yo'?'JEFE: ':'COPILOTO: ')+t.texto).join('\n');
+  const prompt='Sos el COPILOTO del CRM de Riders Miami (concesionaria en Miami: motos, triciclos y kits solares; vende mucho a Cuba). Te escribe '+user.nombre+' ('+user.rol+'), del equipo de direccion. Respondé en español rioplatense, claro y corto, con números concretos sacados SOLO de los DATOS de abajo. Si algo no está en los datos, decí que no tenés ese dato en vez de inventar. Podés hacer cuentas y comparar vendedores. Formato: texto plano apto para WhatsApp (sin markdown, sin asteriscos, sin tablas; usá guiones y saltos de línea). Máximo unos 1200 caracteres, salvo que te pidan un listado. Devolvé SOLO un JSON con una única clave "respuesta" cuyo valor sea el texto de tu respuesta.\n\n=== DATOS DEL CRM ===\n'+ctx+'\n=== FIN DATOS ===\n\n'+(turnos?('Conversación previa:\n'+turnos+'\n\n'):'')+'JEFE: '+texto+'\nCOPILOTO:';
+  const r=await geminiChain([{text:prompt}]);
+  let reply=r.ok?_copiTexto(r.text):(r.reason==='noconfig'?'No tengo cargada la clave de la IA (GEMINI_KEY en el servidor).':'La IA no respondió ahora ('+(r.reason||'error')+'). Probá de nuevo en un minuto.');
+  hist.push({de:'yo',texto:String(texto).slice(0,2000),ts:Date.now()});hist.push({de:'copi',texto:reply.slice(0,4000),ts:Date.now(),ok:!!r.ok});
+  db[user.id]=hist.slice(-40);_copiSave(db);
+  return reply;
+}
 /* ---------- Telegram ---------- */
 function tg(method,params){return new Promise((resolve)=>{const body=JSON.stringify(params);const req=https.request('https://api.telegram.org/bot'+CFG.telegramToken+'/'+method,{method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{resolve(JSON.parse(d))}catch(e){resolve({ok:false})}})});req.on('error',()=>resolve({ok:false}));req.write(body);req.end();});}
 function reply(chatId,text){return tg('sendMessage',{chat_id:chatId,text:text,parse_mode:'Markdown'});}
@@ -771,6 +839,16 @@ http.createServer((req,res)=>{
 
   if(u==='/api/logout'&&req.method==='POST'){return json(200,{ok:true});}
   if(u==='/api/me'&&req.method==='GET')return json(200,{user:publicUser(me)});
+  // Copiloto (admin / dueno / supervisor): historial, pregunta, reinicio
+  if(u==='/api/copiloto'){
+    if(!copiPuede(me))return json(403,{error:'Sin permiso'});
+    if(req.method==='GET')return json(200,{hist:(_copiLoad()[me.id]||[]),iaListo:!!(CFG.geminiKey&&CFG.geminiKey.length>10),waListo:WA_LISTO,tel:me.telefono||''});
+    if(req.method==='POST')return readBody(async b=>{try{
+      if(b&&b.reset){const db=_copiLoad();delete db[me.id];_copiSave(db);return json(200,{ok:true,hist:[]});}
+      const t=String((b&&b.texto)||'').trim();if(!t)return json(400,{error:'Escribí una pregunta.'});
+      const reply=await copiResponder(me,t);json(200,{reply,hist:_copiLoad()[me.id]||[]});
+    }catch(e){json(500,{error:e.message});}});
+  }
   // Diagnostico del webhook de WhatsApp: que llego y desde que numero (solo admin).
   if(u==='/api/wadebug'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{phoneIdConfigurado:WA_PHONE_ID||'',tokenCargado:!!WA_TOKEN,mapeo:loadWaMap(),recibidos:WA_LOG.length,eventos:WA_LOG});}
   if(u==='/api/bot-status'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{tokenSet:!!(CFG.telegramToken&&CFG.telegramToken.length>10),allowedChatId:CFG.allowedChatId||null,lastOkSecondsAgo:botLastOk?Math.round((Date.now()-botLastOk)/1000):null,lastErr:botLastErr||''});}
