@@ -4486,7 +4486,7 @@ const _PD_TXT={dia:'hoy',sem:'esta semana',mes:'este mes'};
 function _prodDonutCard(list){
   _pdList=list;const l=_pdFiltrar(list,_pdMode);
   const seg=[['dia','Diario'],['sem','Semanal'],['mes','Mensual']].map(o=>'<button class="'+(_pdMode===o[0]?'on':'')+'" data-m="'+o[0]+'" onclick="_pdSet(this.dataset.m)">'+o[1]+'</button>').join('');
-  return '<div class="pv-cardhead" style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">🍩 Clientes por producto <span class="muted" id="pd-cnt">· '+l.length+'</span></h3><div class="in-seg"><span class="seg-thumb"></span>'+seg+'</div></div><div id="pd-body">'+_prodDonut(l,_pdMode)+'</div>';
+  return '<div class="pv-cardhead" style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Clientes por producto <span class="muted" id="pd-cnt">· '+l.length+'</span></h3><div class="in-seg"><span class="seg-thumb"></span>'+seg+'</div></div><div id="pd-body">'+_prodDonut(l,_pdMode)+'</div>';
 }
 function _pdSet(m){_pdMode=m;const el=document.getElementById('pd-card');if(!el)return;
   el.querySelectorAll('.in-seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));_segSlide(el.querySelector('.in-seg'));
@@ -4571,7 +4571,7 @@ function renderPanel(){
       <div class="tile cold"><div class="n">❄️ ${frios.length}</div><div class="l">Sin contactar</div></div>
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
-    <div class="panelcard"><h3>🫧 Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;
+    <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;
   try{_segSlideAll();}catch(e){}}).join('')}</div>
     <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
     <div class="dash-cols">
