@@ -338,6 +338,18 @@ function scopedClientes(user){const cl=loadClientes(),users=loadUsers();return c
 
 // Guardado con control de alcance: el front manda su lista (scopeada); el
 // servidor solo aplica cambios/creaciones/borrados sobre lo que el usuario puede tocar.
+// Si un vendedor carga un numero que el ADMIN ya tiene como cliente, avisarle al admin (push al celu + Telegram).
+// Solo el admin recibe este aviso; los vendedores no se enteran de los clientes de otros.
+function avisarLeadCompartido(user,nuevo,clientes,users){
+  const admin=users.find(u=>u.rol==='admin');if(!admin||user.id===admin.id)return;
+  const d=String(nuevo.whatsapp||'').replace(/\D/g,'');if(d.length<7)return;
+  const mio=clientes.find(c=>c.vendedorId===admin.id&&!c.borrado&&!c.descartado&&c.id!==nuevo.id&&(()=>{const cd=String(c.whatsapp||'').replace(/\D/g,'');return cd.length>=7&&(cd.endsWith(d)||d.endsWith(cd));})());
+  if(!mio)return;
+  const quien=user.nombre||user.usuario||'Un vendedor';
+  const body=quien+' cargó a "'+(nuevo.nombre||d)+'" — vos lo tenés como "'+(mio.nombre||d)+'"';
+  try{if(typeof pushToUser==='function')pushToUser(admin.id,{title:'⚠️ Lead compartido',body,cid:mio.id});}catch(e){}
+  try{if(admin.telegramChatId)tg('sendMessage',{chat_id:admin.telegramChatId,text:'⚠️ *Lead compartido*: '+body});}catch(e){}
+}
 function mergeClientes(user,incoming){
   const users=loadUsers(),current=loadClientes(),byId={};
   current.forEach(c=>byId[c.id]=c);
@@ -357,6 +369,7 @@ function mergeClientes(user,incoming){
       let vId=user.id;
       if(user.rol!=='vendedor'&&ic.vendedorId&&(user.rol==='admin'||teamIds(users,user).includes(ic.vendedorId)))vId=ic.vendedorId;
       byId[ic.id]=Object.assign({},ic,{vendedorId:vId});
+      try{avisarLeadCompartido(user,ic,current,users);}catch(e){}
     }
   }
   // NO borramos por ausencia: un POST con lista vieja (pestaña desactualizada) borraría
@@ -893,7 +906,8 @@ http.createServer((req,res)=>{
     const wa=new URLSearchParams(req.url.split('?')[1]||'').get('wa')||'';
     const d=wa.replace(/\D/g,'');
     if(d.length<7)return json(200,{exists:false});
-    const match=loadClientes().find(c=>{if(c.borrado||c.descartado)return false;const cd=String(c.whatsapp||'').replace(/\D/g,'');return cd.length>=7&&(cd.endsWith(d)||d.endsWith(cd));});
+    // Solo el admin ve si OTRO vendedor ya tiene el numero. Un vendedor solo se entera de sus propios repetidos.
+    const match=loadClientes().find(c=>{if(c.borrado||c.descartado)return false;if(me.rol!=='admin'&&c.vendedorId!==me.id)return false;const cd=String(c.whatsapp||'').replace(/\D/g,'');return cd.length>=7&&(cd.endsWith(d)||d.endsWith(cd));});
     if(!match)return json(200,{exists:false});
     const owner=loadUsers().find(x=>x.id===match.vendedorId);
     return json(200,{exists:true,mismo:match.vendedorId===me.id,vendedor:owner?owner.nombre:'—',cliente:match.nombre});
