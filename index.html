@@ -810,7 +810,7 @@
         <button class="owner-only" data-view="inicioAdmin"><span class="ic" aria-hidden="true">🏠</span><span class="lbl">Inicio</span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
         <button class="admin-only" data-view="asistente"><span class="ic" aria-hidden="true" style="background:#5e5ce6">🤖</span><span class="lbl">Asistente IA</span></button>
-        <button class="admin-only" data-view="copiloto"><span class="ic" aria-hidden="true" style="background:#0a84ff">🧭</span><span class="lbl">Copiloto</span></button>
+        <button class="admin-only" data-view="copiloto"><span class="ic" aria-hidden="true" style="background:#0a84ff">🧭</span><span class="lbl">Charly</span></button>
         <button class="admin-only" data-view="ventas"><span class="ic" aria-hidden="true">🧾</span><span class="lbl">Ventas</span></button>
         <button class="admin-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
         <button class="admin-only" data-view="financieras"><span class="ic" aria-hidden="true">🏦</span><span class="lbl">Financieras</span></button>
@@ -3070,10 +3070,10 @@ function _asisCSS(){
 let _cp={hist:null,meta:null,busy:false};
 async function _cpLoad(){try{const r=await api('/api/copiloto');const d=await r.json();_cp.hist=d.hist||[];_cp.meta=d;}catch(e){_cp.hist=[];_cp.meta={};}if(view==='copiloto')renderCopiloto();}
 function renderCopiloto(){
-  if(_cp.hist===null){main.innerHTML='<div class="page"><h1>Copiloto</h1><p class="sub">Cargando…</p></div>';_cpLoad();return;}
+  if(_cp.hist===null){main.innerHTML='<div class="page"><h1>Charly</h1><p class="sub">Cargando…</p></div>';_cpLoad();return;}
   const mt=_cp.meta||{};
-  let h='<div class="page page-wide"><div class="conv-head-row"><h1>Copiloto</h1><button class="btn ghost" onclick="_cpReset()">↺ Nueva charla</button></div>';
-  h+='<p class="sub">Preguntale lo que quieras sobre el CRM: leads, ventas, vendedores, inventario, financieras. '
+  let h='<div class="page page-wide"><div class="conv-head-row"><h1>Charly</h1><button class="btn ghost" onclick="_cpReset()">↺ Nueva charla</button></div>';
+  h+='<p class="sub">Charly es tu copiloto: preguntale lo que quieras sobre el CRM — leads, ventas, vendedores, inventario, financieras. '
     +(mt.iaListo?'':'<b style="color:#ff3b30">Falta la clave de la IA (GEMINI_KEY en el servidor).</b> ')
     +(mt.tel?('También te contesta por WhatsApp: escribile al número del negocio desde tu celular ('+esc(telVer(mt.tel))+').'):'Para que te conteste por WhatsApp, cargá tu celular en Cuentas → tu usuario → Teléfono.')
     +(mt.waListo?'':' <span class="faint">El envío por WhatsApp se activa cuando esté cargado el token de Meta en el servidor.</span>')+'</p>';
@@ -3081,7 +3081,7 @@ function renderCopiloto(){
   if(!_cp.hist.length)h+='<div class="cp-sys">Ejemplos: «¿cuántos leads entraron hoy y de qué producto?» · «¿qué vendedor tiene más atrasados?» · «¿cuánto facturamos este mes?» · «¿qué financieras puedo usar hoy?»</div>';
   _cp.hist.forEach(t=>{h+='<div class="cp-msg '+(t.de==='yo'?'yo':'copi')+'">'+esc(t.texto)+'</div>';});
   if(_cp.busy)h+='<div class="cp-msg copi faint">Pensando…</div>';
-  h+='</div><div class="cp-bar"><textarea id="cp-in" placeholder="Escribí tu pregunta…  (Enter envía, Shift+Enter salto de línea)" onkeydown="_cpKey(event)" oninput="autoGrow(this)"></textarea><button class="btn" onclick="_cpSend()" '+(_cp.busy?'disabled':'')+'>Enviar</button></div></div></div>';
+  h+='</div><div class="cp-bar"><textarea id="cp-in" placeholder="Preguntale a Charly…  (Enter envía, Shift+Enter salto de línea)" onkeydown="_cpKey(event)" oninput="autoGrow(this)"></textarea><button class="btn" onclick="_cpSend()" '+(_cp.busy?'disabled':'')+'>Enviar</button></div></div></div>';
   main.innerHTML=h;const box=document.getElementById('cp-msgs');if(box)box.scrollTop=box.scrollHeight;const inp=document.getElementById('cp-in');if(inp&&!_cp.busy)inp.focus();
 }
 function _cpKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();_cpSend();}}
