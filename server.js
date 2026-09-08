@@ -366,7 +366,8 @@ function mergeClientes(user,incoming){
 }
 
 /* ---------- Métricas por vendedor ---------- */
-function estadoAtrasadoSrv(c){if(!c.proximo)return false;let h=(c.proximoHora&&/^\d{1,2}:\d{2}/.test(c.proximoHora))?c.proximoHora:'23:59';if(h.length===4)h='0'+h;const dt=new Date(c.proximo+'T'+h+':00');return !isNaN(dt)&&dt.getTime()<Date.now()-15*60000;}
+function estadoAtrasadoSrv(c){if(!c.proximo)return false;if(c.proximoAuto)return c.proximo<hoy(); // fecha automatica de creacion: es "hoy" todo el dia
+  let h=(c.proximoHora&&/^\d{1,2}:\d{2}/.test(c.proximoHora))?c.proximoHora:'23:59';if(h.length===4)h='0'+h;const dt=new Date(c.proximo+'T'+h+':00');return !isNaN(dt)&&dt.getTime()<Date.now()-15*60000;}
 function esCalienteSrv(c){return c.etapa!=='vendido'&&c.etapa!=='posventa'&&c.respondioUltimo==='cliente';}
 function ultimoLogFecha(c){let f='';(c.log||[]).forEach(l=>{if((l.fecha||'')>f)f=l.fecha;});return f;}
 function metricsFor(vendId){

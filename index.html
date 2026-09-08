@@ -4408,7 +4408,10 @@ async function guardarMiClave(){
 function proxDateTime(c){if(!c.proximo)return null;const h=(c.proximoHora&&/^\d{1,2}:\d{2}/.test(c.proximoHora))?c.proximoHora:'23:59';return new Date(c.proximo+'T'+(h.length===4?'0'+h:h)+':00');}
 // Los cajones NO son excluyentes: un cliente de hoy con la hora ya pasada
 // está en Atrasados Y en Hoy a la vez.
-function esAtrasado(c){const dt=proxDateTime(c);return !!dt&&!isNaN(dt)&&dt.getTime()<Date.now()-15*60000;}
+function esAtrasado(c){
+  // Fecha puesta sola al crear el cliente (nadie agendo): es "Hoy" todo el dia, no se vuelve atrasada por la hora.
+  if(c.proximoAuto)return !!c.proximo&&c.proximo<hoy();
+  const dt=proxDateTime(c);return !!dt&&!isNaN(dt)&&dt.getTime()<Date.now()-15*60000;}
 function esHoy(c){return !!c.proximo&&c.proximo===hoy();}
 function diasA(c){if(!c.proximo)return null;return Math.round((new Date(c.proximo+'T00:00:00')-new Date(hoy()+'T00:00:00'))/86400000);}
 function enBucket(c,b){
