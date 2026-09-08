@@ -253,7 +253,7 @@ function waLog(body){
 // despues por lo que escribio. Si no se reconoce nada queda 'Otro' y lo elige el vendedor.
 function productoDeConsulta(m,texto){
   const r=(m&&m.referral)||{};
-  return detProducto((r.headline||'')+' '+(r.body||''))||detProducto(String(texto||''))||'Otro';
+  return detProducto(r.headline||'')||detProducto(r.body||'')||detProducto(String(texto||''))||'Otro';
 }
 function procesarWebhook(body){
   if(!body||!Array.isArray(body.entry))return;
@@ -448,7 +448,15 @@ function findClient(clientes,text){
   for(const c of clientes){const first=(c.nombre||'').replace(/\(.*\)/,'').trim().toLowerCase().split(' ')[0];if(first&&first.length>2&&new RegExp('\\b'+first.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b').test(low))return c;}
   return null;
 }
-function detProducto(t){t=t.toLowerCase();if(/kit|solar|panel|ecoflow|placa/.test(t))return 'Kit solar';if(/tricicl/.test(t))return 'Triciclo';if(/moto|nafta|scooter/.test(t))return 'Moto';return null;}
+// Producto por puntaje: cuenta menciones de cada uno (palabras enteras); gana el mas mencionado y,
+// en empate, el que aparece primero. Antes 'kit' ganaba siempre por estar primero en la lista.
+const _PROD_RE={'Kit solar':new RegExp('\\b(kits?|solar(es)?|panel(es)?|ecoflow|placas?|bater(i|í)as?)\\b','g'),'Triciclo':new RegExp('\\btricicl','g'),'Moto':new RegExp('\\b(motos?|motocicletas?|scooters?|nafta)\\b','g')};
+function detProducto(t){t=String(t||'').toLowerCase();const sc=[];
+  for(const p in _PROD_RE){const re=_PROD_RE[p];re.lastIndex=0;let m,k=0,first=1e9;while((m=re.exec(t))){k++;if(m.index<first)first=m.index;}if(k)sc.push({p,k,first});}
+  if(!sc.length)return null;sc.sort((x,y)=>y.k-x.k);
+  // Si uno domina claramente (2+ menciones mas que el resto) gana; si no, gana el que se nombra primero.
+  if(sc.length===1||sc[0].k-sc[1].k>=2)return sc[0].p;
+  sc.sort((x,y)=>x.first-y.first);return sc[0].p;}
 function detEtapa(t){t=t.toLowerCase();if(/vend[ií]|vendid|pag[oó]|compr[oó]|cerr[eé]|cerrado/.test(t))return 'vendido';if(/negoci|regate|oferta/.test(t))return 'negociando';if(/interes|pregunt|consult|quiere|averigu/.test(t))return 'interesado';return null;}
 function detTipo(t){t=t.toLowerCase();if(/entrevist/.test(t))return 'Entrevista';if(/visit|presencial|reuni/.test(t))return 'Visita presencial';if(/llam/.test(t))return 'Llamada';if(/mensaj|escrib|whats/.test(t))return 'Mensaje';return null;}
 function detFecha(t){t=t.toLowerCase();if(/pasado\s+mañana/.test(t))return daysAhead(2);if(/\bmañana\b/.test(t))return daysAhead(1);if(/\bhoy\b/.test(t))return hoy();if(/semana que viene|pr[oó]xima semana|la otra semana/.test(t))return daysAhead(7);const m=t.match(/en\s+(\d+)\s+d[ií]as/);if(m)return daysAhead(+m[1]);const dd=['domingo','lunes','martes','mi[eé]rcoles','jueves','viernes','s[aá]bado'];for(let i=0;i<7;i++)if(new RegExp('\\b'+dd[i]).test(t))return nextWeekday(i);return '';}
@@ -721,6 +729,11 @@ async function poll(){
 
 /* ---------- Servidor HTTP (CRM + API con auth por rol) ---------- */
 ensureSetup();
+// Una sola vez: re-clasifica el producto de las consultas de anuncio que todavia nadie atendio.
+try{const FLAG=path.join(DATA_DIR,'.prodfix1');if(!fs.existsSync(FLAG)){const cl=loadClientes();let k=0;
+  for(const c of cl){if(!c.sinAtender||c.origen!=='ad'||c.borrado)continue;const r=c.adReferral||{};const t0=(c.mensajes&&c.mensajes[0]&&c.mensajes[0].texto)||'';
+    const p=detProducto(r.titulo||'')||detProducto(r.cuerpo||'')||detProducto(t0)||'Otro';if(p!==c.producto){c.producto=p;k++;}}
+  if(k)saveClientes(cl);fs.writeFileSync(FLAG,String(Date.now()));console.log('[prodfix] consultas re-clasificadas: '+k);}}catch(e){console.log('[prodfix] error:',e.message);}
 http.createServer((req,res)=>{
   const u=req.url.split('?')[0];
   res.setHeader('Access-Control-Allow-Origin','*');
