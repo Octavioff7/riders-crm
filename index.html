@@ -333,6 +333,7 @@
   .pv-legend{display:flex;gap:16px;justify-content:center;font-size:11.5px;color:var(--muted);margin-top:4px}
   .pv-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
   .pv-tip{position:fixed;z-index:600;display:none;background:var(--card);border:1px solid var(--sep-strong);border-radius:9px;padding:7px 10px;font-size:12px;color:var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none;white-space:nowrap;line-height:1.5}
+.nc-sec{margin:14px 0 6px}.nc-sec:first-child{margin-top:0}
 .pvdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
   .pv-table tbody tr.pv-tot td{background:var(--hover);font-weight:700;border-top:2px solid var(--sep-strong)}
   .fz-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
@@ -2115,13 +2116,16 @@ function _ncRows(){
   const sub=document.getElementById('nc-sub');
   if(sub)sub.textContent=_ncQ?(list.length+' de '+all.length+' consulta(s) coinciden con la búsqueda.'):(all.length+' consulta(s) sin atender. Tocá una para atenderla y empezar a cargar notas, interés y etiquetas.');
   if(!list.length){cont.innerHTML=`<div class="empty" style="padding:26px;text-align:center">No encontré consultas con ese nombre o número.</div>`;return;}
-  let h='';
-  for(const c of list){
+  const fila=c=>{
     const last=(c.mensajes&&c.mensajes.length)?c.mensajes[c.mensajes.length-1].texto:(c.log&&c.log.length?c.log[c.log.length-1].texto:'');
     const ad=c.origen==='ad'?` <span class="chip" style="background:#34c75922;color:#248a3d">📣 Anuncio</span>`:'';
-    h+=`<div class="frow" style="cursor:pointer" onclick="abrirConsulta('${c.id}')"><div class="av" style="width:36px;height:36px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${ad}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(telVer(c.whatsapp))}${last?' · '+esc(last):''}</div></div><span class="faint" style="font-size:11.5px;white-space:nowrap;margin-right:8px">${esc(_haceCuanto(_consultaTs(c)))}</span>${waIc(c)}<button class="btn sm" onclick="event.stopPropagation();abrirConsulta('${c.id}')">Atender</button></div>`;
-  }
-  cont.innerHTML=h;
+    return `<div class="frow" style="cursor:pointer" onclick="abrirConsulta('${c.id}')"><div class="av" style="width:36px;height:36px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${ad}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(telVer(c.whatsapp))}${last?' · '+esc(last):''}</div></div><span class="faint" style="font-size:11.5px;white-space:nowrap;margin-right:8px">${esc(_haceCuanto(_consultaTs(c)))}</span>${waIc(c)}<button class="btn sm" onclick="event.stopPropagation();abrirConsulta('${c.id}')">Atender</button></div>`;
+  };
+  // Separadas: las que entraron hoy arriba, las de días anteriores abajo (en cada bloque, la más nueva primero).
+  const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();
+  const deHoy=list.filter(c=>_consultaTs(c)>=t0),ant=list.filter(c=>_consultaTs(c)<t0);
+  const sec=(t,arr)=>`<h3 class="nc-sec">${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>`+arr.map(fila).join('');
+  cont.innerHTML=(deHoy.length?sec('🟢 Llegaron hoy',deHoy):'')+(ant.length?sec('🕓 Días anteriores',ant):'');
 }
 function abrirConsulta(id){abrirEnCtx(id,'nuevas');}
 // Guardar: recien aca la consulta deja de estar "sin atender" y pasa a la seccion que le corresponda.
@@ -4520,6 +4524,14 @@ function renderAgendaSec(estado){
     const atr=list.filter(esAtrasado).sort((a,b)=>proxDateTime(a)-proxDateTime(b)),pend=list.filter(c=>!esAtrasado(c)).sort((a,b)=>proxDateTime(a)-proxDateTime(b));
     if(atr.length)h+=`<div class="panelcard"><h3>🔴 De hoy, atrasados <span style="color:var(--muted);font-weight:600">· ${atr.length}</span></h3>${atr.map(fila).join('')}</div>`;
     h+=`<div class="panelcard"><h3>🟡 Pendientes de hoy <span style="color:var(--muted);font-weight:600">· ${pend.length}</span></h3>${pend.length?pend.map(fila).join(''):'<div class="empty">Nada pendiente por ahora 🎉</div>'}</div>`;
+    main.innerHTML=h+'</div>';return;
+  }
+  if(estado==='atrasado'){
+    // Atrasados: los de hoy arriba y los de días anteriores abajo; en cada bloque, el más reciente primero.
+    const desc=(a,b)=>proxDateTime(b)-proxDateTime(a);
+    const deHoy=list.filter(esHoy).sort(desc),ant=list.filter(c=>!esHoy(c)).sort(desc);
+    if(deHoy.length)h+=`<div class="panelcard"><h3>🟡 Atrasados de hoy <span style="color:var(--muted);font-weight:600">· ${deHoy.length}</span></h3>${deHoy.map(fila).join('')}</div>`;
+    if(ant.length)h+=`<div class="panelcard"><h3>🔴 De días anteriores <span style="color:var(--muted);font-weight:600">· ${ant.length}</span></h3>${ant.map(fila).join('')}</div>`;
     main.innerHTML=h+'</div>';return;
   }
   main.innerHTML=h+'<div class="panelcard">'+list.map(fila).join('')+'</div></div>';
