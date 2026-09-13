@@ -4529,9 +4529,11 @@ function renderAgendaSec(estado){
   if(estado==='atrasado'){
     // Atrasados: los de hoy arriba y los de días anteriores abajo; en cada bloque, el más reciente primero.
     const desc=(a,b)=>proxDateTime(b)-proxDateTime(a);
-    const deHoy=list.filter(esHoy).sort(desc),ant=list.filter(c=>!esHoy(c)).sort(desc);
-    if(deHoy.length)h+=`<div class="panelcard"><h3>🟡 Atrasados de hoy <span style="color:var(--muted);font-weight:600">· ${deHoy.length}</span></h3>${deHoy.map(fila).join('')}</div>`;
-    if(ant.length)h+=`<div class="panelcard"><h3>🔴 De días anteriores <span style="color:var(--muted);font-weight:600">· ${ant.length}</span></h3>${ant.map(fila).join('')}</div>`;
+    // La semana arranca el lunes (igual que en el panel): "esta semana" = del lunes hasta ayer.
+    const _l=new Date();_l.setHours(0,0,0,0);_l.setDate(_l.getDate()-((_l.getDay()+6)%7));const lun=_l.getFullYear()+'-'+String(_l.getMonth()+1).padStart(2,'0')+'-'+String(_l.getDate()).padStart(2,'0');
+    const deHoy=list.filter(esHoy).sort(desc),sem=list.filter(c=>!esHoy(c)&&c.proximo>=lun).sort(desc),ant=list.filter(c=>!esHoy(c)&&c.proximo<lun).sort(desc);
+    const bloque=(t,arr)=>arr.length?`<div class="panelcard"><h3>${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>${arr.map(fila).join('')}</div>`:'';
+    h+=bloque('🟡 Atrasados de hoy',deHoy)+bloque('🟠 Atrasados de esta semana',sem)+bloque('🔴 De días anteriores',ant);
     main.innerHTML=h+'</div>';return;
   }
   main.innerHTML=h+'<div class="panelcard">'+list.map(fila).join('')+'</div></div>';
