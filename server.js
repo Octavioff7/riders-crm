@@ -1000,6 +1000,9 @@ http.createServer((req,res)=>{
   if(u==='/api/tg/unlink'&&req.method==='POST'){const users=loadUsers();const usr=users.find(x=>x.id===me.id);if(usr){delete usr.telegramChatId;saveUsers(users);}return json(200,{ok:true});}
 
   // ¿Ya existe un cliente con este número (de cualquier vendedor)? Devuelve quién lo tiene.
+  // Firma de los datos (fecha y tamaño de clientes.json): el CRM la consulta seguido para enterarse de
+  // leads nuevos o cambios de otros usuarios sin tener que cerrar y abrir la app.
+  if(u==='/api/clientes/sig'&&req.method==='GET'){let s='0';try{const st=fs.statSync(DATA);s=Math.round(st.mtimeMs)+'-'+st.size;}catch(e){}return json(200,{s});}
   if(u==='/api/clientes/check'&&req.method==='GET'){
     const wa=new URLSearchParams(req.url.split('?')[1]||'').get('wa')||'';
     const d=wa.replace(/\D/g,'');

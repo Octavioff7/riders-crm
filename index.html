@@ -908,7 +908,8 @@ async function api(path,opts){
   if(r.status===401){token='';localStorage.removeItem('crmToken');me=null;showLogin();throw new Error('401');}
   return r;
 }
-function save(){if(RO())return;if(SERVER){api('/api/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clientes)}).catch(()=>{});}else{localStorage.setItem(KEY,JSON.stringify(clientes));}}
+let _saving=0; // guardados en curso: mientras haya uno, la sincronización en vivo espera (evita pisar un cambio recién hecho)
+function save(){if(RO())return;if(SERVER){_saving++;api('/api/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clientes)}).catch(()=>{}).finally(()=>{_saving--;_refreshSig();});}else{localStorage.setItem(KEY,JSON.stringify(clientes));}}
 /* Registro de auditoría: registra un movimiento (no bloquea el flujo si falla) */
 function _audit(o){try{if(!SERVER||!me||!o)return;api('/api/auditoria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).catch(()=>{});}catch(e){}}
 /* Número correlativo atómico del servidor (evita duplicados entre usuarios/concurrencia). */
@@ -917,7 +918,7 @@ function saveA(){localStorage.setItem(AKEY,JSON.stringify(asistente));}
 
 let clientes=[];
 function initClientes(arr){clientes=(arr||[]);clientes.forEach(c=>{c.mensajes=c.mensajes||[];c.mensajes.forEach(m=>{if(!m.canal)m.canal='whatsapp';});c.canal=c.canal||'whatsapp';c.log=c.log||[];if(!Array.isArray(c.tags))c.tags=c.tempManual?[c.tempManual]:[];if((c.etapa==='vendido'||c.etapa==='posventa')&&!c.vendidoFecha)c.vendidoFecha=c.creado||hoy();derive(c);});if(!selectedId||!clientes.find(x=>x.id===selectedId))selectedId=clientes[0]?clientes[0].id:null;}
-async function loadData(){if(SERVER){try{const r=await api('/api/clientes');initClientes(await r.json());}catch(e){if(String(e&&e.message)==='401')return;initClientes(load());}}else{initClientes(load());}render();_abrirDesdeNotif();}
+async function loadData(){if(SERVER){try{const r=await api('/api/clientes');initClientes(await r.json());}catch(e){if(String(e&&e.message)==='401')return;initClientes(load());}}else{initClientes(load());}render();_abrirDesdeNotif();_refreshSig();}
 // Al tocar la notificación de un contacto se abre directo su ficha: llega como ?c=ID en la URL
 // (app cerrada) o como mensaje del service worker (app ya abierta).
 let _pendCid=null;
@@ -4924,6 +4925,27 @@ async function _checkVer(){
     location.reload();
   }catch(e){}
 }
+/* ---- Sincronización en vivo: si en el servidor entran leads nuevos (o otro usuario carga algo), el CRM se
+   actualiza solo, sin cerrar y abrir. Consulta una firma liviana cada 20 s y solo baja los datos si cambió. ---- */
+let _dataSig=null,_syncBusy=false;
+async function _refreshSig(){try{if(!SERVER)return;const d=await (await api('/api/clientes/sig')).json();_dataSig=d.s;}catch(e){}}
+function _hayTextoSinGuardar(){const a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT'||a.isContentEditable))return true;const n=document.getElementById('nueva-nota');if(n&&n.value.trim())return true;if(document.getElementById('edit-nota'))return true;return false;}
+async function _syncClientes(){
+  if(!SERVER||!me||_syncBusy||_saving>0||document.hidden)return;
+  try{
+    const d=await (await api('/api/clientes/sig')).json();
+    if(_dataSig===null){_dataSig=d.s;return;}
+    if(d.s===_dataSig)return;
+    if(_verOcupado()||_hayTextoSinGuardar()||_saving>0)return; // el usuario está escribiendo: probamos en el próximo chequeo
+    _syncBusy=true;
+    const arr=await (await api('/api/clientes')).json();
+    _dataSig=d.s;
+    const sel=selectedId;initClientes(arr);if(sel&&clientes.find(x=>x.id===sel))selectedId=sel;
+    if(view==='inbox')renderInboxKeepScroll();else{const y=main.scrollTop;render();main.scrollTop=y;}
+  }catch(e){}finally{_syncBusy=false;}
+}
+setInterval(_syncClientes,20000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)_syncClientes();});
 _checkVer();
 setInterval(_checkVer,60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)_checkVer();});
