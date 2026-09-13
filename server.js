@@ -285,10 +285,10 @@ function procesarWebhook(body){
           c={id:uid(),nombre,whatsapp:'+'+dig,producto:productoDeConsulta(m,texto),etapa:'nuevo',valor:0,proximo:fecha,proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
           if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:'')});}
           clientes.push(c);
-          try{if(typeof pushToUser==='function'&&vendId)pushToUser(vendId,{title:'🆕 Nueva consulta',body:nombre+': '+String(texto).slice(0,80)});}catch(e){}
-          // Ya se avisa "Nueva consulta": damos por enviado el recordatorio de hoy para que no llegue
-          // ademas "es hora de tu seguimiento" por el mismo cliente que acaba de entrar. Si mas adelante
-          // el vendedor agenda un seguimiento real (otra fecha/hora), ese si se avisa.
+          // No se avisa por push cuando entra una consulta nueva: las notificaciones son solo para
+          // los seguimientos agendados. Se marca el recordatorio automatico de hoy como "enviado" para
+          // que tampoco llegue "es hora de tu seguimiento" por el cliente que acaba de entrar. Si mas
+          // adelante el vendedor agenda un seguimiento real (otra fecha/hora), ese si se avisa.
           try{const _nt=loadNotif();_nt[c.id+'|'+c.proximo+'|'+(c.proximoHora||'')]=Date.now();saveNotif();}catch(e){}
         }
         paraResponder.push({id:c.id,texto:texto});

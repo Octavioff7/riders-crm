@@ -333,6 +333,7 @@
   .pv-legend{display:flex;gap:16px;justify-content:center;font-size:11.5px;color:var(--muted);margin-top:4px}
   .pv-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
   .pv-tip{position:fixed;z-index:600;display:none;background:var(--card);border:1px solid var(--sep-strong);border-radius:9px;padding:7px 10px;font-size:12px;color:var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none;white-space:nowrap;line-height:1.5}
+.pvdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
   .pv-table tbody tr.pv-tot td{background:var(--hover);font-weight:700;border-top:2px solid var(--sep-strong)}
   .fz-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
   @media(max-width:1100px){.fz-kpis{grid-template-columns:repeat(2,1fr)}}
@@ -911,7 +912,13 @@ function saveA(){localStorage.setItem(AKEY,JSON.stringify(asistente));}
 
 let clientes=[];
 function initClientes(arr){clientes=(arr||[]);clientes.forEach(c=>{c.mensajes=c.mensajes||[];c.mensajes.forEach(m=>{if(!m.canal)m.canal='whatsapp';});c.canal=c.canal||'whatsapp';c.log=c.log||[];if(!Array.isArray(c.tags))c.tags=c.tempManual?[c.tempManual]:[];if((c.etapa==='vendido'||c.etapa==='posventa')&&!c.vendidoFecha)c.vendidoFecha=c.creado||hoy();derive(c);});if(!selectedId||!clientes.find(x=>x.id===selectedId))selectedId=clientes[0]?clientes[0].id:null;}
-async function loadData(){if(SERVER){try{const r=await api('/api/clientes');initClientes(await r.json());}catch(e){if(String(e&&e.message)==='401')return;initClientes(load());}}else{initClientes(load());}render();}
+async function loadData(){if(SERVER){try{const r=await api('/api/clientes');initClientes(await r.json());}catch(e){if(String(e&&e.message)==='401')return;initClientes(load());}}else{initClientes(load());}render();_abrirDesdeNotif();}
+// Al tocar la notificación de un contacto se abre directo su ficha: llega como ?c=ID en la URL
+// (app cerrada) o como mensaje del service worker (app ya abierta).
+let _pendCid=null;
+function abrirDesdeNotif(id){if(!id)return;if(!clientes.some(x=>x.id===id)){_pendCid=id;return;}_pendCid=null;verFicha(id);}
+function _abrirDesdeNotif(){try{const u=new URL(location.href);const id=u.searchParams.get('c');if(id){u.searchParams.delete('c');history.replaceState(history.state,'',u.pathname+u.search+u.hash);abrirDesdeNotif(id);}else if(_pendCid)abrirDesdeNotif(_pendCid);}catch(e){}}
+if('serviceWorker'in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.abrirCliente)abrirDesdeNotif(e.data.abrirCliente);});
 let asistente=[];
 try{asistente=JSON.parse(localStorage.getItem(AKEY))||[];}catch(e){}
 if(!asistente.length) asistente=[{de:'bot',texto:'👋 Hola Octa! Soy tu asistente del CRM. Contame en una frase qué pasó con un cliente y yo lo <b>cargo y anoto solo</b>.<br><br>Por ejemplo:<br>• <i>"Yosvani quiere la moto roja, seguimiento el viernes"</i><br>• <i>"Cargá a Juan, preguntó por un triciclo"</i><br>• <i>"Maria ya pagó, marcala como vendida"</i>'}];
@@ -1150,15 +1157,22 @@ function chatHTML(c){
     </div>`;
 }
 function regMsg(id,de){const c=clientes.find(x=>x.id===id);const el=document.getElementById('reg-msg');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.mensajes=c.mensajes||[];c.mensajes.push({de:(de==='cliente'?'cliente':'yo'),fecha:hoy(),hora:ahora(),texto:t,canal:'whatsapp'});derive(c);save();renderInbox();}
-function crmHTML(c){
-  const t=temperatura(c);
-  const banner=t?`<div class="banner" style="background:${t.color}1a;color:${t.color}">${t.emoji}<div><b>${t.label}.</b>${t.motivo?' '+esc(t.motivo):''}</div></div>`:'<div class="banner" style="background:#34c7591a;color:#248a3d">✅<div><b>Cerrado.</b> Vendido / posventa.</div></div>';
-  const notas=(c.log||[]).slice().reverse().map((l,ri)=>{
+// Lista de notas y aviso de próximo contacto van en funciones aparte: así se pueden redibujar solos
+// (sin rehacer toda la ficha) cuando guardás una nota o agendás, y no se pierde lo que estabas escribiendo.
+function notasListHTML(c){
+  return (c.log||[]).slice().reverse().map((l,ri)=>{
     const idx=(c.log.length-1)-ri;
     if(editNotaKey===c.id+':'+idx) return `<div class="logitem"><textarea id="edit-nota" class="nota-edit" oninput="autoGrow(this)">${esc(l.texto)}</textarea><div class="nota-actions"><button class="btn sm" onclick="guardarEdicionNota('${c.id}',${idx})">Guardar</button><button class="btn sm ghost" onclick="cancelarEdicionNota()">Cancelar</button></div></div>`;
     return `<div class="logitem"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
   }).join('')||'<div class="empty">Todavía no hay notas. Escribí la primera abajo 👇</div>';
-  const prox=c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';
+}
+function proxSetHTML(c){return c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';}
+function refrescarFicha(c){const nl=document.getElementById('notas-list');if(!nl){renderInboxKeepScroll();return;}nl.innerHTML=notasListHTML(c);const pw=document.getElementById('prox-set-wrap');if(pw)pw.innerHTML=proxSetHTML(c);updateCounts();autoGrow(document.getElementById('edit-nota'));}
+function crmHTML(c){
+  const t=temperatura(c);
+  const banner=t?`<div class="banner" style="background:${t.color}1a;color:${t.color}">${t.emoji}<div><b>${t.label}.</b>${t.motivo?' '+esc(t.motivo):''}</div></div>`:'<div class="banner" style="background:#34c7591a;color:#248a3d">✅<div><b>Cerrado.</b> Vendido / posventa.</div></div>';
+  const notas=notasListHTML(c);
+  const prox=proxSetHTML(c);
   return `<div class="crm-h"><button class="backbtn" onclick="history.back()" aria-label="Volver">←</button><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="nm">${esc(c.nombre)}</div><div class="wa">${esc(telVer(c.whatsapp)||'Sin número guardado')}</div><button class="edit-cli" onclick="editarCliente('${c.id}')" title="Editar nombre y teléfono">✏️</button></div>
     <div class="crm-b">${waBtnBig(c)}
       ${banner}
@@ -1177,14 +1191,14 @@ function crmHTML(c){
       <div class="row2"><div class="field"><label>Valor ($)</label><input type="number" inputmode="numeric" value="${c.valor||''}" onchange="setF('${c.id}','valor',Number(this.value)||0)"></div><div class="field"><label>Tipo de operación</label><select onchange="setF('${c.id}','operacion',this.value)">${OPERACIONES.map(o=>`<option value="${o}" ${(c.operacion||'')===o?'selected':''}>${o||'—'}</option>`).join('')}</select></div></div>
       ${(me&&me.rol!=='vendedor'&&asignables().length>1)?`<div class="field"><label>Vendedor asignado</label><select onchange="setF('${c.id}','vendedorId',this.value)">${asignables().map(u=>`<option value="${u.id}" ${c.vendedorId===u.id?'selected':''}>${esc(u.nombre)}</option>`).join('')}</select></div>`:''}
       <div class="section-t">📅 Programar próximo contacto</div>
-      ${prox}
+      <div id="prox-set-wrap">${prox}</div>
       <div class="field"><label>Tipo</label><select id="prox-tipo">${['Llamada','Entrevista','Visita presencial','Mensaje','Otro'].map(x=>`<option ${c.proximoTipo===x?'selected':''}>${x}</option>`).join('')}</select></div>
       <div class="row2"><div class="field"><label>Fecha</label><input type="hidden" id="prox-fecha" value="${c.proximo||hoy()}"><button type="button" class="v-selbtn v-full" id="prox-fecha-btn" onclick="_pickProxFecha()">📅 ${fmtFecha(c.proximo||hoy())}<span class="v-selarr">▾</span></button></div><div class="field"><label>Hora</label><input type="time" id="prox-hora" value="${c.proximoHora||''}"></div></div>
       <button class="btn" style="width:100%;margin-bottom:6px" onclick="agendarProximo('${c.id}')">Agendar contacto</button>
       <button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="googleCal('${c.id}')">📅 Agendar en Google Calendar</button>
       <div class="section-t">📝 Notas del seguimiento</div>
       <div class="nota-add"><textarea id="nueva-nota" placeholder="Escribí una nota…  (se guarda con la fecha de hoy)" oninput="autoGrow(this)"></textarea><button class="btn" onclick="agregarNota('${c.id}')">Agregar nota</button></div>
-      <div style="margin-top:12px">${notas}</div>
+      <div style="margin-top:12px" id="notas-list">${notas}</div>
       ${c.sinAtender?`<div class="row2" style="margin-top:18px"><button class="btn" onclick="guardarConsulta('${c.id}')">Guardar</button><button class="btn danger" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button></div>`:`<button class="btn danger" style="width:100%;margin-top:18px" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button>`}
     </div>`;
 }
@@ -1196,11 +1210,11 @@ function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.valu
 function autoGrow(el){if(!el)return;el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
 // Redibuja el inbox SIN perder la posición del scroll de la ficha (evita el salto al editar notas).
 function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');const y=el?el.scrollTop:0;renderInbox();const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;}
-function editarNota(id,idx){editNotaKey=id+':'+idx;renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
-function cancelarEdicionNota(){editNotaKey=null;renderInboxKeepScroll();}
-function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:t});save();renderInboxKeepScroll();}
-function borrarNota(id,idx){const c=clientes.find(x=>x.id===id);if(!c||!c.log||!c.log[idx])return;if(!confirm('¿Borrar esta nota? No se puede deshacer.'))return;c.log.splice(idx,1);editNotaKey=null;save();renderInboxKeepScroll();}
-function guardarEdicionNota(id,idx){const c=clientes.find(x=>x.id===id);const el=document.getElementById('edit-nota');if(!c||!el||!c.log[idx])return;const t=(el.value||'').trim();if(t)c.log[idx].texto=t;editNotaKey=null;save();renderInboxKeepScroll();}
+function editarNota(id,idx){editNotaKey=id+':'+idx;const c=clientes.find(x=>x.id===id);if(c)refrescarFicha(c);else renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
+function cancelarEdicionNota(){editNotaKey=null;const c=sel();if(c)refrescarFicha(c);else renderInboxKeepScroll();}
+function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:t});save();el.value='';autoGrow(el);refrescarFicha(c);}
+function borrarNota(id,idx){const c=clientes.find(x=>x.id===id);if(!c||!c.log||!c.log[idx])return;if(!confirm('¿Borrar esta nota? No se puede deshacer.'))return;c.log.splice(idx,1);editNotaKey=null;save();refrescarFicha(c);}
+function guardarEdicionNota(id,idx){const c=clientes.find(x=>x.id===id);const el=document.getElementById('edit-nota');if(!c||!el||!c.log[idx])return;const t=(el.value||'').trim();if(t)c.log[idx].texto=t;editNotaKey=null;save();refrescarFicha(c);}
 function actualizarBanner(c){
   const t=temperatura(c);const b=document.querySelector('.col-crm .banner');if(!b)return;
   if(t){b.style.background=t.color+'1a';b.style.color=t.color;b.innerHTML=t.emoji+'<div><b>'+esc(t.label)+'.</b>'+(t.motivo?' '+esc(t.motivo):'')+'</div>';}
@@ -1270,7 +1284,7 @@ function setProximo(id,silent){
   save();
   // Auto (mientras escribís): guardar y actualizar contadores SIN redibujar el
   // casillero, para no interrumpir el tipeo. El botón sí redibuja la ficha.
-  if(silent)updateCounts();else renderInboxKeepScroll();
+  if(silent)updateCounts();else refrescarFicha(c); // solo notas + aviso: no borra la nota que estés escribiendo ni parpadea
 }
 function agendarProximo(id){setProximo(id,false);}
 function autoAgendar(id){setProximo(id,true);}
@@ -3483,8 +3497,18 @@ function _pvSales(){
 }
 function _pvDays(a,b){if(!a||!b)return [];const out=[];let d=new Date(a+'T00:00:00');const end=new Date(b+'T00:00:00');let g=0;while(d<=end&&g<400){out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));d.setDate(d.getDate()+1);g++;}return out;}
 function _niceMax(v){if(v<=5)return 5;const p=Math.pow(10,String(Math.floor(v)).length-1);return Math.ceil(v/p)*p;}
-function _pvTip(ev,html){let t=document.getElementById('pv-tip');if(!t){t=document.createElement('div');t.id='pv-tip';t.className='pv-tip';document.body.appendChild(t);}t.innerHTML=html;t.style.display='block';let x=ev.clientX+14,y=ev.clientY+14;const w=t.offsetWidth||140;if(x+w>window.innerWidth-8)x=ev.clientX-w-14;t.style.left=x+'px';t.style.top=y+'px';}
+// El globito se mete DENTRO del contenedor que scrollea (main o la ficha) con posición absoluta:
+// así en el celu, al deslizar, acompaña al gráfico en vez de quedar clavado en la pantalla.
+function _pvTip(ev,html){let t=document.getElementById('pv-tip');if(!t){t=document.createElement('div');t.id='pv-tip';t.className='pv-tip';}
+  const tg=(ev.target&&ev.target.closest)?ev.target:null;const cont=(tg&&tg.closest('main.scroll, .col-crm, .conv-list'))||document.body;
+  if(t.parentNode!==cont)cont.appendChild(t);t.innerHTML=html;t.style.display='block';const w=t.offsetWidth||140;
+  if(cont===document.body){t.style.position='fixed';let x=ev.clientX+14,y=ev.clientY+14;if(x+w>window.innerWidth-8)x=ev.clientX-w-14;t.style.left=x+'px';t.style.top=y+'px';return;}
+  if(getComputedStyle(cont).position==='static')cont.style.position='relative';
+  const r=cont.getBoundingClientRect();t.style.position='absolute';let x=ev.clientX-r.left+cont.scrollLeft+14,y=ev.clientY-r.top+cont.scrollTop+14;
+  if(x+w>cont.clientWidth+cont.scrollLeft-8)x=ev.clientX-r.left+cont.scrollLeft-w-14;t.style.left=Math.max(0,x)+'px';t.style.top=y+'px';}
 function _pvTipHide(){const t=document.getElementById('pv-tip');if(t)t.style.display='none';}
+// En el celu no hay "mouseleave": el globito se cierra al tocar fuera del gráfico.
+document.addEventListener('touchstart',e=>{const t=e.target;if(!(t&&t.closest&&t.closest('.pv-svg,.wb,.vline')))_pvTipHide();},{passive:true});
 function _pvKpi(ic,label,val,bg,col){return '<div class="pv-kpi"><span class="pv-kico" style="background:'+bg+';color:'+col+'">'+ic+'</span><div class="pv-kbody"><div class="pv-klabel">'+esc(label)+'</div><div class="pv-kval">'+esc(String(val))+'</div></div></div>';}
 let _pvLineGeom=null;
 function _pvLineSVG(days,dV,dP){
@@ -4485,9 +4509,15 @@ function renderAgendaSec(estado){
   const nCal=list.filter(esCalienteT).length;
   let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s). ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
-  h+='<div class="panelcard">';
-  for(const c of list){const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}</div>${c.whatsapp?`<div style="font-size:12.5px;color:var(--muted)">${esc(telVer(c.whatsapp))}</div>`:''}</div>${waIc(c)}</div>`;}
-  main.innerHTML=h+'</div></div>';
+  const fila=c=>{const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');return `<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}</div>${c.whatsapp?`<div style="font-size:12.5px;color:var(--muted)">${esc(telVer(c.whatsapp))}</div>`:''}</div>${waIc(c)}</div>`;};
+  if(estado==='hoy'){
+    // Dentro de Hoy: arriba los de hoy que ya se pasaron de hora (atrasados), abajo los que todavía faltan.
+    const atr=list.filter(esAtrasado).sort((a,b)=>proxDateTime(a)-proxDateTime(b)),pend=list.filter(c=>!esAtrasado(c)).sort((a,b)=>proxDateTime(a)-proxDateTime(b));
+    if(atr.length)h+=`<div class="panelcard"><h3>🔴 De hoy, atrasados <span style="color:var(--muted);font-weight:600">· ${atr.length}</span></h3>${atr.map(fila).join('')}</div>`;
+    h+=`<div class="panelcard"><h3>🟡 Pendientes de hoy <span style="color:var(--muted);font-weight:600">· ${pend.length}</span></h3>${pend.length?pend.map(fila).join(''):'<div class="empty">Nada pendiente por ahora 🎉</div>'}</div>`;
+    main.innerHTML=h+'</div>';return;
+  }
+  main.innerHTML=h+'<div class="panelcard">'+list.map(fila).join('')+'</div></div>';
 }
 /* ---- AGENDA (reuniones / llamadas) ---- */
 function renderAgenda(){
@@ -4570,7 +4600,12 @@ function renderPanel(){
   // (se toma la fecha mas reciente de las dos, para no contar dos veces al mismo cliente).
   const descartadosSem=clientes.filter(c=>_scoped(c)&&(c.descartado||c.borrado)&&_fueraFecha(c)>=weekAgo).length;
   const _dow=(new Date().getDay()+6)%7;const _mon=new Date();_mon.setHours(0,0,0,0);_mon.setDate(_mon.getDate()-_dow);
-  const semanaDias=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());semanaDias.push({l:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i],n:NUEV.filter(c=>(c.creado||'')===ds).length});}
+  const semanaDias=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    const cs=NUEV.filter(c=>(c.creado||'')===ds);const pr={};let dsc=0;for(const c of cs){if(c.borrado||c.descartado){dsc++;continue;}const p=PRODUCTOS.includes(c.producto)?c.producto:'Otro';pr[p]=(pr[p]||0)+1;}
+    // Globito al pasar el cursor por la barra: qué productos preguntaron ese día (mismo desglose que la rosca).
+    const dl=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i];let tip='<b>'+dl+' '+d.getDate()+'/'+(d.getMonth()+1)+'</b> · '+cs.length+' cliente'+(cs.length===1?'':'s');
+    PRODUCTOS.forEach(p=>{if(pr[p])tip+='<br><span class=pvdot style=background:'+(_PROD_COLOR[p]||'#8e8e93')+'></span>'+esc(p)+' : '+pr[p];});if(dsc)tip+='<br><span class=pvdot style=background:#ff3b30></span>Descartados : '+dsc;
+    semanaDias.push({l:dl,n:cs.length,tip});}
   const maxDia=Math.max(1,...semanaDias.map(d=>d.n));
   const _mesLbl=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:NUEV.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg,desc:NUEV.filter(c=>(c.descartado||c.borrado)&&_fueraFecha(c).slice(0,7)===ym).length});}
@@ -4610,7 +4645,7 @@ function renderPanel(){
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
     <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;}).join('')}</div>
-    <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
+    <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb" onmousemove="_pvTip(event,'${_pvJs(d.tip)}')" onmouseleave="_pvTipHide()"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
     <div class="dash-cols">
       <div class="panelcard" id="pd-card" style="display:flex;flex-direction:column">${_prodDonutCard(NUEV)}</div>
       <div class="panelcard act-card"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">${ventasSemLista.length}</div><div class="l">Ventas cerradas</div></div><div><div class="n">🗑️ ${descartadosSem}</div><div class="l">Descartados</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
@@ -4628,8 +4663,13 @@ document.getElementById('nav').addEventListener('click',e=>{const b=e.target.clo
 let _navlock=false;
 function snapState(){return {v:view,s:selectedId,c:inboxCtx,co:document.body.classList.contains('chat-open'),fe:filtroEtapa,fv:filtroVend,f:filtro};}
 function _sameState(a,b){return !!a&&!!b&&a.v===b.v&&a.s===b.s&&a.c===b.c&&a.co===b.co&&a.fe===b.fe&&a.fv===b.fv;}
-function pushHistory(){if(_navlock)return;const st=snapState();if(_sameState(history.state,st))return;try{history.pushState(st,'');}catch(e){}}
-function restoreState(st){_navlock=true;try{if(st&&st.v){view=st.v;selectedId=st.s;inboxCtx=st.c||null;filtroEtapa=st.fe||'';filtroVend=st.fv||'';filtro=st.f||'';document.body.classList.toggle('chat-open',!!st.co);render();}else{document.body.classList.remove('chat-open');}}catch(e){}finally{_navlock=false;}}
+// Posición del scroll de la vista anterior: se guarda en el historial para que al volver atrás
+// (botón ← o deslizar en el celu) la lista quede a la misma altura y no salte al principio.
+const _sc={main:0,conv:0};
+document.addEventListener('scroll',e=>{const t=e.target;if(t===main)_sc.main=t.scrollTop;else if(t&&t.classList&&t.classList.contains('conv-list'))_sc.conv=t.scrollTop;},true);
+function pushHistory(){if(_navlock)return;const st=snapState();if(_sameState(history.state,st))return;try{history.replaceState(Object.assign({},history.state||{},{sy:_sc.main,cy:_sc.conv}),'');}catch(e){}try{history.pushState(st,'');}catch(e){}_sc.main=0;_sc.conv=0;}
+function _restoreScroll(st){if(!st)return;if(st.sy)main.scrollTop=st.sy;const cv=document.querySelector('.conv-list');if(cv&&st.cy)cv.scrollTop=st.cy;}
+function restoreState(st){_navlock=true;try{if(st&&st.v){view=st.v;selectedId=st.s;inboxCtx=st.c||null;filtroEtapa=st.fe||'';filtroVend=st.fv||'';filtro=st.f||'';document.body.classList.toggle('chat-open',!!st.co);render();_restoreScroll(st);requestAnimationFrame(()=>_restoreScroll(st));}else{document.body.classList.remove('chat-open');}}catch(e){}finally{_navlock=false;}}
 window.addEventListener('popstate',e=>restoreState(e.state));
 // El gesto de deslizar desde el borde (iPhone/Android) usa el "atrás" nativo del navegador,
 // que ahora vuelve al paso anterior gracias al historial. NO agregamos un handler propio
