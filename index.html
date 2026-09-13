@@ -625,7 +625,7 @@
   .fnl-bar>div{height:100%;border-radius:6px;min-width:3px;transition:width .3s}
   .fnl-bar .seg{display:flex;height:100%}.fnl-bar .seg span{height:100%;min-width:2px}
 .fnl-leg{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:11.5px;color:var(--muted);margin:-1px 0 7px 106px}.fnl-leg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}.fnl-leg b{color:var(--txt)}
-.fnl-n{width:64px;text-align:right;font-weight:700;font-size:14px;white-space:nowrap;flex-shrink:0}
+.fnl-n{width:34px;text-align:right;font-weight:700;font-size:14px;white-space:nowrap;flex-shrink:0}
   .actgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;padding:6px 0}
   .actgrid .n{font-size:22px;font-weight:750;letter-spacing:-.02em}.actgrid .l{font-size:11px;color:var(--muted)}
   .act-card{display:flex;flex-direction:column}
@@ -4638,7 +4638,7 @@ function renderPanel(){
   const maxE=Math.max(1,conteoE('nuevo'),conteoE('vendido'));
   const fnlSeg=(label,parts,onclick)=>{const tot=parts.reduce((s,p)=>s+p.n,0);const w=tot?100:0; // la barra siempre completa: los colores se reparten según la proporción de cada grupo
     return `<div class="fnl" style="cursor:pointer" onclick="${onclick}"><div class="fnl-l">${label}</div><div class="fnl-bar"><div class="seg" style="width:${w}%">${parts.filter(p=>p.n>0).map(p=>`<span style="flex:${p.n} 0 0;background:${p.color}"></span>`).join('')}</div></div><div class="fnl-n">${tot}</div></div><div class="fnl-leg">${parts.map(p=>`<span><i style="background:${p.color}"></i>${p.l} <b>${p.n}</b></span>`).join('')}</div>`;};
-  const fnlEtapa=e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;};
+  const fnlEtapa=e=>{const n=conteoE(e.id);return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n}</div></div>`;};
   const conv=total?Math.round((AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length/total)*100):0;
   let seguimSemana=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguimSemana++;}));
   const nuevosSemana=NUEV.filter(c=>(c.creado||'')>=weekAgo).length;
