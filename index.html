@@ -1343,15 +1343,15 @@ function _buscaCliente(c,q){q=String(q||'').trim().toLowerCase();if(!q)return tr
   if(((c.nombre||'')+' '+(c.producto||'')+' '+(c.whatsapp||'')).toLowerCase().indexOf(q)>=0)return true;
   const qd=_soloDig(q);if(qd.length>=2){const nd=_soloDig(c.whatsapp||'');if(nd&&nd.indexOf(qd)>=0)return true;}
   return false;}
-function listFiltered(){const q=(filtro||'');let l=activos().filter(c=>_buscaCliente(c,q));if(filtroVend)l=l.filter(c=>c.vendedorId===filtroVend);if(filtroEtapa)l=l.filter(c=>c.etapa===filtroEtapa);return l.sort((a,b)=>creaKey(b)-creaKey(a));}
+function listFiltered(){const q=(filtro||'');let l=activos().filter(c=>_buscaCliente(c,q)&&_enRango('list',c.creado));if(filtroVend)l=l.filter(c=>c.vendedorId===filtroVend);if(filtroEtapa)l=l.filter(c=>c.etapa===filtroEtapa);return l.sort((a,b)=>creaKey(b)-creaKey(a));}
 function listRowsHTML(){const list=listFiltered();let r='';for(const c of list){const e=etapaDe(c.etapa),t=temperatura(c);r+=`<tr onclick="verFicha('${c.id}')"><td><b>${esc(c.nombre)}</b></td><td>${esc(telVer(c.whatsapp)||'—')}</td><td>${esc(c.producto)}</td><td><span class="tag" style="background:${e.color}22;color:${e.color}">${e.nombre}</span></td><td>${t?`<span style="color:${t.color};font-weight:700">${t.emoji} ${t.label}</span>`:'—'}</td><td>${c.proximo?fmtFecha(c.proximo):'—'}</td><td>${waIc(c)}</td></tr>`;}return r||`<tr><td colspan="7"><div class="empty" style="padding:14px">Sin resultados${filtro?' para "'+esc(filtro)+'"':''}</div></td></tr>`;}
 // Al buscar: actualiza SOLO la tabla, sin redibujar la página (sin parpadeo).
-function filtrarLista(v){filtro=v;const tb=document.getElementById('cli-tbody');if(tb)tb.innerHTML=listRowsHTML();const sub=document.getElementById('list-sub');if(sub)sub.textContent=activos().length+' clientes en total'+(v?(' · '+listFiltered().length+' coinciden'):'');}
+function filtrarLista(v){filtro=v;const tb=document.getElementById('cli-tbody');if(tb)tb.innerHTML=listRowsHTML();const sub=document.getElementById('list-sub');if(sub)sub.textContent=activos().length+' clientes en total'+((v||_rg('list').desde||_rg('list').hasta)?(' · '+listFiltered().length+' coinciden'+_rangoTxt('list')):'');}
 // Vista agrupada por vendedor (para supervisor/dueño): en vez de una lista suelta, cada vendedor
 // con sus clientes, cantidad y cuántos calientes/atrasados tiene.
 function gruposHTML(){
   const q=(filtro||'').toLowerCase();
-  const base=activos().filter(c=>!q||(c.nombre+' '+c.whatsapp+' '+c.producto).toLowerCase().includes(q));
+  const base=activos().filter(c=>(!q||(c.nombre+' '+c.whatsapp+' '+c.producto).toLowerCase().includes(q))&&_enRango('list',c.creado));
   if(!base.length)return '<div class="empty" style="padding:16px">Sin resultados'+(q?' para "'+esc(filtro)+'"':'')+'</div>';
   const byVend={};base.forEach(c=>{const k=c.vendedorId||'—';(byVend[k]=byVend[k]||[]).push(c);});
   const ids=Object.keys(byVend).sort((a,b)=>byVend[b].length-byVend[a].length);
@@ -1372,15 +1372,15 @@ function renderList(){
     const nV=new Set(activos().map(c=>c.vendedorId)).size;
     main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>👥 Clientes del equipo</h1></div><div class="sub" id="list-sub">${activos().length} clientes · ${nV} vendedor(es)${filtro?' · filtrando "'+esc(filtro)+'"':''}</div>
       <input id="cli-search" aria-label="Buscar clientes" placeholder="🔎 Buscar por nombre, teléfono o producto…" oninput="filtrarGrupos(this.value)" value="${esc(filtro)}" style="width:100%;max-width:440px;padding:11px 14px;border:1px solid var(--sep-strong);border-radius:8px;margin-bottom:16px;font-size:13.5px;background:var(--card)">
-      <div id="grp-wrap">${gruposHTML()}</div></div>`;
+      ${_rangoBar('list')}<div id="grp-wrap">${gruposHTML()}</div></div>`;
     return;
   }
   let banner='';
   if(filtroVend)banner=`<div class="vend-banner"><div>👤 Viendo la cartera de <b>${esc(nombreVend(filtroVend))}</b></div><button class="mini" onclick="filtroVend='';render()">Quitar filtro</button></div>`;
   else if(filtroEtapa)banner=`<div class="vend-banner"><div>Etapa: <b>${esc(etapaDe(filtroEtapa).nombre)}</b></div><button class="mini" onclick="filtroEtapa='';render()">Quitar filtro</button></div>`;
-  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Todos los clientes</h1><div class="head-btns"><button class="btn ghost cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub" id="list-sub">${activos().length} clientes en total${filtro?` · ${listFiltered().length} coinciden`:''}</div>${banner}
+  main.innerHTML=`<div class="page"><div class="conv-head-row"><h1>Todos los clientes</h1><div class="head-btns"><button class="btn ghost cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub" id="list-sub">${activos().length} clientes en total${(filtro||_rg('list').desde||_rg('list').hasta)?` · ${listFiltered().length} coinciden${_rangoTxt('list')}`:''}</div>${banner}
     <input id="cli-search" aria-label="Buscar clientes" placeholder="🔎 Buscar por nombre, teléfono o producto…" oninput="filtrarLista(this.value)" value="${esc(filtro)}" style="width:100%;max-width:440px;padding:11px 14px;border:1px solid var(--sep-strong);border-radius:8px;margin-bottom:16px;font-size:13.5px;background:var(--card)">
-    <div class="tbl-scroll"><table><thead><tr><th>Cliente</th><th>WhatsApp</th><th>Producto</th><th>Etapa</th><th>Prioridad</th><th>Seguir</th><th>Chat</th></tr></thead><tbody id="cli-tbody">${listRowsHTML()}</tbody></table></div>
+    ${_rangoBar('list')}<div class="tbl-scroll"><table><thead><tr><th>Cliente</th><th>WhatsApp</th><th>Producto</th><th>Etapa</th><th>Prioridad</th><th>Seguir</th><th>Chat</th></tr></thead><tbody id="cli-tbody">${listRowsHTML()}</tbody></table></div>
   </div>`;
 }
 /* ---- SEGUIMIENTO ---- */
@@ -1396,8 +1396,8 @@ function renderSeg(){
 }
 /* ---- CALIENTES ---- */
 function renderCalientes(){
-  const list=ordenados().filter(c=>{const t=temperatura(c);return t&&t.id==='caliente';});
-  let h=`<div class="page"><h1>🔥 Calientes</h1><div class="sub">${list.length} clientes calientes, agrupados por su próximo contacto.</div>`;
+  const list=ordenados().filter(c=>{const t=temperatura(c);return t&&t.id==='caliente'&&_enRango('calientes',c.creado);});
+  let h=`<div class="page"><h1>🔥 Calientes</h1><div class="sub">${list.length} clientes calientes${_rangoTxt('calientes')}, agrupados por su próximo contacto.</div>${_rangoBar('calientes')}`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay clientes calientes ahora.</div></div>';return;}
   const grupos=[{id:'atrasado',emoji:'🔴',label:'Atrasados'},{id:'hoy',emoji:'🟡',label:'Hoy'},{id:'proximos',emoji:'🔵',label:'Próximos días'},{id:'semana',emoji:'🗓️',label:'Próxima semana'},{id:'sinfecha',emoji:'📭',label:'Sin fecha agendada'}];
   for(const g of grupos){
@@ -1411,8 +1411,8 @@ function renderCalientes(){
 }
 /* ---- FRÍOS (sin contactar) ---- */
 function renderFrios(){
-  const list=activos().filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');}).sort((a,b)=>creaKey(b)-creaKey(a));
-  let h=`<div class="page"><h1>❄️ Fríos — sin contactar</h1><div class="sub">${list.length} clientes con los que casi no tuviste contacto. Dales un primer toque para activarlos.</div><div class="note">💡 <div>Son leads que entraron pero quedaron sin seguimiento. Tocá el botón verde para escribirles por WhatsApp.</div></div>`;
+  const list=activos().filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio')&&_enRango('frios',c.creado);}).sort((a,b)=>creaKey(b)-creaKey(a));
+  let h=`<div class="page"><h1>❄️ Fríos — sin contactar</h1><div class="sub">${list.length} clientes con los que casi no tuviste contacto${_rangoTxt('frios')}. Dales un primer toque para activarlos.</div><div class="note">💡 <div>Son leads que entraron pero quedaron sin seguimiento. Tocá el botón verde para escribirles por WhatsApp.</div></div>${_rangoBar('frios')}`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay clientes fríos 🎉</div></div>';return;}
   h+='<div class="panelcard">';
   for(const c of list)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','frios')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div>${waIc(c)}</div>`;
@@ -1423,12 +1423,12 @@ function esNotaAuto(t){t=(t||'').trim();return t.startsWith('🏷')||t.startsWit
 function tieneNotaReal(c){return (c.log||[]).some(l=>{const t=(l.texto||'').trim();return t&&!esNotaAuto(t);});}
 function sinAnotar(c){return !tieneNotaReal(c);}
 function renderPorAnotar(){
-  const list=activos().filter(sinAnotar).sort((a,b)=>creaKey(b)-creaKey(a));
-  let h=`<div class="page"><h1>📝 Por anotar</h1><div class="sub">${list.length} clientes sin ninguna nota tuya — o que solo tienen la etiqueta importada. Abrilos y anotá lo que sabés.</div><div class="note">💡 <div>Acá caen los clientes donde todavía no escribiste nada propio. Tocá uno para abrir su ficha y agregar una nota o programar un próximo contacto.</div></div>`;
+  const list=activos().filter(c=>sinAnotar(c)&&_enRango('anotar',c.creado)).sort((a,b)=>creaKey(b)-creaKey(a));
+  let h=`<div class="page"><h1>📝 Por anotar</h1><div class="sub">${list.length} clientes sin ninguna nota tuya${_rangoTxt('anotar')} — o que solo tienen la etiqueta importada. Abrilos y anotá lo que sabés.</div><div class="note">💡 <div>Acá caen los clientes donde todavía no escribiste nada propio. Tocá uno para abrir su ficha y agregar una nota o programar un próximo contacto.</div></div>${_rangoBar('anotar')}`;
   if(!list.length){main.innerHTML=h+'<div class="empty">¡Todos tienen al menos una nota tuya! 🎉</div></div>';return;}
-  h+='<div class="panelcard">';
-  for(const c of list){const soloEtiqueta=(c.log||[]).length>0;h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','anotar')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div><span class="chip">${soloEtiqueta?'Solo etiqueta':'Sin nada'}</span>${waIc(c)}</div>`;}
-  main.innerHTML=h+'</div></div>';
+  // Tres bloques por fecha de alta: hoy / esta semana / otros días (el más nuevo primero en cada uno).
+  const fila=c=>{const soloEtiqueta=(c.log||[]).length>0;return `<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','anotar')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div><span class="chip">${soloEtiqueta?'Solo etiqueta':'Sin nada'}</span>${waIc(c)}</div>`;};
+  main.innerHTML=h+_tresBloques(list,creaKey,fila,['🟢 Cargados hoy','🟠 De esta semana','🕓 De otros días'])+'</div>';
 }
 /* ---- NUEVO CLIENTE (modal) ---- */
 function abrirNuevoCliente(){
@@ -4521,13 +4521,17 @@ function _rangoPick(v,w){const r=_rg(v);appDate({titulo:w==='desde'?'Desde':'Has
 function _rangoClear(v){_rango[v]={desde:'',hasta:''};render();}
 function _enRango(v,f){const r=_rg(v);f=(f||'').slice(0,10);if(r.desde&&(!f||f<r.desde))return false;if(r.hasta&&(!f||f>r.hasta))return false;return true;}
 function _rangoTxt(v){const r=_rg(v);if(!r.desde&&!r.hasta)return '';return ' · '+(r.desde?'desde '+fmtFecha(r.desde):'')+(r.desde&&r.hasta?' ':'')+(r.hasta?'hasta '+fmtFecha(r.hasta):'');}
+// Parte una lista en tres tarjetas: hoy / esta semana (desde el lunes) / otros días, según la fecha que devuelva tsFn (ms).
+function _tresBloques(list,tsFn,fila,labels){const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();const l=new Date(d0);l.setDate(l.getDate()-((l.getDay()+6)%7));const tl=l.getTime();
+  const g=[[labels[0],list.filter(c=>tsFn(c)>=t0)],[labels[1],list.filter(c=>{const t=tsFn(c);return t<t0&&t>=tl;})],[labels[2],list.filter(c=>tsFn(c)<tl)]];
+  return g.map(([t,arr])=>arr.length?`<div class="panelcard"><h3>${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>${arr.map(fila).join('')}</div>`:'').join('');}
 function _fechaTs(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function renderAgendaSec(estado){
   const info=AG_SECS[estado];
   // Atrasados: puro orden por fecha (más atrasado arriba). Resto: calientes primero, luego por fecha.
-  const list=activos().filter(c=>enBucket(c,estado)&&_enRango(estado,c.proximo)).sort((a,b)=> estado==='atrasado' ? (proxDateTime(a)-proxDateTime(b)) : (proxDateTime(b)-proxDateTime(a)));
+  const list=activos().filter(c=>enBucket(c,estado)&&(estado==='hoy'||_enRango(estado,c.proximo))).sort((a,b)=> estado==='atrasado' ? (proxDateTime(a)-proxDateTime(b)) : (proxDateTime(b)-proxDateTime(a)));
   const nCal=list.filter(esCalienteT).length;
-  let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s)${_rangoTxt(estado)}. ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>${_rangoBar(estado)}`;
+  let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s)${estado==='hoy'?'':_rangoTxt(estado)}. ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>${estado==='hoy'?'':_rangoBar(estado)}`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
   const fila=c=>{const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');return `<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}</div>${c.whatsapp?`<div style="font-size:12.5px;color:var(--muted)">${esc(telVer(c.whatsapp))}</div>`:''}</div>${waIc(c)}</div>`;};
   if(estado==='hoy'){
