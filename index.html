@@ -3509,6 +3509,11 @@ function _pvTip(ev,html){let t=document.getElementById('pv-tip');if(!t){t=docume
 function _pvTipHide(){const t=document.getElementById('pv-tip');if(t)t.style.display='none';}
 // En el celu no hay "mouseleave": el globito se cierra al tocar fuera del gráfico.
 document.addEventListener('touchstart',e=>{const t=e.target;if(!(t&&t.closest&&t.closest('.pv-svg,.wb,.vline')))_pvTipHide();},{passive:true});
+// Barras de clientes nuevos: en el celu la info se cierra sola apenas empezás a deslizar.
+function _wbTip(ev,html){_pvTip(ev,html);const t=document.getElementById('pv-tip');if(t)t.dataset.src='wb';}
+function _wbTipHideOnScroll(){const t=document.getElementById('pv-tip');if(t&&t.dataset.src==='wb'){t.style.display='none';t.dataset.src='';}}
+document.addEventListener('touchmove',_wbTipHideOnScroll,{passive:true});
+document.addEventListener('scroll',_wbTipHideOnScroll,true);
 function _pvKpi(ic,label,val,bg,col){return '<div class="pv-kpi"><span class="pv-kico" style="background:'+bg+';color:'+col+'">'+ic+'</span><div class="pv-kbody"><div class="pv-klabel">'+esc(label)+'</div><div class="pv-kval">'+esc(String(val))+'</div></div></div>';}
 let _pvLineGeom=null;
 function _pvLineSVG(days,dV,dP){
@@ -4645,7 +4650,7 @@ function renderPanel(){
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
     <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;}).join('')}</div>
-    <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb" onmousemove="_pvTip(event,'${_pvJs(d.tip)}')" onmouseleave="_pvTipHide()"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
+    <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb" onmousemove="_wbTip(event,'${_pvJs(d.tip)}')" onmouseleave="_pvTipHide()"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
     <div class="dash-cols">
       <div class="panelcard" id="pd-card" style="display:flex;flex-direction:column">${_prodDonutCard(NUEV)}</div>
       <div class="panelcard act-card"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">${ventasSemLista.length}</div><div class="l">Ventas cerradas</div></div><div><div class="n">🗑️ ${descartadosSem}</div><div class="l">Descartados</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
