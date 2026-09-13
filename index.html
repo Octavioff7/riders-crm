@@ -623,7 +623,9 @@
   .fnl-l{width:96px;font-size:13px;font-weight:600;color:var(--txt);flex-shrink:0}
   .fnl-bar{flex:1;height:22px;background:var(--hover);border-radius:6px;overflow:hidden}
   .fnl-bar>div{height:100%;border-radius:6px;min-width:3px;transition:width .3s}
-  .fnl-n{width:64px;text-align:right;font-weight:700;font-size:14px;white-space:nowrap;flex-shrink:0}
+  .fnl-bar .seg{display:flex;height:100%}.fnl-bar .seg span{height:100%;min-width:2px}
+.fnl-leg{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:11.5px;color:var(--muted);margin:-1px 0 7px 106px}.fnl-leg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}.fnl-leg b{color:var(--txt)}
+.fnl-n{width:64px;text-align:right;font-weight:700;font-size:14px;white-space:nowrap;flex-shrink:0}
   .actgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;padding:6px 0}
   .actgrid .n{font-size:22px;font-weight:750;letter-spacing:-.02em}.actgrid .l{font-size:11px;color:var(--muted)}
   .act-card{display:flex;flex-direction:column}
@@ -4626,7 +4628,17 @@ function renderPanel(){
   const ventasMesMonto=vendidosMes.reduce((s,c)=>s+(Number(c.valor)||0),0);
   const gananciaMes=vendidosMes.reduce((s,c)=>s+_comisionVenta(c),0);
   const conteoE=id=>AA.filter(c=>c.etapa===id).length;
-  const maxE=Math.max(1,...ETAPAS.map(e=>conteoE(e.id)));
+  // Embudo: barra "Atrasados" (hoy / esta semana / otros días) y barra "Para hoy" (atender / atendidos).
+  const atrL=AA.filter(c=>enBucket(c,'atrasado'));
+  const atrH=atrL.filter(esHoy).length,atrS=atrL.filter(c=>!esHoy(c)&&c.proximo>=weekAgo).length,atrO=atrL.filter(c=>!esHoy(c)&&c.proximo<weekAgo).length;
+  const hoyAll=AA.filter(c=>enBucket(c,'hoy'));
+  const hechoHoy=c=>(c.log||[]).some(l=>l.fecha===today&&/^✅ Contacto realizado/.test(l.texto||'')); // marcado "hecho" hoy (ya no tiene fecha)
+  const hoyAtend=hoyAll.filter(c=>c.ultimoContacto===today).length+AA.filter(c=>!hoyAll.includes(c)&&hechoHoy(c)).length;
+  const hoyPend=hoyAll.filter(c=>c.ultimoContacto!==today).length;
+  const maxE=Math.max(1,conteoE('nuevo'),conteoE('vendido'),atrH+atrS+atrO,hoyPend+hoyAtend);
+  const fnlSeg=(label,parts,onclick)=>{const tot=parts.reduce((s,p)=>s+p.n,0);const w=Math.round(tot/maxE*100);const pct=total?Math.round(tot/total*100):0;
+    return `<div class="fnl" style="cursor:pointer" onclick="${onclick}"><div class="fnl-l">${label}</div><div class="fnl-bar"><div class="seg" style="width:${w}%">${parts.filter(p=>p.n>0).map(p=>`<span style="flex:${p.n} 0 0;background:${p.color}"></span>`).join('')}</div></div><div class="fnl-n">${tot} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div><div class="fnl-leg">${parts.map(p=>`<span><i style="background:${p.color}"></i>${p.l} <b>${p.n}</b></span>`).join('')}</div>`;};
+  const fnlEtapa=e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;};
   const conv=total?Math.round((AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length/total)*100):0;
   let seguimSemana=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguimSemana++;}));
   const nuevosSemana=NUEV.filter(c=>(c.creado||'')>=weekAgo).length;
@@ -4678,7 +4690,7 @@ function renderPanel(){
       <div class="tile cold"><div class="n">❄️ ${frios.length}</div><div class="l">Sin contactar</div></div>
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
-    <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una etapa para ver sus clientes</span></h3>${ETAPAS.filter(e=>e.id!=='posventa').map(e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;}).join('')}</div>
+    <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}% · tocá una barra para ver sus clientes</span></h3>${fnlEtapa(etapaDe('nuevo'))}${fnlSeg('Atrasados',[{l:'Hoy',n:atrH,color:'#ffcc00'},{l:'Esta semana',n:atrS,color:'#ff9f0a'},{l:'Otros días',n:atrO,color:'#ff3b30'}],"irVista('atrasado')")}${fnlSeg('Para hoy',[{l:'Atender',n:hoyPend,color:'#ff9f0a'},{l:'Atendidos',n:hoyAtend,color:'#34c759'}],"irVista('hoy')")}${fnlEtapa(etapaDe('vendido'))}</div>
     <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom) · incluye los enviados a papelera</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb" onmousemove="_wbTip(event,'${_pvJs(d.tip)}')" onmouseleave="_pvTipHide()"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
     <div class="dash-cols">
       <div class="panelcard" id="pd-card" style="display:flex;flex-direction:column">${_prodDonutCard(NUEV)}</div>
