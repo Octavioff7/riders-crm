@@ -4635,8 +4635,8 @@ function renderPanel(){
   const hechoHoy=c=>(c.log||[]).some(l=>l.fecha===today&&/^✅ Contacto realizado/.test(l.texto||'')); // marcado "hecho" hoy (ya no tiene fecha)
   const hoyAtend=hoyAll.filter(c=>c.ultimoContacto===today).length+AA.filter(c=>!hoyAll.includes(c)&&hechoHoy(c)).length;
   const hoyPend=hoyAll.filter(c=>c.ultimoContacto!==today).length;
-  const maxE=Math.max(1,conteoE('nuevo'),conteoE('vendido'),atrH+atrS+atrO,hoyPend+hoyAtend);
-  const fnlSeg=(label,parts,onclick)=>{const tot=parts.reduce((s,p)=>s+p.n,0);const w=Math.round(tot/maxE*100);const pct=total?Math.round(tot/total*100):0;
+  const maxE=Math.max(1,conteoE('nuevo'),conteoE('vendido'));
+  const fnlSeg=(label,parts,onclick)=>{const tot=parts.reduce((s,p)=>s+p.n,0);const w=tot?100:0;const pct=total?Math.round(tot/total*100):0; // la barra siempre completa: los colores se reparten según la proporción de cada grupo
     return `<div class="fnl" style="cursor:pointer" onclick="${onclick}"><div class="fnl-l">${label}</div><div class="fnl-bar"><div class="seg" style="width:${w}%">${parts.filter(p=>p.n>0).map(p=>`<span style="flex:${p.n} 0 0;background:${p.color}"></span>`).join('')}</div></div><div class="fnl-n">${tot} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div><div class="fnl-leg">${parts.map(p=>`<span><i style="background:${p.color}"></i>${p.l} <b>${p.n}</b></span>`).join('')}</div>`;};
   const fnlEtapa=e=>{const n=conteoE(e.id);const pct=total?Math.round(n/total*100):0;return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n} <span style="color:var(--muted);font-weight:500;font-size:11px">${pct}%</span></div></div>`;};
   const conv=total?Math.round((AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length/total)*100):0;
