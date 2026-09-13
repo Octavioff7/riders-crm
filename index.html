@@ -2123,9 +2123,10 @@ function _ncRows(){
   };
   // Separadas: las que entraron hoy arriba, las de días anteriores abajo (en cada bloque, la más nueva primero).
   const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();
-  const deHoy=list.filter(c=>_consultaTs(c)>=t0),ant=list.filter(c=>_consultaTs(c)<t0);
-  const sec=(t,arr)=>`<h3 class="nc-sec">${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>`+arr.map(fila).join('');
-  cont.innerHTML=(deHoy.length?sec('🟢 Llegaron hoy',deHoy):'')+(ant.length?sec('🕓 Días anteriores',ant):'');
+  const _l=new Date(d0);_l.setDate(_l.getDate()-((_l.getDay()+6)%7));const tl=_l.getTime(); // lunes de esta semana
+  const deHoy=list.filter(c=>_consultaTs(c)>=t0),sem=list.filter(c=>{const t=_consultaTs(c);return t<t0&&t>=tl;}),ant=list.filter(c=>_consultaTs(c)<tl);
+  const sec=(t,arr)=>arr.length?`<h3 class="nc-sec">${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>`+arr.map(fila).join(''):'';
+  cont.innerHTML=sec('🟢 Llegaron hoy',deHoy)+sec('🟠 De esta semana',sem)+sec('🕓 De otros días',ant);
 }
 function abrirConsulta(id){abrirEnCtx(id,'nuevas');}
 // Guardar: recien aca la consulta deja de estar "sin atender" y pasa a la seccion que le corresponda.
