@@ -1140,13 +1140,13 @@ function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados()
 function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(telVer(c.whatsapp)):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
 // Bloques dentro de la lista de la izquierda (vista PC): los mismos cortes que muestra la sección.
 function _ctxGrupos(ctx,list){
-  const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();const l=new Date(d0);l.setDate(l.getDate()-((l.getDay()+6)%7));const tl=l.getTime();
+  const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();const tl=t0-7*86400000; // "últimos 7 días" = los 7 días previos a hoy
   const tres=(tsFn,labels)=>[[labels[0],list.filter(c=>tsFn(c)>=t0)],[labels[1],list.filter(c=>{const t=tsFn(c);return t<t0&&t>=tl;})],[labels[2],list.filter(c=>tsFn(c)<tl)]];
   const asc=(a,b)=>proxDateTime(a)-proxDateTime(b),desc=(a,b)=>proxDateTime(b)-proxDateTime(a);
-  if(ctx==='atrasado')return tres(c=>proxDateTime(c).getTime(),['🟡 Atrasados de hoy','🟠 Atrasados de esta semana','🔴 De días anteriores']).map(([t,arr])=>[t,arr.slice().sort(desc)]);
+  if(ctx==='atrasado')return tres(c=>proxDateTime(c).getTime(),['🟡 Atrasados de hoy','🟠 Atrasados · últimos 7 días','🔴 De días anteriores']).map(([t,arr])=>[t,arr.slice().sort(desc)]);
   if(ctx==='hoy')return [['🔴 De hoy, atrasados',list.filter(esAtrasado).sort(asc)],['🟡 Pendientes de hoy',list.filter(c=>!esAtrasado(c)).sort(asc)]];
-  if(ctx==='nuevas')return tres(_consultaTs,['🟢 Llegaron hoy','🟠 De esta semana','🕓 De otros días']);
-  if(ctx==='anotar')return tres(creaKey,['🟢 Cargados hoy','🟠 De esta semana','🕓 De otros días']);
+  if(ctx==='nuevas')return tres(_consultaTs,['🟢 Llegaron hoy','🟠 Últimos 7 días','🕓 De otros días']);
+  if(ctx==='anotar'||ctx==='calientes'||ctx==='frios')return tres(creaKey,['🟢 Cargados hoy','🟠 Últimos 7 días','🕓 De otros días']);
   return null;
 }
 function convListItems(){const l=filteredConvs();if(!l.length)return '<div class="empty" style="margin:14px">Sin clientes</div>';const g=inboxCtx?_ctxGrupos(inboxCtx,l):null;if(!g)return l.map(convRow).join('');
@@ -1420,26 +1420,19 @@ function renderSeg(){
 /* ---- CALIENTES ---- */
 function renderCalientes(){
   const list=ordenados().filter(c=>{const t=temperatura(c);return t&&t.id==='caliente'&&_enRango('calientes',c.creado);});
-  let h=`<div class="page"><h1>🔥 Calientes</h1><div class="sub">${list.length} clientes calientes${_rangoTxt('calientes')}, agrupados por su próximo contacto.</div>${_rangoBar('calientes')}`;
+  let h=`<div class="page"><h1>🔥 Calientes</h1><div class="sub">${list.length} clientes calientes${_rangoTxt('calientes')}.</div>${_rangoBar('calientes')}`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay clientes calientes ahora.</div></div>';return;}
-  const grupos=[{id:'atrasado',emoji:'🔴',label:'Atrasados'},{id:'hoy',emoji:'🟡',label:'Hoy'},{id:'proximos',emoji:'🔵',label:'Próximos días'},{id:'semana',emoji:'🗓️',label:'Próxima semana'},{id:'sinfecha',emoji:'📭',label:'Sin fecha agendada'}];
-  for(const g of grupos){
-    const cs=list.filter(c=> g.id==='sinfecha' ? !c.proximo : enBucket(c,g.id));
-    if(!cs.length)continue;
-    h+=`<div class="panelcard"><h3>${g.emoji} ${g.label} <span style="color:var(--muted);font-weight:600">· ${cs.length}</span></h3>`;
-    for(const c of cs)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','calientes')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${c.proximo?('📅 '+esc(c.proximoTipo||'Seguimiento')+' · '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):'')):esc(telVer(c.whatsapp)||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
-    h+='</div>';
-  }
-  main.innerHTML=h+'</div>';
+  // Bloques por fecha de alta: hoy / últimos 7 días / otros días (el más nuevo primero en cada uno).
+  const fila=c=>`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','calientes')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${c.proximo?('📅 '+esc(c.proximoTipo||'Seguimiento')+' · '+fmtFecha(c.proximo)+(c.proximoHora?' '+esc(c.proximoHora):'')):esc(telVer(c.whatsapp)||'sin número')}</div></div><span class="chip">${esc(c.producto)}</span>${waIc(c)}</div>`;
+  main.innerHTML=h+_tresBloques(list.slice().sort((a,b)=>creaKey(b)-creaKey(a)),creaKey,fila,['🟢 Cargados hoy','🟠 Últimos 7 días','🕓 De otros días'])+'</div>';
 }
 /* ---- FRÍOS (sin contactar) ---- */
 function renderFrios(){
   const list=activos().filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio')&&_enRango('frios',c.creado);}).sort((a,b)=>creaKey(b)-creaKey(a));
   let h=`<div class="page"><h1>❄️ Fríos — sin contactar</h1><div class="sub">${list.length} clientes con los que casi no tuviste contacto${_rangoTxt('frios')}. Dales un primer toque para activarlos.</div><div class="note">💡 <div>Son leads que entraron pero quedaron sin seguimiento. Tocá el botón verde para escribirles por WhatsApp.</div></div>${_rangoBar('frios')}`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay clientes fríos 🎉</div></div>';return;}
-  h+='<div class="panelcard">';
-  for(const c of list)h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','frios')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div>${waIc(c)}</div>`;
-  main.innerHTML=h+'</div></div>';
+  const fila=c=>`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','frios')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div>${waIc(c)}</div>`;
+  main.innerHTML=h+_tresBloques(list,creaKey,fila,['🟢 Cargados hoy','🟠 Últimos 7 días','🕓 De otros días'])+'</div>';
 }
 /* ---- POR ANOTAR (sin nota propia) ---- */
 function esNotaAuto(t){t=(t||'').trim();return t.startsWith('🏷')||t.startsWith('💬')||t.startsWith('📅')||t.startsWith('✅');}
@@ -1451,7 +1444,7 @@ function renderPorAnotar(){
   if(!list.length){main.innerHTML=h+'<div class="empty">¡Todos tienen al menos una nota tuya! 🎉</div></div>';return;}
   // Tres bloques por fecha de alta: hoy / esta semana / otros días (el más nuevo primero en cada uno).
   const fila=c=>{const soloEtiqueta=(c.log||[]).length>0;return `<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','anotar')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div><span class="chip">${soloEtiqueta?'Solo etiqueta':'Sin nada'}</span>${waIc(c)}</div>`;};
-  main.innerHTML=h+_tresBloques(list,creaKey,fila,['🟢 Cargados hoy','🟠 De esta semana','🕓 De otros días'])+'</div>';
+  main.innerHTML=h+_tresBloques(list,creaKey,fila,['🟢 Cargados hoy','🟠 Últimos 7 días','🕓 De otros días'])+'</div>';
 }
 /* ---- NUEVO CLIENTE (modal) ---- */
 function abrirNuevoCliente(){
@@ -2147,10 +2140,10 @@ function _ncRows(){
   };
   // Separadas: las que entraron hoy arriba, las de días anteriores abajo (en cada bloque, la más nueva primero).
   const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();
-  const _l=new Date(d0);_l.setDate(_l.getDate()-((_l.getDay()+6)%7));const tl=_l.getTime(); // lunes de esta semana
+  const tl=t0-7*86400000; // "últimos 7 días" = los 7 días previos a hoy
   const deHoy=list.filter(c=>_consultaTs(c)>=t0),sem=list.filter(c=>{const t=_consultaTs(c);return t<t0&&t>=tl;}),ant=list.filter(c=>_consultaTs(c)<tl);
   const sec=(t,arr)=>arr.length?`<h3 class="nc-sec">${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>`+arr.map(fila).join(''):'';
-  cont.innerHTML=sec('🟢 Llegaron hoy',deHoy)+sec('🟠 De esta semana',sem)+sec('🕓 De otros días',ant);
+  cont.innerHTML=sec('🟢 Llegaron hoy',deHoy)+sec('🟠 Últimos 7 días',sem)+sec('🕓 De otros días',ant);
 }
 function abrirConsulta(id){abrirEnCtx(id,'nuevas');}
 // Guardar: recien aca la consulta deja de estar "sin atender" y pasa a la seccion que le corresponda.
@@ -4546,7 +4539,7 @@ function _rangoClear(v){_rango[v]={desde:'',hasta:''};render();}
 function _enRango(v,f){const r=_rg(v);f=(f||'').slice(0,10);if(r.desde&&(!f||f<r.desde))return false;if(r.hasta&&(!f||f>r.hasta))return false;return true;}
 function _rangoTxt(v){const r=_rg(v);if(!r.desde&&!r.hasta)return '';return ' · '+(r.desde?'desde '+fmtFecha(r.desde):'')+(r.desde&&r.hasta?' ':'')+(r.hasta?'hasta '+fmtFecha(r.hasta):'');}
 // Parte una lista en tres tarjetas: hoy / esta semana (desde el lunes) / otros días, según la fecha que devuelva tsFn (ms).
-function _tresBloques(list,tsFn,fila,labels){const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();const l=new Date(d0);l.setDate(l.getDate()-((l.getDay()+6)%7));const tl=l.getTime();
+function _tresBloques(list,tsFn,fila,labels){const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();const tl=t0-7*86400000; // "últimos 7 días" = los 7 días previos a hoy
   const g=[[labels[0],list.filter(c=>tsFn(c)>=t0)],[labels[1],list.filter(c=>{const t=tsFn(c);return t<t0&&t>=tl;})],[labels[2],list.filter(c=>tsFn(c)<tl)]];
   return g.map(([t,arr])=>arr.length?`<div class="panelcard"><h3>${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>${arr.map(fila).join('')}</div>`:'').join('');}
 function _fechaTs(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -4568,11 +4561,11 @@ function renderAgendaSec(estado){
   if(estado==='atrasado'){
     // Atrasados: los de hoy arriba y los de días anteriores abajo; en cada bloque, el más reciente primero.
     const desc=(a,b)=>proxDateTime(b)-proxDateTime(a);
-    // La semana arranca el lunes (igual que en el panel): "esta semana" = del lunes hasta ayer.
-    const _l=new Date();_l.setHours(0,0,0,0);_l.setDate(_l.getDate()-((_l.getDay()+6)%7));const lun=_l.getFullYear()+'-'+String(_l.getMonth()+1).padStart(2,'0')+'-'+String(_l.getDate()).padStart(2,'0');
+    // "Últimos 7 días" = los 7 días previos a hoy (no la semana calendario).
+    const lun=_fechaTs(Date.now()-7*86400000);
     const deHoy=list.filter(esHoy).sort(desc),sem=list.filter(c=>!esHoy(c)&&c.proximo>=lun).sort(desc),ant=list.filter(c=>!esHoy(c)&&c.proximo<lun).sort(desc);
     const bloque=(t,arr)=>arr.length?`<div class="panelcard"><h3>${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>${arr.map(fila).join('')}</div>`:'';
-    h+=bloque('🟡 Atrasados de hoy',deHoy)+bloque('🟠 Atrasados de esta semana',sem)+bloque('🔴 De días anteriores',ant);
+    h+=bloque('🟡 Atrasados de hoy',deHoy)+bloque('🟠 Atrasados · últimos 7 días',sem)+bloque('🔴 De días anteriores',ant);
     main.innerHTML=h+'</div>';return;
   }
   main.innerHTML=h+'<div class="panelcard">'+list.map(fila).join('')+'</div></div>';
@@ -4682,7 +4675,7 @@ function renderPanel(){
   const conteoE=id=>AA.filter(c=>c.etapa===id).length;
   // Embudo: barra "Atrasados" (hoy / esta semana / otros días) y barra "Para hoy" (atender / atendidos).
   const atrL=AA.filter(c=>enBucket(c,'atrasado'));
-  const atrH=atrL.filter(esHoy).length,atrS=atrL.filter(c=>!esHoy(c)&&c.proximo>=weekAgo).length,atrO=atrL.filter(c=>!esHoy(c)&&c.proximo<weekAgo).length;
+  const atrH=atrL.filter(esHoy).length,h7=_fechaTs(Date.now()-7*86400000),atrS=atrL.filter(c=>!esHoy(c)&&c.proximo>=h7).length,atrO=atrL.filter(c=>!esHoy(c)&&c.proximo<h7).length; // últimos 7 días
   const hoyAll=AA.filter(c=>enBucket(c,'hoy'));
   const hechoHoy=c=>(c.log||[]).some(l=>l.fecha===today&&/^✅ Contacto realizado/.test(l.texto||'')); // marcado "hecho" hoy (ya no tiene fecha)
   const hoyAtend=hoyAll.filter(c=>c.ultimoContacto===today).length+AA.filter(c=>!hoyAll.includes(c)&&hechoHoy(c)).length;
@@ -4736,7 +4729,7 @@ function renderPanel(){
       <div class="tile cold"><div class="n">❄️ ${frios.length}</div><div class="l">Sin contactar</div></div>
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
-    <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}%</span></h3>${fnlEtapa(etapaDe('nuevo'))}${fnlSeg('Atrasados',[{l:'Hoy',n:atrH,color:'#ffcc00'},{l:'Esta semana',n:atrS,color:'#ff9f0a'},{l:'Otros días',n:atrO,color:'#ff3b30'}],"irVista('atrasado')")}${fnlSeg('Para hoy',[{l:'Atender',n:hoyPend,color:'#ff9f0a'},{l:'Atendidos',n:hoyAtend,color:'#34c759'}],"irVista('hoy')")}${fnlEtapa(etapaDe('vendido'))}</div>
+    <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}%</span></h3>${fnlEtapa(etapaDe('nuevo'))}${fnlSeg('Atrasados',[{l:'Hoy',n:atrH,color:'#ffcc00'},{l:'Últimos 7 días',n:atrS,color:'#ff9f0a'},{l:'Otros días',n:atrO,color:'#ff3b30'}],"irVista('atrasado')")}${fnlSeg('Para hoy',[{l:'Atender',n:hoyPend,color:'#ff9f0a'},{l:'Atendidos',n:hoyAtend,color:'#34c759'}],"irVista('hoy')")}${fnlEtapa(etapaDe('vendido'))}</div>
     <div class="panelcard" id="wb-card">${_wbCard().html}</div>
     <div class="dash-cols">
       <div class="panelcard" id="pd-card" style="display:flex;flex-direction:column">${_prodDonutCard(NUEV)}</div>
