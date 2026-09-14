@@ -335,6 +335,7 @@
   .pv-tip{position:fixed;z-index:600;display:none;background:var(--card);border:1px solid var(--sep-strong);border-radius:9px;padding:7px 10px;font-size:12px;color:var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none;white-space:nowrap;line-height:1.5}
 .rango-bar{margin:10px 0 12px}.rango-bar .vf-field{flex:1;min-width:130px}.rango-bar .vf-field label{font-size:11.5px;color:var(--muted);font-weight:600}
 .conv-sec{font-size:11px;font-weight:700;color:var(--muted);padding:12px 10px 4px;display:flex;gap:5px;align-items:center}.conv-sec span{font-weight:600}.conv-sec:first-child{padding-top:6px}
+.wb-nav{border:1px solid var(--sep-strong);background:var(--card);color:var(--txt);border-radius:7px;width:26px;height:26px;font-size:17px;line-height:1;cursor:pointer;font-family:inherit;padding:0}.wb-nav:disabled{opacity:.3;cursor:default}
 .nc-sec{margin:14px 0 6px}.nc-sec:first-child{margin-top:0}
 .pvdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
   .pv-table tbody tr.pv-tot td{background:var(--hover);font-weight:700;border-top:2px solid var(--sep-strong)}
@@ -4620,6 +4621,22 @@ function _prodDonut(list,m){
   if(!segs.some(x=>x.value>0))return '<div class="empty">Sin clientes cargados '+(_PD_TXT[m]||'')+'.</div>';
   return '<div style="display:flex;flex-direction:column;align-items:center;gap:6px">'+_adbDonut(segs)+'</div>';
 }
+// Tarjeta "Clientes nuevos": barras de lunes a domingo, con flechas para ver semanas anteriores (_wbOff = semanas hacia atrás).
+let _wbOff=0,_wbNuev=[];
+function _wbCard(){
+  const pad=n=>String(n).padStart(2,'0');
+  const mon=new Date();mon.setHours(0,0,0,0);mon.setDate(mon.getDate()-((mon.getDay()+6)%7)-7*_wbOff);
+  const dias=[];for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    const cs=_wbNuev.filter(c=>(c.creado||'')===ds);const pr={};let dsc=0;for(const c of cs){if(c.borrado||c.descartado){dsc++;continue;}const p=PRODUCTOS.includes(c.producto)?c.producto:'Otro';pr[p]=(pr[p]||0)+1;}
+    // Globito al pasar el cursor por la barra: qué productos preguntaron ese día (mismo desglose que la rosca).
+    const dl=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i];let tip='<b>'+dl+' '+d.getDate()+'/'+(d.getMonth()+1)+'</b> · '+cs.length+' cliente'+(cs.length===1?'':'s');
+    PRODUCTOS.forEach(p=>{if(pr[p])tip+='<br><span class=pvdot style=background:'+(_PROD_COLOR[p]||'#8e8e93')+'></span>'+esc(p)+' : '+pr[p];});if(dsc)tip+='<br><span class=pvdot style=background:#ff3b30></span>Descartados : '+dsc;
+    dias.push({l:dl,n:cs.length,tip});}
+  const maxDia=Math.max(1,...dias.map(d=>d.n)),tot=dias.reduce((s,d)=>s+d.n,0);
+  const dom=new Date(mon);dom.setDate(mon.getDate()+6);const rng=mon.getDate()+'/'+(mon.getMonth()+1)+' – '+dom.getDate()+'/'+(dom.getMonth()+1);
+  return `<h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">📅 Clientes nuevos <span class="muted" style="font-weight:500">· ${tot}</span><span style="flex:1"></span><button type="button" class="wb-nav" onclick="_wbGo(1)" title="Semana anterior">‹</button><span class="muted" style="font-weight:500;font-size:12px;min-width:78px;text-align:center">${rng}</span><button type="button" class="wb-nav" onclick="_wbGo(-1)" ${_wbOff===0?'disabled':''} title="Semana siguiente">›</button></h3><div class="weekbars">${dias.map(d=>`<div class="wb" onmousemove="_wbTip(event,'${_pvJs(d.tip)}')" onmouseleave="_pvTipHide()"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div>`;
+}
+function _wbGo(d){_wbOff=Math.max(0,_wbOff+d);_pvTipHide();const el=document.getElementById('wb-card');if(el)el.innerHTML=_wbCard();}
 function renderPanel(){
   const T=c=>temperatura(c);
   const AA=activos();
@@ -4663,13 +4680,7 @@ function renderPanel(){
   // (se toma la fecha mas reciente de las dos, para no contar dos veces al mismo cliente).
   const descartadosSem=clientes.filter(c=>_scoped(c)&&(c.descartado||c.borrado)&&_fueraFecha(c)>=weekAgo).length;
   const _dow=(new Date().getDay()+6)%7;const _mon=new Date();_mon.setHours(0,0,0,0);_mon.setDate(_mon.getDate()-_dow);
-  const semanaDias=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-    const cs=NUEV.filter(c=>(c.creado||'')===ds);const pr={};let dsc=0;for(const c of cs){if(c.borrado||c.descartado){dsc++;continue;}const p=PRODUCTOS.includes(c.producto)?c.producto:'Otro';pr[p]=(pr[p]||0)+1;}
-    // Globito al pasar el cursor por la barra: qué productos preguntaron ese día (mismo desglose que la rosca).
-    const dl=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i];let tip='<b>'+dl+' '+d.getDate()+'/'+(d.getMonth()+1)+'</b> · '+cs.length+' cliente'+(cs.length===1?'':'s');
-    PRODUCTOS.forEach(p=>{if(pr[p])tip+='<br><span class=pvdot style=background:'+(_PROD_COLOR[p]||'#8e8e93')+'></span>'+esc(p)+' : '+pr[p];});if(dsc)tip+='<br><span class=pvdot style=background:#ff3b30></span>Descartados : '+dsc;
-    semanaDias.push({l:dl,n:cs.length,tip});}
-  const maxDia=Math.max(1,...semanaDias.map(d=>d.n));
+  _wbNuev=NUEV;_wbOff=0; // datos para la tarjeta "Clientes nuevos" (con flechas para ver semanas anteriores)
   const _mesLbl=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:NUEV.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg,desc:NUEV.filter(c=>(c.descartado||c.borrado)&&_fueraFecha(c).slice(0,7)===ym).length});}
   // --- Métricas prácticas: enfriándose, ventas semana/mes, objetivos ---
@@ -4708,7 +4719,7 @@ function renderPanel(){
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
     <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}%</span></h3>${fnlEtapa(etapaDe('nuevo'))}${fnlSeg('Atrasados',[{l:'Hoy',n:atrH,color:'#ffcc00'},{l:'Esta semana',n:atrS,color:'#ff9f0a'},{l:'Otros días',n:atrO,color:'#ff3b30'}],"irVista('atrasado')")}${fnlSeg('Para hoy',[{l:'Atender',n:hoyPend,color:'#ff9f0a'},{l:'Atendidos',n:hoyAtend,color:'#34c759'}],"irVista('hoy')")}${fnlEtapa(etapaDe('vendido'))}</div>
-    <div class="panelcard"><h3>📅 Clientes nuevos <span class="muted" style="font-weight:500">· esta semana (Lun a Dom)</span></h3><div class="weekbars">${semanaDias.map(d=>`<div class="wb" onmousemove="_wbTip(event,'${_pvJs(d.tip)}')" onmouseleave="_pvTipHide()"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div></div>
+    <div class="panelcard" id="wb-card">${_wbCard()}</div>
     <div class="dash-cols">
       <div class="panelcard" id="pd-card" style="display:flex;flex-direction:column">${_prodDonutCard(NUEV)}</div>
       <div class="panelcard act-card"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">${ventasSemLista.length}</div><div class="l">Ventas cerradas</div></div><div><div class="n">🗑️ ${descartadosSem}</div><div class="l">Descartados</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
