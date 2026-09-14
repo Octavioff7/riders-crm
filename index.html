@@ -4496,6 +4496,7 @@ function esHoy(c){return !!c.proximo&&c.proximo===hoy();}
 function diasA(c){if(!c.proximo)return null;return Math.round((new Date(c.proximo+'T00:00:00')-new Date(hoy()+'T00:00:00'))/86400000);}
 function enBucket(c,b){
   if(!c.proximo)return false;
+  if(c.sinAtender)return false; // consulta nueva sin atender: vive solo en "Nuevas consultas" hasta que la atiendan
   // Un cliente vendido/posventa sale de las carpetas de agenda, salvo que tenga la etiqueta "seguimiento"
   if((c.etapa==='vendido'||c.etapa==='posventa')&&!(c.tags&&c.tags.includes('seguimiento')))return false;
   if(b==='atrasado')return esAtrasado(c);
@@ -4506,7 +4507,7 @@ function enBucket(c,b){
 }
 // bucket "principal" (para donde se necesite uno solo)
 function estadoAgenda(c){
-  if(!c.proximo)return null;
+  if(!c.proximo||c.sinAtender)return null;
   if(esAtrasado(c))return 'atrasado';
   if(esHoy(c))return 'hoy';
   const d=diasA(c);return (d>=1&&d<=6)?'proximos':'semana';
@@ -4559,7 +4560,7 @@ function renderAgendaSec(estado){
 }
 /* ---- AGENDA (reuniones / llamadas) ---- */
 function renderAgenda(){
-  const list=activos().filter(c=>c.proximo).slice().sort((a,b)=>String(a.proximo).localeCompare(String(b.proximo)));
+  const list=activos().filter(c=>c.proximo&&!c.sinAtender).slice().sort((a,b)=>String(a.proximo).localeCompare(String(b.proximo)));
   const today=hoy();
   let h=`<div class="page"><h1>📅 Agenda — reuniones y llamadas</h1><div class="sub">${list.length} contactos programados, ordenados por fecha.</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No tenés nada agendado. Programá una llamada o reunión desde la ficha de un cliente 📅</div></div>';return;}
@@ -4616,7 +4617,7 @@ function renderPanel(){
   const frios=AA.filter(c=>{const x=T(c);return x&&x.id==='sinContacto';});
   const vend=AA.filter(c=>c.etapa==='vendido');
   const today=hoy();
-  const hoyList=AA.filter(c=>esAtrasado(c)||esHoy(c)).sort((a,b)=>proxDateTime(a)-proxDateTime(b));
+  const hoyList=AA.filter(c=>!c.sinAtender&&(esAtrasado(c)||esHoy(c))).sort((a,b)=>proxDateTime(a)-proxDateTime(b));
   const row=(c,sub,done)=>`<div class="frow" style="cursor:pointer" onclick="verFicha('${c.id}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div></div>${waIc(c)}</div>`;
   const pad=n=>String(n).padStart(2,'0');
   const money=v=>'$'+Number(v||0).toLocaleString('es-AR');
