@@ -334,6 +334,7 @@
   .pv-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
   .pv-tip{position:fixed;z-index:600;display:none;background:var(--card);border:1px solid var(--sep-strong);border-radius:9px;padding:7px 10px;font-size:12px;color:var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none;white-space:nowrap;line-height:1.5}
 .rango-bar{margin:10px 0 12px}.rango-bar .vf-field{flex:1;min-width:130px}.rango-bar .vf-field label{font-size:11.5px;color:var(--muted);font-weight:600}
+.conv-sec{font-size:11px;font-weight:700;color:var(--muted);padding:12px 10px 4px;display:flex;gap:5px;align-items:center}.conv-sec span{font-weight:600}.conv-sec:first-child{padding-top:6px}
 .nc-sec{margin:14px 0 6px}.nc-sec:first-child{margin-top:0}
 .pvdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
   .pv-table tbody tr.pv-tot td{background:var(--hover);font-weight:700;border-top:2px solid var(--sep-strong)}
@@ -1115,14 +1116,15 @@ function ctxList(ctx){const A=activos();
   const byProxAsc=(a,b)=>proxDateTime(a)-proxDateTime(b);         // fecha más temprana/atrasada arriba
   const byProxDesc=(a,b)=>proxDateTime(b)-proxDateTime(a);        // fecha más nueva arriba
   const byVenta=(a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')); // venta más nueva arriba
-  if(ctx==='nuevas')return A.filter(c=>c.sinAtender).sort((a,b)=>_consultaTs(b)-_consultaTs(a));
-  if(ctx==='calientes')return A.filter(c=>{const t=temperatura(c);return t&&t.id==='caliente';}).sort(byNuevo);
-  if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio');}).sort(byNuevo);
+  // Se respeta el filtro Desde/Hasta que tenga puesto la sección, así la lista de la izquierda muestra lo mismo.
+  if(ctx==='nuevas')return A.filter(c=>c.sinAtender&&_enRango('nuevas',_fechaTs(_consultaTs(c)))).sort((a,b)=>_consultaTs(b)-_consultaTs(a));
+  if(ctx==='calientes')return A.filter(c=>{const t=temperatura(c);return t&&t.id==='caliente'&&_enRango('calientes',c.creado);}).sort(byNuevo);
+  if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio')&&_enRango('frios',c.creado);}).sort(byNuevo);
   if(ctx==='seg')return A.filter(c=>temperatura(c)).sort(byNuevo);
-  if(ctx==='anotar')return A.filter(sinAnotar).sort(byNuevo);
+  if(ctx==='anotar')return A.filter(c=>sinAnotar(c)&&_enRango('anotar',c.creado)).sort(byNuevo);
   if(ctx==='vendidos')return A.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').sort(byVenta);
-  if(ctx==='atrasado')return A.filter(c=>enBucket(c,'atrasado')).sort(byProxAsc);
-  if(['hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)).sort(byProxDesc);
+  if(ctx==='atrasado')return A.filter(c=>enBucket(c,'atrasado')&&_enRango('atrasado',c.proximo)).sort(byProxAsc);
+  if(['hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)&&(ctx==='hoy'||_enRango(ctx,c.proximo))).sort(byProxDesc);
   return null;
 }
 const CTX_LABEL={nuevas:'🆕 Nuevas consultas',atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
@@ -1131,7 +1133,19 @@ function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.bod
 function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados();return base.filter(c=>_buscaCliente(c,filtro));}
 function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(telVer(c.whatsapp)):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
-function convListItems(){const l=filteredConvs();return l.map(convRow).join('')||'<div class="empty" style="margin:14px">Sin clientes</div>';}
+// Bloques dentro de la lista de la izquierda (vista PC): los mismos cortes que muestra la sección.
+function _ctxGrupos(ctx,list){
+  const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();const l=new Date(d0);l.setDate(l.getDate()-((l.getDay()+6)%7));const tl=l.getTime();
+  const tres=(tsFn,labels)=>[[labels[0],list.filter(c=>tsFn(c)>=t0)],[labels[1],list.filter(c=>{const t=tsFn(c);return t<t0&&t>=tl;})],[labels[2],list.filter(c=>tsFn(c)<tl)]];
+  const asc=(a,b)=>proxDateTime(a)-proxDateTime(b),desc=(a,b)=>proxDateTime(b)-proxDateTime(a);
+  if(ctx==='atrasado')return tres(c=>proxDateTime(c).getTime(),['🟡 Atrasados de hoy','🟠 Atrasados de esta semana','🔴 De días anteriores']).map(([t,arr])=>[t,arr.slice().sort(desc)]);
+  if(ctx==='hoy')return [['🔴 De hoy, atrasados',list.filter(esAtrasado).sort(asc)],['🟡 Pendientes de hoy',list.filter(c=>!esAtrasado(c)).sort(asc)]];
+  if(ctx==='nuevas')return tres(_consultaTs,['🟢 Llegaron hoy','🟠 De esta semana','🕓 De otros días']);
+  if(ctx==='anotar')return tres(creaKey,['🟢 Cargados hoy','🟠 De esta semana','🕓 De otros días']);
+  return null;
+}
+function convListItems(){const l=filteredConvs();if(!l.length)return '<div class="empty" style="margin:14px">Sin clientes</div>';const g=inboxCtx?_ctxGrupos(inboxCtx,l):null;if(!g)return l.map(convRow).join('');
+  return g.filter(([t,arr])=>arr.length).map(([t,arr])=>`<div class="conv-sec">${t}<span>· ${arr.length}</span></div>`+arr.map(convRow).join('')).join('');}
 // Al buscar: actualiza SOLO la lista y el contador, sin redibujar la ficha (evita el parpadeo).
 function filtrarChats(v){filtro=v;const cl=document.querySelector('.conv-list');if(cl)cl.innerHTML=convListItems();const l=filteredConvs();const n=document.querySelector('.conv-top .auto-note');if(n)n.innerHTML=inboxCtx?('💬 '+l.length+' en esta sección · <a href="#" onclick="inboxCtx=null;render();return false" style="color:var(--accent);text-decoration:none">ver todos los chats</a>'):('💬 '+l.length+' conversaciones · '+l.filter(needsReply).length+' para responder');}
 function renderInbox(){
