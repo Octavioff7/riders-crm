@@ -218,7 +218,7 @@ function tokenUid(tok){
   return d.uid;
 }
 function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const uid=tokenUid(t);if(!uid)return null;return loadUsers().find(u=>u.id===uid&&u.activo!==false)||null;}
-function publicUser(u){return u?{id:u.id,nombre:u.nombre,apellido:u.apellido||'',telefono:u.telefono||'',email:u.email||'',usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length),waPhoneId:u.waPhoneId||''}:null;}
+function publicUser(u){return u?{id:u.id,nombre:u.nombre,apellido:u.apellido||'',telefono:u.telefono||'',email:u.email||'',usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length),waPhoneId:u.waPhoneId||'',waKeySet:!!u.waKey}:null;}
 // Códigos de vinculación de Telegram (persistidos para sobrevivir a reinicios/deploys)
 const TGCODEPATH=path.join(DATA_DIR,'tgcodes.json');
 function loadTgCodes(){try{return JSON.parse(fs.readFileSync(TGCODEPATH,'utf8'))}catch(e){return {}}}
@@ -530,9 +530,12 @@ const WA_PHONE_ID=process.env.WHATSAPP_PHONE_ID||CFG.whatsappPhoneId||'';
 const WA_LISTO=!!(WA_TOKEN&&WA_PHONE_ID);
 function waEnviar(to,texto,phoneId){return new Promise(resolve=>{ // phoneId: número por el que entró la consulta (si no, el principal)
   const PID=String(phoneId||'').replace(/\D/g,'')||WA_PHONE_ID;
-  if(!WA_TOKEN||!PID)return resolve({ok:false,reason:'sin-numero'});
+  // Si el número es de un vendedor conectado por Dualhook, se envía por la API de Dualhook con su clave dh_live_.
+  const uK=PID?loadUsers().find(x=>x.waPhoneId===PID&&x.waKey):null;
+  const host=uK?'api.dualhook.com/v25.0':'graph.facebook.com/v21.0',tok=uK?uK.waKey:WA_TOKEN;
+  if(!tok||!PID)return resolve({ok:false,reason:'sin-numero'});
   const body=JSON.stringify({messaging_product:'whatsapp',to:String(to).replace(/\D/g,''),type:'text',text:{preview_url:false,body:String(texto).slice(0,4000)}});
-  const req=https.request('https://graph.facebook.com/v21.0/'+PID+'/messages',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+WA_TOKEN,'Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>resolve({ok:r.statusCode>=200&&r.statusCode<300,status:r.statusCode,body:d}));});
+  const req=https.request('https://'+host+'/'+PID+'/messages',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>resolve({ok:r.statusCode>=200&&r.statusCode<300,status:r.statusCode,body:d}));});
   req.setTimeout(15000,()=>{req.destroy();resolve({ok:false,reason:'timeout'});});
   req.on('error',e=>resolve({ok:false,reason:e.message}));req.write(body);req.end();
 });}
@@ -852,7 +855,8 @@ http.createServer((req,res)=>{
     }catch(e){json(500,{error:e.message});}});
   }
   // Diagnostico del webhook de WhatsApp: que llego y desde que numero (solo admin).
-  if(u==='/api/wanumeros'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});const cnt={};WA_LOG.forEach(ev=>{if(ev.pnid){cnt[ev.pnid]=cnt[ev.pnid]||{pnid:ev.pnid,msgs:0,ultimo:0};cnt[ev.pnid].msgs+=(ev.msgs||[]).length;cnt[ev.pnid].ultimo=Math.max(cnt[ev.pnid].ultimo,ev.ts||0);}});return json(200,{principal:WA_PHONE_ID||'',vistos:Object.values(cnt)});}
+  if(u==='/api/wanumeros'&&req.method==='GET'){const cnt={};WA_LOG.forEach(ev=>{if(ev.pnid){cnt[ev.pnid]=cnt[ev.pnid]||{pnid:ev.pnid,msgs:0,ultimo:0};cnt[ev.pnid].msgs+=(ev.msgs||[]).length;cnt[ev.pnid].ultimo=Math.max(cnt[ev.pnid].ultimo,ev.ts||0);}});if(me.rol!=='admin')return json(200,{principal:'',vistos:Object.values(cnt).filter(x=>x.pnid===me.waPhoneId)}); // cada vendedor ve solo su número
+    return json(200,{principal:WA_PHONE_ID||'',vistos:Object.values(cnt)});}
   if(u==='/api/wadebug'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{phoneIdConfigurado:WA_PHONE_ID||'',tokenCargado:!!WA_TOKEN,mapeo:loadWaMap(),recibidos:WA_LOG.length,eventos:WA_LOG});}
   if(u==='/api/bot-status'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{tokenSet:!!(CFG.telegramToken&&CFG.telegramToken.length>10),allowedChatId:CFG.allowedChatId||null,lastOkSecondsAgo:botLastOk?Math.round((Date.now()-botLastOk)/1000):null,lastErr:botLastErr||''});}
   if(u==='/api/tg/code'&&req.method==='POST')return json(200,{code:genTgCode(me.id),bot:botUsername||CFG.telegramBotUser});
@@ -1060,7 +1064,11 @@ http.createServer((req,res)=>{
     if(typeof body.activo==='boolean'&&me.rol!=='vendedor'&&target.rol!=='admin')target.activo=body.activo;
     if(me.rol==='admin'){if(body.rol)target.rol=body.rol;if('supervisorId' in body)target.supervisorId=body.supervisorId||null;}
     // Número de WhatsApp (phone_number_id de Meta) de esta cuenta: las consultas que lleguen a ese número van a este usuario.
-    if(me.rol==='admin'&&typeof body.waPhoneId==='string'){const w=body.waPhoneId.replace(/\D/g,'');if(w&&users.some(x=>x.id!==target.id&&x.waPhoneId===w))return json(400,{error:'Ese número de WhatsApp ya está asignado a otra cuenta'});target.waPhoneId=w;}
+    // Lo puede cargar el admin o el propio usuario desde "Mi perfil" (conexión por Dualhook).
+    const puedeWa=(me.rol==='admin'||me.id===target.id);
+    if(puedeWa&&body.waClear===true){target.waPhoneId='';target.waKey='';}
+    if(puedeWa&&typeof body.waPhoneId==='string'){const w=body.waPhoneId.replace(/\D/g,'');if(w&&users.some(x=>x.id!==target.id&&x.waPhoneId===w))return json(400,{error:'Ese número de WhatsApp ya está asignado a otra cuenta'});target.waPhoneId=w;}
+    if(puedeWa&&typeof body.waKey==='string'&&body.waKey.trim()){const k=body.waKey.trim();if(!/^dh_live_/.test(k))return json(400,{error:'La clave de envío de Dualhook tiene que empezar con dh_live_'});target.waKey=k;}
     saveUsers(users);json(200,publicUser(target));
   });
   if(mUser&&req.method==='DELETE'){
