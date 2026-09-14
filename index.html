@@ -4442,7 +4442,7 @@ async function renderCuentas(){
   let us=[];try{us=await (await api('/api/users')).json();}catch(e){return;}
   usuarios=us;
   let h=`<div class="page"><div class="conv-head-row"><h1>⚙️ Cuentas</h1><button class="btn" onclick="nuevoUsuario()">＋ Nueva cuenta</button></div><div class="sub">Vendedores y supervisores del equipo.</div><div class="panelcard">`;
-  us.forEach(x=>{h+=`<div class="frow"><span class="av" style="width:34px;height:34px;background:${avColor(x.id)};font-size:12px">${iniciales(x.nombre)}</span><div style="flex:1"><b>${esc(x.nombre)}</b> <span class="tag" style="background:var(--hover);color:var(--muted)">${roleLabel(x.rol)}</span>${x.rol==='vendedor'&&x.supervisorId?' <span class="faint" style="font-size:11.5px">· sup: '+esc(nombreVend(x.supervisorId))+'</span>':''}<div class="faint" style="font-size:12px">@${esc(x.usuario)}${x.activo===false?' · <span style="color:#ff3b30">inactivo</span>':''}</div></div>${x.id===me.id?`<button class="mini" onclick="cambiarMiClave()">🔑 Mi clave</button>`:(puedoEditarUsuario(x)?`<button class="mini" onclick="editarUsuario('${x.id}')">✏️ Editar</button>`:'')}</div>`;});
+  us.forEach(x=>{h+=`<div class="frow"><span class="av" style="width:34px;height:34px;background:${avColor(x.id)};font-size:12px">${iniciales(x.nombre)}</span><div style="flex:1"><b>${esc(x.nombre)}</b> <span class="tag" style="background:var(--hover);color:var(--muted)">${roleLabel(x.rol)}</span>${x.rol==='vendedor'&&x.supervisorId?' <span class="faint" style="font-size:11.5px">· sup: '+esc(nombreVend(x.supervisorId))+'</span>':''}<div class="faint" style="font-size:12px">@${esc(x.usuario)}${x.activo===false?' · <span style="color:#ff3b30">inactivo</span>':''}${x.waPhoneId?' · <span style="color:#248a3d">📱 WhatsApp conectado</span>':''}</div></div>${x.id===me.id?`<button class="mini" onclick="cambiarMiClave()">🔑 Mi clave</button>`:(puedoEditarUsuario(x)?`<button class="mini" onclick="editarUsuario('${x.id}')">✏️ Editar</button>`:'')}</div>`;});
   h+='</div></div>';main.innerHTML=h;
 }
 function nuevoUsuario(){
@@ -4466,13 +4466,24 @@ async function crearUsuario(){
 function editarUsuario(id){
   const x=usuarios.find(u=>u.id===id);if(!x)return;cerrarModal();
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
-  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>Editar cuenta</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b"><label>Nombre</label><input id="ue-nombre" value="${esc(x.nombre)}"><label>Nueva clave (vacío = no cambiar)</label><input id="ue-pass" type="text" placeholder="••••••"><label>Estado</label><select id="ue-activo"><option value="1" ${x.activo!==false?'selected':''}>Activo</option><option value="0" ${x.activo===false?'selected':''}>Inactivo (no puede entrar)</option></select><div id="ue-err" class="lg-err"></div></div><div class="modal-f">${me.rol==='admin'?`<button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="eliminarUsuario('${x.id}','${esc(x.nombre).replace(/'/g,"\\'")}')">🗑 Eliminar</button>`:''}<button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarUsuario('${x.id}')">Guardar</button></div></div>`;
+  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>Editar cuenta</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b"><label>Nombre</label><input id="ue-nombre" value="${esc(x.nombre)}"><label>Nueva clave (vacío = no cambiar)</label><input id="ue-pass" type="text" placeholder="••••••"><label>Estado</label><select id="ue-activo"><option value="1" ${x.activo!==false?'selected':''}>Activo</option><option value="0" ${x.activo===false?'selected':''}>Inactivo (no puede entrar)</option></select>${me.rol==='admin'?`<label>📱 Número de WhatsApp (ID de Meta)</label><input id="ue-wa" inputmode="numeric" placeholder="Ej: 123456789012345" value="${esc(x.waPhoneId||'')}"><div class="faint" id="ue-wa-hint" style="font-size:12px;margin-top:4px">Las consultas de anuncios que lleguen a ese número entran a esta cuenta. Es el "Identificador de número de teléfono" que muestra Meta.</div>`:''}<div id="ue-err" class="lg-err"></div></div><div class="modal-f">${me.rol==='admin'?`<button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="eliminarUsuario('${x.id}','${esc(x.nombre).replace(/'/g,"\\'")}')">🗑 Eliminar</button>`:''}<button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarUsuario('${x.id}')">Guardar</button></div></div>`;
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
+  if(me.rol==='admin')_ueWaHint(x); // sugiere los números que el servidor vio llegar últimamente
+}
+async function _ueWaHint(x){
+  try{const d=await (await api('/api/wanumeros')).json();const el=document.getElementById('ue-wa-hint');if(!el)return;
+    const vistos=(d.vistos||[]).sort((a,b)=>b.ultimo-a.ultimo);if(!vistos.length&&!d.principal)return;
+    const dueno=p=>{const u=usuarios.find(y=>y.waPhoneId===p);return u?(u.id===x.id?' (esta cuenta)':' ('+u.nombre+')'):(p===d.principal?' (principal)':'');};
+    const items=vistos.map(v=>`<a href="#" onclick="document.getElementById('ue-wa').value='${v.pnid}';return false" style="color:var(--accent);text-decoration:none">${v.pnid}</a>${esc(dueno(v.pnid))} · ${v.msgs} msj`);
+    if(d.principal&&!vistos.some(v=>v.pnid===d.principal))items.push(`<a href="#" onclick="document.getElementById('ue-wa').value='${d.principal}';return false" style="color:var(--accent);text-decoration:none">${d.principal}</a> (principal)`);
+    el.innerHTML+='<br>Números que recibieron mensajes últimamente (tocá uno para usarlo): '+items.join(' · ');
+  }catch(e){}
 }
 async function guardarUsuario(id){
   const g=k=>{const el=document.getElementById(k);return el?el.value:'';};
   const body={nombre:g('ue-nombre').trim(),activo:g('ue-activo')==='1'};
   const p=g('ue-pass').trim();if(p)body.pass=p;
+  if(me.rol==='admin'&&document.getElementById('ue-wa'))body.waPhoneId=g('ue-wa').trim();
   const err=document.getElementById('ue-err');err.textContent='';
   try{const r=await api('/api/users/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok){err.textContent=j.error||'No se pudo guardar';return;}cerrarModal();renderCuentas();}
   catch(e){err.textContent='Error de conexión';}

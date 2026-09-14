@@ -218,7 +218,7 @@ function tokenUid(tok){
   return d.uid;
 }
 function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const uid=tokenUid(t);if(!uid)return null;return loadUsers().find(u=>u.id===uid&&u.activo!==false)||null;}
-function publicUser(u){return u?{id:u.id,nombre:u.nombre,apellido:u.apellido||'',telefono:u.telefono||'',email:u.email||'',usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length)}:null;}
+function publicUser(u){return u?{id:u.id,nombre:u.nombre,apellido:u.apellido||'',telefono:u.telefono||'',email:u.email||'',usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length),waPhoneId:u.waPhoneId||''}:null;}
 // Códigos de vinculación de Telegram (persistidos para sobrevivir a reinicios/deploys)
 const TGCODEPATH=path.join(DATA_DIR,'tgcodes.json');
 function loadTgCodes(){try{return JSON.parse(fs.readFileSync(TGCODEPATH,'utf8'))}catch(e){return {}}}
@@ -262,7 +262,8 @@ function procesarWebhook(body){
   for(const e of body.entry){
     for(const ch of (e.changes||[])){
       const v=ch.value||{};const pnid=(v.metadata&&v.metadata.phone_number_id)||'';
-      const vendId=map[pnid]||(admin&&admin.id)||''; // por número: al vendedor dueño; si no está mapeado, al admin
+      const uWa=pnid?loadUsers().find(x=>x.waPhoneId===pnid&&x.activo!==false):null;
+      const vendId=(uWa&&uWa.id)||map[pnid]||(admin&&admin.id)||''; // por número: a la cuenta que lo tiene asignado (Cuentas); si no, wamap.json; si no, al admin
       const contacts=v.contacts||[];
       for(const m of (v.messages||[])){
         if(!m||m.type==='reaction'||m.type==='system')continue;
@@ -282,7 +283,7 @@ function procesarWebhook(body){
           c.ultimoContacto=fecha;c.respondioUltimo='cliente';
           if(!c.producto||c.producto==='Otro'){const p=productoDeConsulta(m,texto);if(p!=='Otro')c.producto=p;}
         }else{
-          c={id:uid(),nombre,whatsapp:'+'+dig,producto:productoDeConsulta(m,texto),etapa:'nuevo',valor:0,proximo:fecha,proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
+          c={id:uid(),nombre,whatsapp:'+'+dig,waPnid:pnid,producto:productoDeConsulta(m,texto),etapa:'nuevo',valor:0,proximo:fecha,proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
           if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:'')});}
           clientes.push(c);
           // No se avisa por push cuando entra una consulta nueva: las notificaciones son solo para
@@ -527,10 +528,11 @@ const ASIS=require('./asistente.js')({fs,path,DATA_DIR,geminiChain,hoy,ahora});
 const WA_TOKEN=process.env.WHATSAPP_TOKEN||CFG.whatsappToken||'';
 const WA_PHONE_ID=process.env.WHATSAPP_PHONE_ID||CFG.whatsappPhoneId||'';
 const WA_LISTO=!!(WA_TOKEN&&WA_PHONE_ID);
-function waEnviar(to,texto){return new Promise(resolve=>{
-  if(!WA_LISTO)return resolve({ok:false,reason:'sin-numero'});
+function waEnviar(to,texto,phoneId){return new Promise(resolve=>{ // phoneId: número por el que entró la consulta (si no, el principal)
+  const PID=String(phoneId||'').replace(/\D/g,'')||WA_PHONE_ID;
+  if(!WA_TOKEN||!PID)return resolve({ok:false,reason:'sin-numero'});
   const body=JSON.stringify({messaging_product:'whatsapp',to:String(to).replace(/\D/g,''),type:'text',text:{preview_url:false,body:String(texto).slice(0,4000)}});
-  const req=https.request('https://graph.facebook.com/v21.0/'+WA_PHONE_ID+'/messages',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+WA_TOKEN,'Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>resolve({ok:r.statusCode>=200&&r.statusCode<300,status:r.statusCode,body:d}));});
+  const req=https.request('https://graph.facebook.com/v21.0/'+PID+'/messages',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+WA_TOKEN,'Content-Length':Buffer.byteLength(body)}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>resolve({ok:r.statusCode>=200&&r.statusCode<300,status:r.statusCode,body:d}));});
   req.setTimeout(15000,()=>{req.destroy();resolve({ok:false,reason:'timeout'});});
   req.on('error',e=>resolve({ok:false,reason:e.message}));req.write(body);req.end();
 });}
@@ -553,7 +555,7 @@ async function asistenteResponder(clienteId,texto){
     const delays=res.delays||[];
     for(let i=0;i<res.mensajes.length;i++){
       await new Promise(r=>setTimeout(r,Math.min(120000,delays[i]||3000)));
-      const envio=(cfg.simulacion||!WA_LISTO)?{ok:false,reason:'borrador'}:await waEnviar(c.whatsapp,res.mensajes[i]);
+      const envio=(cfg.simulacion||!WA_LISTO)?{ok:false,reason:'borrador'}:await waEnviar(c.whatsapp,res.mensajes[i],c.waPnid);
       // Releer siempre: pudo haber cambiado mientras esperábamos
       arr=loadClientes();c=arr.find(x=>x.id===clienteId);if(!c)return;
       c.mensajes=c.mensajes||[];
@@ -850,6 +852,7 @@ http.createServer((req,res)=>{
     }catch(e){json(500,{error:e.message});}});
   }
   // Diagnostico del webhook de WhatsApp: que llego y desde que numero (solo admin).
+  if(u==='/api/wanumeros'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});const cnt={};WA_LOG.forEach(ev=>{if(ev.pnid){cnt[ev.pnid]=cnt[ev.pnid]||{pnid:ev.pnid,msgs:0,ultimo:0};cnt[ev.pnid].msgs+=(ev.msgs||[]).length;cnt[ev.pnid].ultimo=Math.max(cnt[ev.pnid].ultimo,ev.ts||0);}});return json(200,{principal:WA_PHONE_ID||'',vistos:Object.values(cnt)});}
   if(u==='/api/wadebug'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{phoneIdConfigurado:WA_PHONE_ID||'',tokenCargado:!!WA_TOKEN,mapeo:loadWaMap(),recibidos:WA_LOG.length,eventos:WA_LOG});}
   if(u==='/api/bot-status'&&req.method==='GET'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return json(200,{tokenSet:!!(CFG.telegramToken&&CFG.telegramToken.length>10),allowedChatId:CFG.allowedChatId||null,lastOkSecondsAgo:botLastOk?Math.round((Date.now()-botLastOk)/1000):null,lastErr:botLastErr||''});}
   if(u==='/api/tg/code'&&req.method==='POST')return json(200,{code:genTgCode(me.id),bot:botUsername||CFG.telegramBotUser});
@@ -1056,6 +1059,8 @@ http.createServer((req,res)=>{
     if(body.pass){const {salt,hash}=hashPass(body.pass);target.salt=salt;target.passHash=hash;}
     if(typeof body.activo==='boolean'&&me.rol!=='vendedor'&&target.rol!=='admin')target.activo=body.activo;
     if(me.rol==='admin'){if(body.rol)target.rol=body.rol;if('supervisorId' in body)target.supervisorId=body.supervisorId||null;}
+    // Número de WhatsApp (phone_number_id de Meta) de esta cuenta: las consultas que lleguen a ese número van a este usuario.
+    if(me.rol==='admin'&&typeof body.waPhoneId==='string'){const w=body.waPhoneId.replace(/\D/g,'');if(w&&users.some(x=>x.id!==target.id&&x.waPhoneId===w))return json(400,{error:'Ese número de WhatsApp ya está asignado a otra cuenta'});target.waPhoneId=w;}
     saveUsers(users);json(200,publicUser(target));
   });
   if(mUser&&req.method==='DELETE'){
