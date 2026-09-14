@@ -1218,7 +1218,7 @@ function crmHTML(c){
       <div class="section-t">📅 Programar próximo contacto</div>
       <div id="prox-set-wrap">${prox}</div>
       <div class="field"><label>Tipo</label><select id="prox-tipo">${['Llamada','Entrevista','Visita presencial','Mensaje','Otro'].map(x=>`<option ${c.proximoTipo===x?'selected':''}>${x}</option>`).join('')}</select></div>
-      <div class="row2"><div class="field"><label>Fecha</label><input type="hidden" id="prox-fecha" value="${c.proximo||hoy()}"><button type="button" class="v-selbtn v-full" id="prox-fecha-btn" onclick="_pickProxFecha()">📅 ${fmtFecha(c.proximo||hoy())}<span class="v-selarr">▾</span></button></div><div class="field"><label>Hora</label><input type="time" id="prox-hora" value="${c.proximoHora||''}"></div></div>
+      <div class="row2"><div class="field"><label>Fecha</label><input type="hidden" id="prox-fecha" value="${c.proximo||hoy()}"><button type="button" class="v-selbtn v-full" id="prox-fecha-btn" onclick="_pickProxFecha()">📅 ${fmtFecha(c.proximo||hoy())}<span class="v-selarr">▾</span></button></div><div class="field"><label>Hora</label><input type="text" id="prox-hora" inputmode="numeric" placeholder="14:30" maxlength="5" autocomplete="off" value="${c.proximoHora||''}" oninput="_hora24(this)" onblur="_hora24Fin(this)"></div></div>
       <button class="btn" style="width:100%;margin-bottom:6px" onclick="agendarProximo('${c.id}')">Agendar contacto</button>
       <button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="googleCal('${c.id}')">📅 Agendar en Google Calendar</button>
       <div class="section-t">📝 Notas del seguimiento</div>
@@ -1311,6 +1311,9 @@ function setProximo(id,silent){
   // casillero, para no interrumpir el tipeo. El botón sí redibuja la ficha.
   if(silent)updateCounts();else refrescarFicha(c); // solo notas + aviso: no borra la nota que estés escribiendo ni parpadea
 }
+// Hora en formato 24 h escrita a mano (HH:MM). El campo nativo de hora usaba a.m./p.m. y al tipear "13" lo cambiaba a "01".
+function _hora24(el){let d=(el.value||'').replace(/\D/g,'').slice(0,4);if(d.length>=1&&+d[0]>2)d='0'+d;if(d.length>=2&&+d.slice(0,2)>23)d='23'+d.slice(2);if(d.length>=4&&+d.slice(2,4)>59)d=d.slice(0,2)+'59';el.value=d.length>2?d.slice(0,2)+':'+d.slice(2):d;}
+function _hora24Fin(el){const d=(el.value||'').replace(/\D/g,'');if(!d){el.value='';return;}let h=d.slice(0,2),m=d.slice(2,4);if(d.length===1)h='0'+d;if(d.length===3){h=d.slice(0,1).padStart(2,'0');m=d.slice(1);}m=(m||'').padEnd(2,'0');if(+h>23)h='23';if(+m>59)m='59';el.value=h+':'+m;}
 function agendarProximo(id){setProximo(id,false);}
 function autoAgendar(id){setProximo(id,true);}
 function editarCliente(id){
