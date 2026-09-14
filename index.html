@@ -335,6 +335,10 @@
   .pv-tip{position:fixed;z-index:600;display:none;background:var(--card);border:1px solid var(--sep-strong);border-radius:9px;padding:7px 10px;font-size:12px;color:var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none;white-space:nowrap;line-height:1.5}
 .rango-bar{margin:10px 0 12px}.rango-bar .vf-field{flex:1;min-width:130px}.rango-bar .vf-field label{font-size:11.5px;color:var(--muted);font-weight:600}
 .conv-sec{font-size:11px;font-weight:700;color:var(--muted);padding:12px 10px 4px;display:flex;gap:5px;align-items:center}.conv-sec span{font-weight:600}.conv-sec:first-child{padding-top:6px}
+.wb-wrap{position:relative;overflow:hidden}.wb-wrap .wb-out{position:absolute;left:0;right:0;top:0;pointer-events:none}
+@keyframes wbInL{from{transform:translateX(-55%);opacity:0}to{transform:none;opacity:1}}@keyframes wbInR{from{transform:translateX(55%);opacity:0}to{transform:none;opacity:1}}
+@keyframes wbOutR{to{transform:translateX(55%);opacity:0}}@keyframes wbOutL{to{transform:translateX(-55%);opacity:0}}
+.wb-in-l{animation:wbInL .34s cubic-bezier(.22,.61,.36,1) both}.wb-in-r{animation:wbInR .34s cubic-bezier(.22,.61,.36,1) both}.wb-out-r{animation:wbOutR .34s cubic-bezier(.22,.61,.36,1) forwards}.wb-out-l{animation:wbOutL .34s cubic-bezier(.22,.61,.36,1) forwards}
 .wb-nav{border:1px solid var(--sep-strong);background:var(--card);color:var(--txt);border-radius:7px;width:26px;height:26px;font-size:17px;line-height:1;cursor:pointer;font-family:inherit;padding:0}.wb-nav:disabled{opacity:.3;cursor:default}
 .nc-sec{margin:14px 0 6px}.nc-sec:first-child{margin-top:0}
 .pvdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
@@ -4634,9 +4638,23 @@ function _wbCard(){
     dias.push({l:dl,n:cs.length,tip});}
   const maxDia=Math.max(1,...dias.map(d=>d.n)),tot=dias.reduce((s,d)=>s+d.n,0);
   const dom=new Date(mon);dom.setDate(mon.getDate()+6);const rng=mon.getDate()+'/'+(mon.getMonth()+1)+' – '+dom.getDate()+'/'+(dom.getMonth()+1);
-  return `<h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">📅 Clientes nuevos <span class="muted" style="font-weight:500">· ${tot}</span><span style="flex:1"></span><button type="button" class="wb-nav" onclick="_wbGo(1)" title="Semana anterior">‹</button><span class="muted" style="font-weight:500;font-size:12px;min-width:78px;text-align:center">${rng}</span><button type="button" class="wb-nav" onclick="_wbGo(-1)" ${_wbOff===0?'disabled':''} title="Semana siguiente">›</button></h3><div class="weekbars">${dias.map(d=>`<div class="wb" onmousemove="_wbTip(event,'${_pvJs(d.tip)}')" onmouseleave="_pvTipHide()"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div>`;
+  const head=`<h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">📅 Clientes nuevos <span class="muted" style="font-weight:500">· ${tot}</span><span style="flex:1"></span><button type="button" class="wb-nav" onclick="_wbGo(1)" title="Semana anterior">‹</button><span class="muted" style="font-weight:500;font-size:12px;min-width:78px;text-align:center">${rng}</span><button type="button" class="wb-nav" onclick="_wbGo(-1)" ${_wbOff===0?'disabled':''} title="Semana siguiente">›</button></h3>`;
+  const bars=`<div class="weekbars">${dias.map(d=>`<div class="wb" onmousemove="_wbTip(event,'${_pvJs(d.tip)}')" onmouseleave="_pvTipHide()"><div class="wb-n">${d.n}</div><div class="wb-bar" style="height:${Math.round(d.n/maxDia*64)+3}px"></div><div class="wb-l">${d.l}</div></div>`).join('')}</div>`;
+  return {head,bars,html:head+'<div class="wb-wrap">'+bars+'</div>'};
 }
-function _wbGo(d){_wbOff=Math.max(0,_wbOff+d);_pvTipHide();const el=document.getElementById('wb-card');if(el)el.innerHTML=_wbCard();}
+// Cambio de semana con deslizamiento: las barras actuales salen hacia un lado y las de la otra semana entran por el otro.
+function _wbGo(d){
+  if(_wbOff+d<0)return;_wbOff+=d;_pvTipHide();
+  const card=document.getElementById('wb-card');if(!card)return;
+  const parts=_wbCard();const h3=card.querySelector('h3');if(h3)h3.outerHTML=parts.head;
+  const wrap=card.querySelector('.wb-wrap');if(!wrap){card.innerHTML=parts.html;return;}
+  wrap.querySelectorAll('.wb-out').forEach(e=>e.remove());
+  const old=wrap.querySelector('.weekbars');const tmp=document.createElement('div');tmp.innerHTML=parts.bars;const nu=tmp.firstElementChild;
+  nu.classList.add(d>0?'wb-in-l':'wb-in-r');
+  if(old){old.classList.add('wb-out',d>0?'wb-out-r':'wb-out-l');}
+  wrap.appendChild(nu);
+  if(old)setTimeout(()=>old.remove(),340);
+}
 function renderPanel(){
   const T=c=>temperatura(c);
   const AA=activos();
@@ -4719,7 +4737,7 @@ function renderPanel(){
       <div class="tile sold"><div class="n">✅ ${vend.length}</div><div class="l">Vendidos</div></div>
     </div>
     <div class="panelcard"><h3>Embudo de ventas <span class="muted" style="font-weight:500">· conversión ${conv}%</span></h3>${fnlEtapa(etapaDe('nuevo'))}${fnlSeg('Atrasados',[{l:'Hoy',n:atrH,color:'#ffcc00'},{l:'Esta semana',n:atrS,color:'#ff9f0a'},{l:'Otros días',n:atrO,color:'#ff3b30'}],"irVista('atrasado')")}${fnlSeg('Para hoy',[{l:'Atender',n:hoyPend,color:'#ff9f0a'},{l:'Atendidos',n:hoyAtend,color:'#34c759'}],"irVista('hoy')")}${fnlEtapa(etapaDe('vendido'))}</div>
-    <div class="panelcard" id="wb-card">${_wbCard()}</div>
+    <div class="panelcard" id="wb-card">${_wbCard().html}</div>
     <div class="dash-cols">
       <div class="panelcard" id="pd-card" style="display:flex;flex-direction:column">${_prodDonutCard(NUEV)}</div>
       <div class="panelcard act-card"><h3>🏃 Actividad de la semana</h3><div class="actgrid"><div><div class="n">${seguimSemana}</div><div class="l">Seguimientos hechos</div></div><div><div class="n">${nuevosSemana}</div><div class="l">Clientes nuevos</div></div><div><div class="n">${ventasSemLista.length}</div><div class="l">Ventas cerradas</div></div><div><div class="n">🗑️ ${descartadosSem}</div><div class="l">Descartados</div></div><div><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div></div></div>
