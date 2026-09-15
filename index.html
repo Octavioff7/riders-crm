@@ -1881,7 +1881,7 @@ function _calcPagos(pagos){
     if(p.metodo==='financiado'){
       // La financiera presta el monto y le descuenta tax+fee → el negocio recibe MENOS
       resta=true;
-      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?m*0.07:0;f=m*fin.fee;}
+      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?m*0.07:0;f=m*fin.fee;if(fin.feeModo==='suma')resta=false;} // "se suma": tax y fee van arriba del monto aprobado
     }else if(p.metodo==='zelle'||p.metodo==='debito'||p.metodo==='credito'){
       t=m*0.07; // tarjeta/zelle: el cliente paga 7% de taxes de más (el cash no lleva)
     }
@@ -3333,7 +3333,7 @@ function _finTipo(f){
 function _finActiva(f){return f.activa!==false;}
 function _finConfig(f){return Number(f.fee)>0||!!f.tax||(f.diasSel&&f.diasSel.length&&f.diasSel.length<7)||!!(f.cuotas&&String(f.cuotas).trim());}
 function _finTieneCuotas(f){return !!(f.cuotas&&String(f.cuotas).trim());}
-function _finCalc(f){return 'Fee '+_pctLabel(f.fee)+(f.tax?' + 7% tax':' · sin tax');}
+function _finCalc(f){return 'Fee '+_pctLabel(f.fee)+(f.feeModo==='suma'?' (se suma)':' (se resta)')+(f.tax?' + 7% tax':' · sin tax');}
 // Puede editar el catalogo de financieras: admin, supervisor y dueno. El vendedor solo consulta.
 function _canEditFin(){return !!(me&&(me.rol==='admin'||me.rol==='supervisor'||me.rol==='dueno'));}
 function _finDiasDe(f){return (f.diasSel&&f.diasSel.length)?f.diasSel:_parseDias(f.dias);}
@@ -3409,6 +3409,7 @@ function _finModal(idx){
     +'<label>Link del sitio (opcional)</label><input id="fin-link" value="'+esc(f.link||'')+'" placeholder="Ej: portal.kafene.com">'
     +'<label>Tipo</label><select id="fin-tipo">'+['',..._FIN_TIPOS].map(t=>'<option value="'+esc(t)+'"'+(_finTipo(f)===t?' selected':'')+'>'+(t||'— Sin definir —')+'</option>').join('')+'</select>'
     +'<label>Fee (%)</label><input id="fin-fee" type="number" inputmode="decimal" value="'+(Math.round((f.fee||0)*10000)/100)+'">'
+    +'<label>¿Cómo se aplica el fee?</label><select id="fin-feemodo"><option value="resta"'+((f.feeModo||'resta')==='resta'?' selected':'')+'>Se resta del monto aprobado (la empresa recibe menos)</option><option value="suma"'+(f.feeModo==='suma'?' selected':'')+'>Se suma al monto aprobado (lo paga el cliente de más)</option></select>'
     +'<label>Cuotas / plan (opcional)</label><input id="fin-cuotas" value="'+esc(f.cuotas||'')+'" placeholder="Ej: 3, 6, 12 meses">'
     +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="fin-tax" style="width:auto;margin:0"'+(f.tax?' checked':'')+'> Lleva 7% de taxes</label>'
     +'<label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" id="fin-activa" style="width:auto;margin:0"'+(_finActiva(f)?' checked':'')+'> Activa (visible en el cargador de ventas)</label>'
@@ -3421,7 +3422,7 @@ function _finSave(idx){
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const n=g('fin-n');if(!n){alert('Poné un nombre.');return;}
   const sel=_DIAS_SEM.filter(d=>_finDiasSel.indexOf(d)>=0);
-  const item={n,tipo:g('fin-tipo'),codigo:g('fin-cod'),link:g('fin-link'),fee:(parseFloat(g('fin-fee'))||0)/100,cuotas:g('fin-cuotas'),tax:document.getElementById('fin-tax').checked,activa:document.getElementById('fin-activa').checked,dias:_diasLabel(sel),diasSel:sel};
+  const item={n,tipo:g('fin-tipo'),codigo:g('fin-cod'),link:g('fin-link'),fee:(parseFloat(g('fin-fee'))||0)/100,feeModo:(g('fin-feemodo')==='suma'?'suma':'resta'),cuotas:g('fin-cuotas'),tax:document.getElementById('fin-tax').checked,activa:document.getElementById('fin-activa').checked,dias:_diasLabel(sel),diasSel:sel};
   if(idx<0)_FIN.push(item);else _FIN[idx]=Object.assign({},_FIN[idx],item);
   _finPersist();_audit({modulo:'FINANCIERAS',entidad:'FINANCIERA',accion:idx<0?'ALTA':'MODIFICACION',metodo:idx<0?'POST':'PUT',referencia:'Financiera '+n,cambios:1});cerrarModal();render();
 }
