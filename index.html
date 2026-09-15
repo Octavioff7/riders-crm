@@ -339,6 +339,7 @@
 @keyframes wbInL{from{transform:translateX(-55%);opacity:0}to{transform:none;opacity:1}}@keyframes wbInR{from{transform:translateX(55%);opacity:0}to{transform:none;opacity:1}}
 @keyframes wbOutR{to{transform:translateX(55%);opacity:0}}@keyframes wbOutL{to{transform:translateX(-55%);opacity:0}}
 .wb-in-l{animation:wbInL .34s cubic-bezier(.22,.61,.36,1) both}.wb-in-r{animation:wbInR .34s cubic-bezier(.22,.61,.36,1) both}.wb-out-r{animation:wbOutR .34s cubic-bezier(.22,.61,.36,1) forwards}.wb-out-l{animation:wbOutL .34s cubic-bezier(.22,.61,.36,1) forwards}
+.calc-page .v-price{flex:1;width:auto;min-width:130px;font-size:17px;font-weight:600;padding:11px 12px}.calc-page .v-prow .v-selbtn{flex:0 1 46%}.calc-page input.v-full{font-size:16px;padding:11px 12px}
 .wb-nav{border:1px solid var(--sep-strong);background:var(--card);color:var(--txt);border-radius:7px;width:26px;height:26px;font-size:17px;line-height:1;cursor:pointer;font-family:inherit;padding:0}.wb-nav:disabled{opacity:.3;cursor:default}
 .nc-sec{margin:14px 0 6px}.nc-sec:first-child{margin-top:0}
 .pvdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
@@ -1916,7 +1917,7 @@ function _ventaCalcHTML(pagos,prod){ // sin parámetros: usa la venta en curso
 let _calcSt={precio:'',pagos:[{metodo:'cash',monto:'',financiera:''}]};
 function renderCalc(){
   const S=_calcSt;
-  let h='<div class="page"><h1>🧮 Calculadora de pagos</h1><div class="sub">Armá cómo va a pagar el cliente y mirá cuánto le queda a la empresa después de taxes y fees. No carga ninguna venta.</div>';
+  let h='<div class="page calc-page"><h1>🧮 Calculadora de pagos</h1><div class="sub">Armá cómo va a pagar el cliente y mirá cuánto le queda a la empresa después de taxes y fees. No carga ninguna venta.</div>';
   h+='<div class="panelcard"><div class="v-sec-t">🏷️ Precio de venta <span>(opcional, para comparar)</span></div><input class="v-full" style="box-sizing:border-box" placeholder="Precio $" inputmode="decimal" value="'+esc(S.precio)+'" oninput="_calcSt.precio=this.value;_calcTot()">';
   h+='<div class="v-sec-t" style="margin-top:15px">💳 Pagos <span>(se pueden dividir)</span></div><div class="v-rows">';
   S.pagos.forEach((p,i)=>{
