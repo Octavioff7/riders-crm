@@ -1919,7 +1919,7 @@ function _ventaCalcHTML(pagos,prod){ // sin parámetros: usa la venta en curso
 let _calcSt={precio:'',pagos:[{metodo:'cash',monto:'',financiera:''}]};
 function renderCalc(){
   const S=_calcSt;
-  let h='<div class="page calc-page"><h1>🧮 Calculadora de pagos</h1><div class="sub">Armá cómo va a pagar el cliente y mirá cuánto le queda a la empresa después de taxes y fees. No carga ninguna venta.</div>';
+  let h='<div class="page calc-page"><h1>Calculadora de pagos</h1><div class="sub">Armá cómo va a pagar el cliente y mirá cuánto le queda a la empresa después de taxes y fees. No carga ninguna venta.</div>';
   h+='<div class="panelcard"><div class="v-sec-t">🏷️ Precio de venta <span>(opcional, para comparar)</span></div><input class="v-full" style="box-sizing:border-box" placeholder="$ Precio" inputmode="decimal" value="'+esc(_calcFmt(S.precio))+'" oninput="_calcInp(this,v=>_calcSt.precio=v)">';
   h+='<div class="v-sec-t" style="margin-top:15px">💳 Pagos <span>(se pueden dividir)</span></div><div class="v-rows">';
   S.pagos.forEach((p,i)=>{
