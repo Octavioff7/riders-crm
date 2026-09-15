@@ -1145,6 +1145,7 @@ function _ctxGrupos(ctx,list){
   const asc=(a,b)=>proxDateTime(a)-proxDateTime(b),desc=(a,b)=>proxDateTime(b)-proxDateTime(a);
   if(ctx==='atrasado')return tres(c=>proxDateTime(c).getTime(),['🟡 Atrasados de hoy','🟠 Atrasados · últimos 7 días','🔴 De días anteriores']).map(([t,arr])=>[t,arr.slice().sort(desc)]);
   if(ctx==='hoy')return [['🔴 De hoy, atrasados',list.filter(esAtrasado).sort(asc)],['🟡 Pendientes de hoy',list.filter(c=>!esAtrasado(c)).sort(asc)]];
+  if(ctx==='proximos')return [['🟢 Mañana',list.filter(c=>diasA(c)===1).sort(asc)],['🔵 Próxima semana',list.filter(c=>{const d=diasA(c);return d>=2&&d<=7;}).sort(asc)],['🗓️ Otros días',list.filter(c=>diasA(c)>7).sort(asc)]];
   if(ctx==='nuevas')return tres(_consultaTs,['🟢 Llegaron hoy','🟠 Últimos 7 días','🕓 De otros días']);
   if(ctx==='anotar'||ctx==='calientes'||ctx==='frios')return tres(creaKey,['🟢 Cargados hoy','🟠 Últimos 7 días','🕓 De otros días']);
   return null;
@@ -1234,7 +1235,14 @@ function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.valu
 // El recuadro de nota crece solo con el texto (se ve la nota completa, sin cortar).
 function autoGrow(el){if(!el)return;el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
 // Redibuja el inbox SIN perder la posición del scroll de la ficha (evita el salto al editar notas).
-function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');const y=el?el.scrollTop:0;renderInbox();const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;}
+function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');const y=el?el.scrollTop:0;
+  // Conserva lo que haya escrito sin guardar: nota nueva, fecha/hora/tipo del próximo contacto, nota en edición y el foco.
+  const keep={};['nueva-nota','prox-fecha','prox-hora','prox-tipo','edit-nota'].forEach(id=>{const e=document.getElementById(id);if(e)keep[id]=e.value;});
+  const ae=document.activeElement;const focusId=ae&&ae.id;let selS=null;try{selS=ae&&ae.selectionStart;}catch(e){}
+  renderInbox();
+  for(const id in keep){const e=document.getElementById(id);if(!e)continue;e.value=keep[id];if(id==='prox-fecha'&&keep[id]){const b=document.getElementById('prox-fecha-btn');if(b)b.innerHTML='📅 '+esc(fmtFecha(keep[id]))+'<span class="v-selarr">▾</span>';}if(e.tagName==='TEXTAREA')autoGrow(e);}
+  if(focusId){const f=document.getElementById(focusId);if(f){f.focus({preventScroll:true});try{if(selS!=null)f.setSelectionRange(selS,selS);}catch(e){}}}
+  const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;}
 function editarNota(id,idx){editNotaKey=id+':'+idx;const c=clientes.find(x=>x.id===id);if(c)refrescarFicha(c);else renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
 function cancelarEdicionNota(){editNotaKey=null;const c=sel();if(c)refrescarFicha(c);else renderInboxKeepScroll();}
 function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:t});save();el.value='';autoGrow(el);refrescarFicha(c);}
@@ -4527,7 +4535,7 @@ function enBucket(c,b){
   if((c.etapa==='vendido'||c.etapa==='posventa')&&!(c.tags&&c.tags.includes('seguimiento')))return false;
   if(b==='atrasado')return esAtrasado(c);
   if(b==='hoy')return esHoy(c);
-  if(b==='proximos'){const d=diasA(c);return d>=1&&d<=6;}
+  if(b==='proximos'){const d=diasA(c);return d>=1;} // de mañana en adelante (la sección lo divide en mañana / próxima semana / otros días)
   if(b==='semana'){const d=diasA(c);return d>=7;}
   return false;
 }
@@ -4541,7 +4549,7 @@ function estadoAgenda(c){
 const AG_SECS={
   atrasado:{emoji:'🔴',label:'Atrasados',sub:'Se pasó la fecha/hora del contacto (más de 15 min) y sigue pendiente.'},
   hoy:{emoji:'🟡',label:'Hoy',sub:'Contactos que tenés que atender hoy.'},
-  proximos:{emoji:'🔵',label:'Próximos días',sub:'Agendados para los próximos 6 días.'},
+  proximos:{emoji:'🔵',label:'Próximos días',sub:'Agendados de mañana en adelante.'},
   semana:{emoji:'🗓️',label:'Próxima semana',sub:'Agendados de acá a una semana o más.'}
 };
 /* ---- Filtro por fechas (desde / hasta, con el almanaque) en las secciones de agenda y en Nuevas consultas ---- */
@@ -4571,6 +4579,13 @@ function renderAgendaSec(estado){
     if(atr.length)h+=`<div class="panelcard"><h3>🔴 De hoy, atrasados <span style="color:var(--muted);font-weight:600">· ${atr.length}</span></h3>${atr.map(fila).join('')}</div>`;
     h+=`<div class="panelcard"><h3>🟡 Pendientes de hoy <span style="color:var(--muted);font-weight:600">· ${pend.length}</span></h3>${pend.length?pend.map(fila).join(''):'<div class="empty">Nada pendiente por ahora 🎉</div>'}</div>`;
     main.innerHTML=h+'</div>';return;
+  }
+  if(estado==='proximos'){
+    // Próximos días: mañana / próxima semana (de pasado mañana a 7 días) / otros días, el más cercano primero.
+    const asc=(a,b)=>proxDateTime(a)-proxDateTime(b);
+    const man=list.filter(c=>diasA(c)===1).sort(asc),sem=list.filter(c=>{const d=diasA(c);return d>=2&&d<=7;}).sort(asc),otr=list.filter(c=>diasA(c)>7).sort(asc);
+    const bloque=(t,arr)=>arr.length?`<div class="panelcard"><h3>${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>${arr.map(fila).join('')}</div>`:'';
+    main.innerHTML=h+bloque('🟢 Mañana',man)+bloque('🔵 Próxima semana',sem)+bloque('🗓️ Otros días',otr)+'</div>';return;
   }
   if(estado==='atrasado'){
     // Atrasados: los de hoy arriba y los de días anteriores abajo; en cada bloque, el más reciente primero.
@@ -4964,7 +4979,8 @@ function _verOcupado(){
   if(document.querySelector('.modal-back'))return true;              // modal/ficha/calendario abierto
   if(typeof _venta!=='undefined'&&_venta&&_venta.step)return true;   // cargando una venta
   const a=document.activeElement;
-  return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));         // escribiendo algo
+  if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return true;    // escribiendo algo
+  return _hayTextoSinGuardar();                                       // nota sin guardar o fecha/hora cambiada sin agendar
 }
 async function _checkVer(){
   if(_verBusy)return;
@@ -4985,7 +5001,10 @@ async function _checkVer(){
    actualiza solo, sin cerrar y abrir. Consulta una firma liviana cada 20 s y solo baja los datos si cambió. ---- */
 let _dataSig=null,_syncBusy=false;
 async function _refreshSig(){try{if(!SERVER)return;const d=await (await api('/api/clientes/sig')).json();_dataSig=d.s;}catch(e){}}
-function _hayTextoSinGuardar(){const a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT'||a.isContentEditable))return true;const n=document.getElementById('nueva-nota');if(n&&n.value.trim())return true;if(document.getElementById('edit-nota'))return true;return false;}
+function _hayTextoSinGuardar(){const a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT'||a.isContentEditable))return true;const n=document.getElementById('nueva-nota');if(n&&n.value.trim())return true;if(document.getElementById('edit-nota'))return true;
+  // Fecha / hora / tipo del próximo contacto cambiados pero todavía no agendados
+  const c=(typeof sel==='function')?sel():null;if(c){const f=document.getElementById('prox-fecha'),h=document.getElementById('prox-hora'),t=document.getElementById('prox-tipo');if(f&&f.value!==(c.proximo||hoy()))return true;if(h&&h.value!==(c.proximoHora||''))return true;if(t&&t.value!==(c.proximoTipo||'Llamada'))return true;}
+  return false;}
 async function _syncClientes(){
   if(!SERVER||!me||_syncBusy||_saving>0||document.hidden)return;
   try{
