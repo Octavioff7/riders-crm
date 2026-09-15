@@ -818,6 +818,7 @@
         <button data-view="vendidos"><span class="ic" aria-hidden="true">✅</span><span class="lbl">Vendidos</span><span class="count" id="cnt-vendidos"></span></button>
         <button class="vend-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
         <button class="vend-only" data-view="financieras"><span class="ic" aria-hidden="true">🏦</span><span class="lbl">Financieras</span></button>
+        <button data-view="calc"><span class="ic" aria-hidden="true">🧮</span><span class="lbl">Calculadora</span></button>
         <button data-view="papelera"><span class="ic" aria-hidden="true">🗑️</span><span class="lbl">Papelera</span><span class="count" id="cnt-papelera"></span></button>
         <button class="owner-only" data-view="inicioAdmin"><span class="ic" aria-hidden="true">🏠</span><span class="lbl">Inicio</span></button>
         <button class="owner-only" data-view="dueno"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Panel del equipo</span></button>
@@ -1016,7 +1017,7 @@ function render(){
   if(/^aud(Informe|Dashboard)$/.test(navActive))navActive='auditoria';
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras',finanzas:'Dashboard Financiero',pedidos:'Pedidos y Logística',pedInforme:'Informe de Pedidos',pedAgrupado:'Pedidos Agrupado',pedOrganizar:'Organizar Pedidos',pedOrdenes:'Órdenes Pedidos',auditoria:'Auditoría',audInforme:'Informe de Auditoría',audDashboard:'Dashboard Auditoría'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',calc:'Calculadora',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras',finanzas:'Dashboard Financiero',pedidos:'Pedidos y Logística',pedInforme:'Informe de Pedidos',pedAgrupado:'Pedidos Agrupado',pedOrganizar:'Organizar Pedidos',pedOrdenes:'Órdenes Pedidos',auditoria:'Auditoría',audInforme:'Informe de Auditoría',audDashboard:'Dashboard Auditoría'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
@@ -1037,6 +1038,7 @@ function render(){
   else if(view==='equipo')renderEquipo();
   else if(view==='cuentas')renderCuentas();
   else if(view==='vendidos')renderVendidos();
+  else if(view==='calc')renderCalc();
   else if(view==='ventas')renderVentasAdmin();
   else if(view==='asistente')renderAsistente();
   else if(view==='copiloto')renderCopiloto();
@@ -1869,10 +1871,11 @@ function _ventaTotHTML(){
 }
 function _ventaTot(){const c=document.getElementById('v-calc');if(c)c.innerHTML=_ventaCalcHTML();const ce=document.getElementById('v-comis-est');if(ce)ce.textContent='US$ '+_money(_comisionWizardCalc());}
 // Calcula lo que paga el cliente: por cada pago, base + (7% tax si la financiera lo lleva) + fee de la financiera
-function _ventaCalc(){
+function _ventaCalc(){return _calcPagos(_venta.pagos);}
+function _calcPagos(pagos){
   let base=0,tax=0,fee=0;const lineas=[];
   let total=0;
-  _venta.pagos.forEach(p=>{
+  pagos.forEach(p=>{
     const m=parseFloat(p.monto)||0;let t=0,f=0,fin=null,resta=false;
     if(p.metodo==='financiado'){
       // La financiera presta el monto y le descuenta tax+fee → el negocio recibe MENOS
@@ -1886,8 +1889,8 @@ function _ventaCalc(){
   });
   return {base,tax,fee,total,lineas};
 }
-function _ventaCalcHTML(){
-  const c=_ventaCalc();
+function _ventaCalcHTML(pagos,prod){ // sin parámetros: usa la venta en curso
+  pagos=pagos||_venta.pagos;const c=_calcPagos(pagos);
   let h='<div class="v-calc-t">Total de la venta</div>';
   c.lineas.forEach(L=>{
     if(!L.m)return;
@@ -1898,7 +1901,7 @@ function _ventaCalcHTML(){
     h+='<div class="v-calc-ln"><span>'+esc(label+fin)+' · $'+_money(L.m)+(extra.length?' <span class="v-calc-x">('+extra.join(' ')+')</span>':'')+'</span><b>$'+_money(L.total)+'</b></div>';
   });
   h+='<div class="v-calc-tot"><span>Le queda a la empresa</span><b>$'+_money(c.total)+'</b></div>';
-  const prod=_ventaSum(_venta.productos,'precio');
+  if(prod===undefined)prod=_ventaSum(_venta.productos,'precio');
   if(prod){
     h+='<div class="v-calc-rec"><span>Precio de venta</span><span>$'+_money(prod)+'</span></div>';
     const diff=Math.round((c.total-prod)*100)/100;
@@ -1906,9 +1909,35 @@ function _ventaCalcHTML(){
     else if(diff<-0.009)h+='<div class="v-calc-warn">▼ Faltan $'+_money(-diff)+' para llegar al precio</div>';
     else h+='<div class="v-calc-ok">✓ Justo: le entra el precio exacto</div>';
   }
-  if(_venta.pagos.some(p=>p.metodo==='financiado'&&!p.financiera))h+='<div class="v-calc-note">⚠️ Elegí la financiera para calcular su fee.</div>';
+  if(pagos.some(p=>p.metodo==='financiado'&&!p.financiera))h+='<div class="v-calc-note">⚠️ Elegí la financiera para calcular su fee.</div>';
   return h;
 }
+/* ---- CALCULADORA DE PAGOS (misma cuenta que "Cargar venta", pero sin cargar nada) ---- */
+let _calcSt={precio:'',pagos:[{metodo:'cash',monto:'',financiera:''}]};
+function renderCalc(){
+  const S=_calcSt;
+  let h='<div class="page"><h1>🧮 Calculadora de pagos</h1><div class="sub">Armá cómo va a pagar el cliente y mirá cuánto le queda a la empresa después de taxes y fees. No carga ninguna venta.</div>';
+  h+='<div class="panelcard"><div class="v-sec-t">🏷️ Precio de venta <span>(opcional, para comparar)</span></div><input class="v-full" style="box-sizing:border-box" placeholder="Precio $" inputmode="decimal" value="'+esc(S.precio)+'" oninput="_calcSt.precio=this.value;_calcTot()">';
+  h+='<div class="v-sec-t" style="margin-top:15px">💳 Pagos <span>(se pueden dividir)</span></div><div class="v-rows">';
+  S.pagos.forEach((p,i)=>{
+    h+='<div class="v-card"><div class="v-prow">'+_vSelBtn('',_VMETLBL[p.metodo]||'Medio de pago',false,'_calcPickMetodo('+i+')')
+      +'<input class="v-price" placeholder="Monto $" inputmode="decimal" value="'+esc(p.monto)+'" oninput="_calcSt.pagos['+i+'].monto=this.value;_calcTot()">'
+      +(S.pagos.length>1?'<button class="v-del" onclick="_calcDelPago('+i+')">✕</button>':'<span class="v-del-sp"></span>')+'</div>';
+    if(p.metodo==='financiado')h+=_vSelBtn('v-full',p.financiera||'— Elegí la financiera —',!p.financiera,'_calcPickFin('+i+')');
+    h+='</div>';
+  });
+  h+='</div><button class="v-add" onclick="_calcAddPago()">＋ Agregar pago</button>';
+  h+='<div class="v-calc" id="v-calc">'+_ventaCalcHTML(S.pagos,parseFloat(S.precio)||0)+'</div>';
+  h+='<div class="faint" style="font-size:12px;margin-top:10px;line-height:1.5">Financiado: la financiera descuenta el 7% de tax (si lo lleva) y su fee, y la empresa recibe menos. Zelle y tarjeta: el cliente paga 7% de tax de más. Cash no lleva tax.</div>';
+  h+='<button class="btn ghost" style="margin-top:12px" onclick="_calcReset()">↺ Limpiar</button></div></div>';
+  main.innerHTML=h;
+}
+function _calcTot(){const c=document.getElementById('v-calc');if(c)c.innerHTML=_ventaCalcHTML(_calcSt.pagos,parseFloat(_calcSt.precio)||0);}
+function _calcPickMetodo(i){appPick({titulo:'Medio de pago',actual:_calcSt.pagos[i].metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_calcSt.pagos[i].metodo=v;renderCalc();}});}
+function _calcPickFin(i){appPick({titulo:'Elegí la financiera',actual:_calcSt.pagos[i].financiera||'',opciones:[{value:'',label:'— Sin especificar —'}].concat(_FIN.filter(_finActiva).map(f=>({value:f.n,label:f.n,nota:f.dias}))),onPick:v=>{_calcSt.pagos[i].financiera=v;renderCalc();}});}
+function _calcAddPago(){_calcSt.pagos.push({metodo:'cash',monto:'',financiera:''});renderCalc();}
+function _calcDelPago(i){_calcSt.pagos.splice(i,1);if(!_calcSt.pagos.length)_calcSt.pagos.push({metodo:'cash',monto:'',financiera:''});renderCalc();}
+function _calcReset(){_calcSt={precio:'',pagos:[{metodo:'cash',monto:'',financiera:''}]};renderCalc();}
 function _ventaAddProd(){_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0});_ventaRender();}
 function _ventaDelProd(i){_venta.productos.splice(i,1);if(!_venta.productos.length)_venta.productos.push({producto:'Moto',color:'',detalle:'',listaPrecio:null,precio:'',receptorIdx:0});_ventaRender();}
 function _ventaAddPago(){_venta.pagos.push({metodo:'cash',monto:'',fecha:hoy(),financiera:'',comprobante:null,compradorIdx:0});_ventaRender();}
