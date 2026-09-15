@@ -1882,7 +1882,8 @@ function _calcPagos(pagos){
     if(p.metodo==='financiado'){
       // La financiera presta el monto y le descuenta tax+fee → el negocio recibe MENOS
       resta=true;
-      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?m*0.07:0;f=m*fin.fee;if(fin.feeModo==='suma')resta=false;} // "se suma": tax y fee van arriba del monto aprobado
+      // Financiado: primero el fee sobre el monto aprobado y después el 7% de tax sobre lo que queda (en cadena, no los dos sobre el monto original).
+      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];if(fin.feeModo==='suma')resta=false;f=m*fin.fee;const r2=resta?(m-f):(m+f);t=fin.tax?r2*0.07:0;}
     }else if(p.metodo==='zelle'||p.metodo==='debito'||p.metodo==='credito'){
       t=m*0.07; // tarjeta/zelle: el cliente paga 7% de taxes de más (el cash no lleva)
     }
@@ -1899,7 +1900,7 @@ function _ventaCalcHTML(pagos,prod){ // sin parámetros: usa la venta en curso
     const label=_VMETLBL[L.p.metodo]||L.p.metodo;
     const fin=(L.p.metodo==='financiado'&&L.p.financiera)?' · '+L.p.financiera:'';
     const sg=L.resta?'−':'+';
-    const extra=[];if(L.t)extra.push(sg+'7% tax');if(L.f)extra.push(sg+_pctLabel(L.fin.fee)+' fee');
+    const extra=[];if(L.f)extra.push(sg+_pctLabel(L.fin.fee)+' fee');if(L.t)extra.push(sg+'7% tax');
     h+='<div class="v-calc-ln"><span>'+esc(label+fin)+' · $'+_money(L.m)+(extra.length?' <span class="v-calc-x">('+extra.join(' ')+')</span>':'')+'</span><b>$'+_money(L.total)+'</b></div>';
   });
   h+='<div class="v-calc-tot"><span>Le queda a la empresa</span><b>$'+_money(c.total)+'</b></div>';
@@ -2492,7 +2493,7 @@ function _waVenta(id){
     L.push('');
     let t=0,f=0,fin=null;
     if(p.metodo==='financiado'){
-      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];t=fin.tax?mm*0.07:0;f=mm*fin.fee;}
+      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];f=mm*fin.fee;const r2=fin.feeModo==='suma'?(mm+f):(mm-f);t=fin.tax?r2*0.07:0;}
       L.push(_E.card+' CRÉDITO FINANCIERA');
       if(p.financiera)L.push(_E.bank+' Financiera: '+p.financiera);
       L.push(_E.cash+' Aplicado a venta: US$ '+m(mm));
