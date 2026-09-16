@@ -518,7 +518,7 @@
   .vt-ic{border:none;color:#fff;border-radius:7px;width:30px;height:28px;font-size:13px;cursor:pointer;display:inline-grid;place-items:center}
   .vt-ic.vt-del{background:var(--hover);color:var(--muted)}
 .fin-grip{display:inline-block;color:#b8b8bd;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;font-size:22px;line-height:1;padding:2px 6px;margin-left:6px;vertical-align:middle;border-radius:6px}.fin-grip:hover{color:var(--muted);background:var(--hover)}.fin-grip:active{cursor:grabbing}
-tr.fin-dragging{position:relative;z-index:5;filter:drop-shadow(0 10px 16px rgba(0,0,0,.18))}tr.fin-dragging td{background:var(--card)}
+tr.fin-dragging td{background:var(--card);position:relative;z-index:5;box-shadow:0 8px 16px rgba(0,0,0,.14)}tr.fin-dragging td:first-child{border-radius:8px 0 0 8px}tr.fin-dragging td:last-child{border-radius:0 8px 8px 0}
   .vt-ic.vt-del:hover{background:var(--sep-strong)}
   .vt-ic.vt-wa{background:#25d366}
   .vt-ic svg{display:block}
@@ -3465,9 +3465,12 @@ function _finGripDown(e,btn){
     // Encaja en el hueco con una transición corta y recién ahí se reordena y se guarda
     const slotTop=target<i0?rects[target].top:(target>i0?rects[target].bottom-h:rects[i0].top);
     tr.style.transition='transform .18s ease';tr.style.transform='translateY('+(slotTop-rects[i0].top)+'px)';
-    setTimeout(()=>{rows.forEach(r=>{r.style.transition='';r.style.transform='';});tr.classList.remove('fin-dragging');
+    setTimeout(()=>{
+      if(target!==i0){const ref=target<i0?rows[target]:rows[target].nextSibling;tb.insertBefore(tr,ref);} // ya está visualmente ahí: el DOM lo alcanza sin que se note
+      rows.forEach(r=>{r.style.transition='';r.style.transform='';});tr.classList.remove('fin-dragging');
       if(target===i0)return;const vis=rows.map(r=>+r.dataset.idx);const moved=vis.splice(i0,1)[0];vis.splice(target,0,moved);
-      const slots=vis.slice().sort((a,b)=>a-b);const old=_FIN.slice();slots.forEach((sl,k)=>{_FIN[sl]=old[vis[k]];});_finPersist();_finRenderRows();},190);};
+      const slots=vis.slice().sort((a,b)=>a-b);const old=_FIN.slice();slots.forEach((sl,k)=>{_FIN[sl]=old[vis[k]];});_finPersist();
+      const wrap=tb.closest('.vtbl-wrap');const sx=wrap?wrap.scrollLeft:0,sy=main.scrollTop;_finRenderRows();if(wrap)wrap.scrollLeft=sx;main.scrollTop=sy;},190);};
   btn.addEventListener('pointermove',move);btn.addEventListener('pointerup',up);btn.addEventListener('pointercancel',up);
 }
 function _finDel(idx){const f=_FIN[idx];if(!f)return;appModal({titulo:'Eliminar financiera',texto:'¿Eliminar "'+f.n+'"?',okLabel:'Eliminar',okDanger:true,onOk:()=>{_FIN.splice(idx,1);_finPersist();render();}});}
