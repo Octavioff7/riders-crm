@@ -316,11 +316,12 @@ if(webpush){
 function pushPubKey(){return VAPID?VAPID.publicKey:'';}
 function addPushSub(userId,sub){const users=loadUsers();const u=users.find(x=>x.id===userId);if(!u||!sub||!sub.endpoint)return false;u.pushSubs=u.pushSubs||[];if(!u.pushSubs.some(s=>s.endpoint===sub.endpoint))u.pushSubs.push(sub);saveUsers(users);return true;}
 function removePushSub(userId,endpoint){const users=loadUsers();const u=users.find(x=>x.id===userId);if(!u||!u.pushSubs)return;u.pushSubs=u.pushSubs.filter(s=>s.endpoint!==endpoint);saveUsers(users);}
-function pushToUser(userId,payload){
+function pushToUser(userId,payload,excludeEndpoint){ // excludeEndpoint: no avisar a ese dispositivo (p. ej. la PC que dispara el aviso)
   if(!webpush)return false;
   const u=loadUsers().find(x=>x.id===userId);if(!u||!u.pushSubs||!u.pushSubs.length)return false;
+  const subs=excludeEndpoint?u.pushSubs.filter(s=>s.endpoint!==excludeEndpoint):u.pushSubs;if(!subs.length)return false;
   const dead=[];
-  u.pushSubs.forEach(s=>{webpush.sendNotification(s,JSON.stringify(payload)).catch(err=>{if(err&&(err.statusCode===410||err.statusCode===404))dead.push(s.endpoint);});});
+  subs.forEach(s=>{webpush.sendNotification(s,JSON.stringify(payload)).catch(err=>{if(err&&(err.statusCode===410||err.statusCode===404))dead.push(s.endpoint);});});
   if(dead.length)setTimeout(()=>{const us=loadUsers();const uu=us.find(x=>x.id===userId);if(uu&&uu.pushSubs){uu.pushSubs=uu.pushSubs.filter(s=>!dead.includes(s.endpoint));saveUsers(us);}},4000);
   return true;
 }
@@ -998,6 +999,16 @@ http.createServer((req,res)=>{
     try{const buf=fs.readFileSync(path.join(VDOCS,id));res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'private, max-age=86400'});return res.end(buf);}catch(e){res.writeHead(404);return res.end('no');}
   }
 
+  // "Mandar al celu": notificación al propio usuario con el cliente; al tocarla se abre esa ficha.
+  if(u==='/api/push/ficha'&&req.method==='POST')return readBody(b=>{
+    const c=scopedClientes(me).find(x=>x.id===b.cid);if(!c)return json(404,{error:'Cliente no encontrado'});
+    const nombre=c.nombre||c.whatsapp||'Cliente';
+    const push=pushToUser(me.id,{title:'📲 '+nombre,body:'Tocá para abrir la ficha'+(c.whatsapp?' · '+c.whatsapp:''),cid:c.id},b.endpoint||'');
+    let tgOk=false;
+    if(me.telegramChatId){const proto=(req.headers['x-forwarded-proto']||'https').split(',')[0];const host=req.headers['x-forwarded-host']||req.headers.host||'';const link=proto+'://'+host+'/?c='+encodeURIComponent(c.id);
+      try{tg('sendMessage',{chat_id:me.telegramChatId,text:'📲 '+nombre+(c.whatsapp?' ('+c.whatsapp+')':'')+'\nAbrir la ficha: '+link});tgOk=true;}catch(e){}}
+    json(200,{ok:push||tgOk,push,tg:tgOk});
+  });
   if(u==='/api/push/test'&&req.method==='POST'){
     if(!webpush)return json(200,{ok:false,reason:'El servidor no tiene el push habilitado.'});
     const uu=loadUsers().find(x=>x.id===me.id),subs=(uu&&uu.pushSubs)||[];
