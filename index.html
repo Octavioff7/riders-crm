@@ -1534,8 +1534,13 @@ async function guardarNuevoCliente(){
 }
 /* ===== CARGAR VENTA — wizard de 3 pasos con escaneo de documentos por IA ===== */
 let _venta=null;
-const _VMET=[['cash','Cash'],['zelle','Zelle'],['debito','Tarjeta de Débito'],['credito','Tarjeta de Crédito'],['financiado','Financiado']];
-const _VMETLBL={cash:'Cash',zelle:'Zelle',debito:'Tarjeta de Débito',credito:'Tarjeta de Crédito',financiado:'Financiado'};
+// Otros medios de pago (además de "Financiado"): nombre, fee, si el fee se suma o se resta y si lleva 7% de tax.
+// Los cuatro de base no se pueden borrar (fijo); se pueden agregar más desde Financieras.
+let _MEDIOS=[{id:'cash',n:'Cash',fee:0,tax:false,feeModo:'suma',fijo:true},{id:'zelle',n:'Zelle',fee:0,tax:true,feeModo:'suma',fijo:true},{id:'debito',n:'Tarjeta de Débito',fee:0,tax:true,feeModo:'suma',fijo:true},{id:'credito',n:'Tarjeta de Crédito',fee:0,tax:true,feeModo:'suma',fijo:true}];
+let _VMET=[],_VMETLBL={},_MEDBY={};
+function _rebuildMedios(){_VMET=_MEDIOS.map(m=>[m.id,m.n]).concat([['financiado','Financiado']]);_VMETLBL={};_MEDBY={};_VMET.forEach(x=>_VMETLBL[x[0]]=x[1]);_MEDIOS.forEach(m=>_MEDBY[m.id]=m);}
+_rebuildMedios();
+function _medPersist(){_rebuildMedios();if(SERVER)api('/api/medios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_MEDIOS)}).catch(()=>{});}
 // Financieras: fee (%) y si la venta lleva 7% de taxes (CARITAS/ÁCIMA/EVERLY sí; las demás no)
 let _FIN=[
   {n:'US BANK CARITAS',fee:0.04,tax:true,dias:'Todos los días'},
@@ -1579,6 +1584,7 @@ async function cargarCatalogos(){
   if(!SERVER)return;
   try{const inv=await (await api('/api/inventario')).json();if(Array.isArray(inv)&&inv.length)INVENTARIO=inv;}catch(e){}
   try{const fin=await (await api('/api/financieras')).json();if(Array.isArray(fin)&&fin.length){_FIN=fin;_rebuildFin();}}catch(e){}
+  try{const md=await (await api('/api/medios')).json();if(Array.isArray(md)&&md.length){_MEDIOS=md;_rebuildMedios();}}catch(e){}
   try{const ord=await (await api('/api/ordenes')).json();if(Array.isArray(ord))_ORDENES=ord;}catch(e){}
 }
 function abrirCargarVenta(){
@@ -1899,11 +1905,14 @@ function _calcPagos(pagos){
       resta=true;
       // Financiado: primero el fee sobre el monto aprobado y después el 7% de tax sobre lo que queda (en cadena, no los dos sobre el monto original).
       if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];if(fin.feeModo==='suma')resta=false;f=m*fin.fee;const r2=resta?(m-f):(m+f);t=fin.tax?r2*0.07:0;}
-    }else if(p.metodo==='zelle'||p.metodo==='debito'||p.metodo==='credito'){
-      t=m*0.07; // tarjeta/zelle: el cliente paga 7% de taxes de más (el cash no lleva)
+      var lt=resta?(m-t-f):(m+t+f),fpct=fin?fin.fee:0,fsg=resta?'−':'+',tsg=fsg;
+    }else{
+      // Otros medios (cash, Zelle, tarjetas, los que se agreguen): fee del medio (se suma al cliente o lo absorbe la empresa) y 7% de tax si lo lleva.
+      const md=_MEDBY[p.metodo];const feeSuma=!md||(md.feeModo||'suma')!=='resta';
+      f=md?m*(md.fee||0):0;const b2=feeSuma?(m+f):m;t=(md?md.tax:false)?b2*0.07:0;
+      var lt=m+t+(feeSuma?f:-f),fpct=md?(md.fee||0):0,fsg=feeSuma?'+':'−',tsg='+';
     }
-    const lt=resta?(m-t-f):(m+t+f);
-    base+=m;tax+=t;fee+=f;total+=lt;lineas.push({p,m,t,f,fin,resta,total:lt});
+    base+=m;tax+=t;fee+=f;total+=lt;lineas.push({p,m,t,f,fin,resta,total:lt,fpct,fsg,tsg});
   });
   return {base,tax,fee,total,lineas};
 }
@@ -1915,7 +1924,7 @@ function _ventaCalcHTML(pagos,prod){ // sin parámetros: usa la venta en curso
     const label=_VMETLBL[L.p.metodo]||L.p.metodo;
     const fin=(L.p.metodo==='financiado'&&L.p.financiera)?' · '+L.p.financiera:'';
     const sg=L.resta?'−':'+';
-    const extra=[];if(L.f)extra.push(sg+_pctLabel(L.fin.fee)+' fee');if(L.t)extra.push(sg+'7% tax');
+    const extra=[];if(L.f)extra.push(L.fsg+_pctLabel(L.fpct)+' fee');if(L.t)extra.push(L.tsg+'7% tax');
     h+='<div class="v-calc-ln"><span>'+esc(label+fin)+' · $'+_money(L.m)+(extra.length?' <span class="v-calc-x">('+extra.join(' ')+')</span>':'')+'</span><b>$'+_money(L.total)+'</b></div>';
   });
   h+='<div class="v-calc-tot"><span>Le queda a la empresa</span><b>$'+_money(c.total)+'</b></div>';
@@ -2515,12 +2524,13 @@ function _waVenta(id){
       if(t)L.push(_E.tax+' Tax (7%): US$ '+m(t));
       if(fin)L.push(_E.cash+' Fee Financiera ('+_pctLabel(fin.fee)+'): US$ '+m(f));
       L.push(_E.money+' Total cobrado cliente: US$ '+m(mm+t+f));
-    }else if(p.metodo==='zelle'||p.metodo==='debito'||p.metodo==='credito'){
-      t=mm*0.07;
+    }else if(p.metodo!=='cash'&&_MEDBY[p.metodo]){
+      const md=_MEDBY[p.metodo];const feeSuma=(md.feeModo||'suma')!=='resta';f=mm*(md.fee||0);const b2=feeSuma?(mm+f):mm;t=md.tax?b2*0.07:0;
       L.push((p.metodo==='zelle'?_E.mob+' ZELLE':_E.card+' '+String(_VMETLBL[p.metodo]||'').toUpperCase()));
       L.push(_E.cash+' Aplicado a venta: US$ '+m(mm));
-      L.push(_E.tax+' Tax (7%): US$ '+m(t));
-      L.push(_E.money+' Total cobrado cliente: US$ '+m(mm+t));
+      if(f)L.push(_E.cash+' Fee '+md.n+' ('+_pctLabel(md.fee)+(feeSuma?', lo paga el cliente':', lo absorbe la empresa')+'): US$ '+m(f));
+      if(t)L.push(_E.tax+' Tax (7%): US$ '+m(t));
+      L.push(_E.money+' Total cobrado cliente: US$ '+m(mm+t+(feeSuma?f:0)));
     }else{
       L.push(_E.cash+' EFECTIVO (CASH)');
       L.push(_E.cash+' Aplicado a venta: US$ '+m(mm));
@@ -3381,6 +3391,7 @@ function renderFinancieras(){
   h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas'],['hoy','Hoy']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
   h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Link','Financiera','Tipo','Fee','Crédito','Aplica','Estado','Cuotas','Cálculo'].concat(_canEditFin()?['Acciones']:[]).map(c=>'<th'+(c==='Fee'?' class="fin-c"':'')+'>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
   h+='<div class="sub" id="fin-foot" style="margin-top:8px"></div>';
+  h+='<div id="fin-med">'+_medSectionHTML()+'</div>';
   main.innerHTML=h+'</div>';
   _finRenderRows();
 }
@@ -3444,6 +3455,40 @@ function _finModal(idx){
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
   const n=document.getElementById('fin-n');if(n)n.focus();
 }
+/* ---- Otros medios de pago (cash, Zelle, tarjetas...) con su fee ---- */
+function _medSectionHTML(){
+  const edit=_canEditFin();
+  const rows=_MEDIOS.map((md,i)=>'<tr>'
+    +'<td><b>'+esc(md.n)+'</b>'+(md.fijo?'':' <span class="faint" style="font-size:11px">agregado</span>')+'</td>'
+    +'<td class="fin-c">'+_pctLabel(md.fee||0)+'</td>'
+    +'<td>'+((md.feeModo||'suma')==='resta'?'<span class="vt-badge">Lo absorbe la empresa</span>':'<span class="vt-badge ok">Lo paga el cliente</span>')+'</td>'
+    +'<td>'+(md.tax?'Sí':'—')+'</td>'
+    +'<td class="faint" style="font-size:12px">'+esc('Fee '+_pctLabel(md.fee||0)+((md.feeModo||'suma')==='resta'?' (se resta)':' (se suma)')+(md.tax?' + 7% tax':' · sin tax'))+'</td>'
+    +(edit?('<td style="white-space:nowrap"><button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_medModal('+i+')">✏️</button> '+(md.fijo?'':'<button class="vt-ic vt-del" title="Eliminar" onclick="_medDel('+i+')">🗑️</button>')+'</td>'):'')
+    +'</tr>').join('');
+  return '<div class="panelcard" style="margin-top:28px;padding:18px 20px"><div class="conv-head-row" style="margin-bottom:8px"><h2 style="margin:0;font-size:19px">💳 Otros medios de pago</h2>'+(edit?'<button class="btn sm" onclick="_medModal(-1)">＋ Agregar medio</button>':'')+'</div>'
+    +'<div class="sub" style="margin-bottom:10px">Fee y tax de cada medio de pago. Se aplican en Cargar venta y en la Calculadora.</div>'
+    +'<div class="vtbl-wrap"><table class="vtbl"><thead><tr><th>Medio</th><th class="fin-c">Fee</th><th>El fee…</th><th>7% tax</th><th>Cálculo</th>'+(edit?'<th>Acciones</th>':'')+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function _medModal(idx){
+  if(!_canEditFin())return;cerrarModal();const nw=idx<0;const md=nw?{n:'',fee:0,tax:false,feeModo:'suma'}:_MEDIOS[idx];if(!md)return;
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
+  wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(nw?'Agregar medio de pago':'Editar medio de pago')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
+    +'<label>Nombre</label><input id="med-n" value="'+esc(md.n)+'" placeholder="Ej: Cheque, Crypto, Cash App…">'
+    +'<label>Fee (%)</label><input id="med-fee" type="number" inputmode="decimal" step="0.01" value="'+(Math.round((md.fee||0)*10000)/100)+'">'
+    +'<label>¿Cómo se aplica el fee?</label><select id="med-feemodo"><option value="suma"'+((md.feeModo||'suma')==='suma'?' selected':'')+'>Se suma: lo paga el cliente de más</option><option value="resta"'+(md.feeModo==='resta'?' selected':'')+'>Se resta: lo absorbe la empresa</option></select>'
+    +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="med-tax" style="width:auto;margin:0"'+(md.tax?' checked':'')+'> Lleva 7% de taxes</label>'
+    +'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="_medSave('+idx+')">Guardar</button></div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);const n=document.getElementById('med-n');if(n)n.focus();
+}
+function _medSave(idx){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const n=g('med-n');if(!n){alert('Poné un nombre.');return;}
+  const item={n,fee:(parseFloat(g('med-fee'))||0)/100,feeModo:g('med-feemodo')==='resta'?'resta':'suma',tax:document.getElementById('med-tax').checked};
+  if(idx<0){item.id='m_'+Date.now().toString(36);_MEDIOS.push(item);}else _MEDIOS[idx]=Object.assign({},_MEDIOS[idx],item);
+  _medPersist();cerrarModal();render();
+}
+function _medDel(idx){const md=_MEDIOS[idx];if(!md||md.fijo)return;appModal({titulo:'Eliminar medio de pago',texto:'¿Eliminar "'+md.n+'"?',okLabel:'Eliminar',okDanger:true,onOk:()=>{_MEDIOS.splice(idx,1);_medPersist();render();}});}
 function _finSave(idx){
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const n=g('fin-n');if(!n){alert('Poné un nombre.');return;}
