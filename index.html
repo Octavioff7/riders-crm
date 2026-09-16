@@ -517,7 +517,7 @@
   .vt-ver{border:1px solid var(--sep-strong);background:var(--bg);color:var(--accent);border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
   .vt-ic{border:none;color:#fff;border-radius:7px;width:30px;height:28px;font-size:13px;cursor:pointer;display:inline-grid;place-items:center}
   .vt-ic.vt-del{background:var(--hover);color:var(--muted)}
-.fin-mv{display:inline-flex;gap:2px;margin-left:6px;vertical-align:middle}.fin-mvb{background:var(--hover);color:var(--muted);width:24px;height:22px;font-size:10px}.fin-mvb:disabled{opacity:.3;cursor:default}
+.fin-grip{background:var(--hover);color:var(--muted);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;font-size:13px;letter-spacing:-3px;padding-right:3px}.fin-grip:active{cursor:grabbing}tr.fin-dragging{opacity:.55;background:var(--hover)}
   .vt-ic.vt-del:hover{background:var(--sep-strong)}
   .vt-ic.vt-wa{background:#25d366}
   .vt-ic svg{display:block}
@@ -3389,7 +3389,7 @@ function _finRenderRows(){
   const estBadge=f=>_finActiva(f)?'<span class="vt-badge ok">Activa</span>':'<span class="vt-badge">Inactiva</span>';
   const _ncol=_canEditFin()?10:9;
   if(!rows.length){tb.innerHTML='<tr><td colspan="'+_ncol+'" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron financieras.</td></tr>';}
-  else tb.innerHTML=rows.map(({f,idx})=>'<tr>'
+  else tb.innerHTML=rows.map(({f,idx})=>'<tr data-idx="'+idx+'">'
     +'<td><span class="fin-logo" style="background:'+avColor(f.n)+'">'+esc(iniciales(f.n))+'</span></td>'
     +'<td style="white-space:nowrap">'+(_finLink(f)?('<button class="btn sm ghost" title="Copiar el link para mandarselo al cliente" onclick="event.stopPropagation();_finCopyLink('+idx+',this)">📋 Copiar</button><a class="fin-link" href="'+esc(_finLink(f))+'" target="_blank" rel="noopener noreferrer" title="Abrir el sitio" onclick="event.stopPropagation()">🔗</a>'):'—')+'</td>'
     +'<td><b>'+esc(f.n)+'</b>'+(_finHoyDisp(f)?' <span class="vt-badge ok" title="Se puede usar hoy">Hoy</span>':'')+'<div class="faint" style="font-size:11.5px">'+esc(f.dias||'')+'</div></td>'
@@ -3398,7 +3398,7 @@ function _finRenderRows(){
     +'<td>'+estBadge(f)+'</td>'
     +'<td>'+esc(f.cuotas||'—')+'</td>'
     +'<td class="faint" style="font-size:12px">'+esc(_finCalc(f))+'</td>'
-    +(_canEditFin()?('<td style="white-space:nowrap"><button class="vt-ic" style="background:'+(_finActiva(f)?'#8e8e93':'#34c759')+'" title="'+(_finActiva(f)?'Desactivar':'Activar')+'" onclick="_finToggle('+idx+')">'+(_finActiva(f)?'⏸':'▶')+'</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_finModal('+idx+')">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_finDel('+idx+')">🗑️</button> <span class="fin-mv"><button class="vt-ic fin-mvb" title="Subir" onclick="_finMove('+idx+',-1)"'+(idx===0?' disabled':'')+'>▲</button><button class="vt-ic fin-mvb" title="Bajar" onclick="_finMove('+idx+',1)"'+(idx===_FIN.length-1?' disabled':'')+'>▼</button></span></td>'):'')
+    +(_canEditFin()?('<td style="white-space:nowrap"><button class="vt-ic" style="background:'+(_finActiva(f)?'#8e8e93':'#34c759')+'" title="'+(_finActiva(f)?'Desactivar':'Activar')+'" onclick="_finToggle('+idx+')">'+(_finActiva(f)?'⏸':'▶')+'</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_finModal('+idx+')">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_finDel('+idx+')">🗑️</button> <button class="vt-ic fin-grip" title="Mantené apretado y arrastrá para ordenar" onpointerdown="_finGripDown(event,this)">⋮⋮</button></td>'):'')
     +'</tr>').join('');
   const foot=document.getElementById('fin-foot');if(foot)foot.textContent=rows.length?(rows.length+' financiera(s)'):'Sin resultados';
   try{_segSlideAll();}catch(e){}
@@ -3448,8 +3448,16 @@ function _finSave(idx){
   if(idx<0)_FIN.push(item);else _FIN[idx]=Object.assign({},_FIN[idx],item);
   _finPersist();_audit({modulo:'FINANCIERAS',entidad:'FINANCIERA',accion:idx<0?'ALTA':'MODIFICACION',metodo:idx<0?'POST':'PUT',referencia:'Financiera '+n,cambios:1});cerrarModal();render();
 }
-// Flechas para ordenar la lista de financieras (el orden se guarda y es el que ven todos).
-function _finMove(idx,dir){const j=idx+dir;if(j<0||j>=_FIN.length)return;const t=_FIN[idx];_FIN[idx]=_FIN[j];_FIN[j]=t;_finPersist();_finRenderRows();}
+// Ordenar arrastrando: mantené apretado el agarre (⋮⋮) y movelo arriba o abajo. Funciona con mouse y con el dedo.
+function _finGripDown(e,btn){
+  e.preventDefault();const tr=btn.closest('tr');if(!tr)return;const tb=tr.parentNode;tr.classList.add('fin-dragging');
+  try{btn.setPointerCapture(e.pointerId);}catch(x){}
+  const move=ev=>{const el=document.elementFromPoint(ev.clientX,ev.clientY);const over=el&&el.closest?el.closest('tr[data-idx]'):null;if(!over||over===tr||over.parentNode!==tb)return;const r=over.getBoundingClientRect();if(ev.clientY<r.top+r.height/2)tb.insertBefore(tr,over);else tb.insertBefore(tr,over.nextSibling);};
+  const up=()=>{btn.removeEventListener('pointermove',move);btn.removeEventListener('pointerup',up);btn.removeEventListener('pointercancel',up);tr.classList.remove('fin-dragging');
+    const vis=[...tb.querySelectorAll('tr[data-idx]')].map(t=>+t.dataset.idx);const slots=vis.slice().sort((a,b)=>a-b);if(!vis.some((v,k)=>v!==slots[k]))return;
+    const old=_FIN.slice();slots.forEach((sl,k)=>{_FIN[sl]=old[vis[k]];});_finPersist();_finRenderRows();};
+  btn.addEventListener('pointermove',move);btn.addEventListener('pointerup',up);btn.addEventListener('pointercancel',up);
+}
 function _finDel(idx){const f=_FIN[idx];if(!f)return;appModal({titulo:'Eliminar financiera',texto:'¿Eliminar "'+f.n+'"?',okLabel:'Eliminar',okDanger:true,onOk:()=>{_FIN.splice(idx,1);_finPersist();render();}});}
 async function renderEquipo(){
   main.innerHTML='<div class="page"><h1>📈 Equipo</h1><div class="sub">Cargando métricas…</div></div>';
