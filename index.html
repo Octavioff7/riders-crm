@@ -1870,7 +1870,7 @@ function _pickPagoComprador(i){
 function cerrarPick(){const m=document.getElementById('modal-pick');if(m)m.remove();}
 function _pickProducto(i){appPick({titulo:'Producto',actual:_venta.productos[i].producto,opciones:PRODUCTOS.map(p=>({value:p,label:p})),onPick:v=>{const p=_venta.productos[i];if(p.producto!==v){p.detalle='';p.listaPrecio=null;}p.producto=v;_ventaRender();}});}
 function _pickMetodo(i){appPick({titulo:'Medio de pago',actual:_venta.pagos[i].metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_venta.pagos[i].metodo=v;_ventaRender();}});}
-function _pickFinanciera(i){appPick({titulo:'Elegí la financiera',actual:_venta.pagos[i].financiera||'',opciones:[{value:'',label:'— Sin especificar —'}].concat(_FIN.filter(_finActiva).map(f=>({value:f.n,label:f.n,nota:(f.dias||'')+(f.credito?' · crédito '+f.credito:'')}))),onPick:v=>{_venta.pagos[i].financiera=v;_ventaRender();}});}
+function _pickFinanciera(i){appPick({titulo:'Elegí la financiera',actual:_venta.pagos[i].financiera||'',opciones:[{value:'',label:'— Sin especificar —'}].concat(_FIN.filter(_finActiva).map(f=>({value:f.n,label:f.n,nota:(f.dias||'')+(f.credito?' · crédito '+f.credito:'')+(f.plazo?' · '+f.plazo:'')}))),onPick:v=>{_venta.pagos[i].financiera=v;_ventaRender();}});}
 function _ventaSum(arr,key){return arr.reduce((s,x)=>s+(parseFloat(x[key])||0),0);}
 function _money(n){n=Math.round((n||0)*100)/100;return n.toLocaleString('en-US',{minimumFractionDigits:(n%1?2:0),maximumFractionDigits:2});}
 function _ventaTotHTML(){
@@ -1954,7 +1954,7 @@ function _calcRaw(v){v=String(v||'').replace(/[^\d.]/g,'');const i=v.indexOf('.'
 function _calcInp(el,set){const raw=_calcRaw(el.value);set(raw);el.value=_calcFmt(raw);try{el.setSelectionRange(el.value.length,el.value.length);}catch(e){}_calcTot();}
 function _calcTot(){const c=document.getElementById('v-calc');if(c)c.innerHTML=_ventaCalcHTML(_calcSt.pagos,parseFloat(_calcSt.precio)||0);}
 function _calcPickMetodo(i){appPick({titulo:'Medio de pago',actual:_calcSt.pagos[i].metodo,opciones:_VMET.map(m=>({value:m[0],label:m[1]})),onPick:v=>{_calcSt.pagos[i].metodo=v;renderCalc();}});}
-function _calcPickFin(i){appPick({titulo:'Elegí la financiera',actual:_calcSt.pagos[i].financiera||'',opciones:[{value:'',label:'— Sin especificar —'}].concat(_FIN.filter(_finActiva).map(f=>({value:f.n,label:f.n,nota:(f.dias||'')+(f.credito?' · crédito '+f.credito:'')}))),onPick:v=>{_calcSt.pagos[i].financiera=v;renderCalc();}});}
+function _calcPickFin(i){appPick({titulo:'Elegí la financiera',actual:_calcSt.pagos[i].financiera||'',opciones:[{value:'',label:'— Sin especificar —'}].concat(_FIN.filter(_finActiva).map(f=>({value:f.n,label:f.n,nota:(f.dias||'')+(f.credito?' · crédito '+f.credito:'')+(f.plazo?' · '+f.plazo:'')}))),onPick:v=>{_calcSt.pagos[i].financiera=v;renderCalc();}});}
 function _calcAddPago(){_calcSt.pagos.push({metodo:'cash',monto:'',financiera:''});renderCalc();}
 function _calcDelPago(i){_calcSt.pagos.splice(i,1);if(!_calcSt.pagos.length)_calcSt.pagos.push({metodo:'cash',monto:'',financiera:''});renderCalc();}
 function _calcReset(){_calcSt={precio:'',pagos:[{metodo:'cash',monto:'',financiera:''}]};renderCalc();}
@@ -3376,7 +3376,7 @@ function renderFinancieras(){
   h+='<div class="fin-cards">'+card('Se pueden usar hoy',hoyN,_finHoyNombre()+' · habilitadas')+card('Activas',act,'Disponibles para operar')+card('Inactivas',inact,'No visibles en ventas')+card('Con cuotas',cuo,'Con plan de cuotas')+'</div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, código o cuotas…" value="'+esc(_finQ)+'" oninput="_finQ=this.value.toLowerCase();_finRenderRows()">';
   h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todas','Todas'],['activas','Activas'],['inactivas','Inactivas'],['hoy','Hoy']].map(t=>'<button class="fin-tab'+(_finFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_finSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
-  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Link','Financiera','Tipo','Fee','Crédito','Estado','Cuotas','Cálculo'].concat(_canEditFin()?['Acciones']:[]).map(c=>'<th'+(c==='Fee'?' class="fin-c"':'')+'>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
+  h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+['Logo','Link','Financiera','Tipo','Fee','Crédito','Plazo','Estado','Cuotas','Cálculo'].concat(_canEditFin()?['Acciones']:[]).map(c=>'<th'+(c==='Fee'?' class="fin-c"':'')+'>'+c+'</th>').join('')+'</tr></thead><tbody id="fin-tbody"></tbody></table></div>';
   h+='<div class="sub" id="fin-foot" style="margin-top:8px"></div>';
   main.innerHTML=h+'</div>';
   _finRenderRows();
@@ -3386,7 +3386,7 @@ function _finRenderRows(){
   const tb=document.getElementById('fin-tbody');if(!tb)return;
   const rows=_finFiltrada();
   const estBadge=f=>_finActiva(f)?'<span class="vt-badge ok">Activa</span>':'<span class="vt-badge">Inactiva</span>';
-  const _ncol=_canEditFin()?10:9;
+  const _ncol=_canEditFin()?11:10;
   if(!rows.length){tb.innerHTML='<tr><td colspan="'+_ncol+'" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron financieras.</td></tr>';}
   else tb.innerHTML=rows.map(({f,idx})=>'<tr>'
     +'<td><span class="fin-logo" style="background:'+avColor(f.n)+'">'+esc(iniciales(f.n))+'</span></td>'
@@ -3394,6 +3394,7 @@ function _finRenderRows(){
     +'<td><b>'+esc(f.n)+'</b>'+(_finHoyDisp(f)?' <span class="vt-badge ok" title="Se puede usar hoy">Hoy</span>':'')+'<div class="faint" style="font-size:11.5px">'+esc(f.dias||'')+'</div></td>'
     +'<td>'+(_finTipo(f)?'<span class="vt-badge">'+esc(_finTipo(f))+'</span>':'—')+'</td>'+'<td class="fin-c">'+_pctLabel(f.fee)+'</td>'
     +'<td>'+(f.credito?'<span class="vt-badge" style="background:#5e5ce622;color:#5e5ce6">'+esc(f.credito)+'</span>':'—')+'</td>'
+    +'<td>'+(f.plazo?esc(f.plazo):'—')+'</td>'
     +'<td>'+estBadge(f)+'</td>'
     +'<td>'+esc(f.cuotas||'—')+'</td>'
     +'<td class="faint" style="font-size:12px">'+esc(_finCalc(f))+'</td>'
@@ -3430,6 +3431,7 @@ function _finModal(idx){
     +'<label>Tipo</label><select id="fin-tipo">'+['',..._FIN_TIPOS].map(t=>'<option value="'+esc(t)+'"'+(_finTipo(f)===t?' selected':'')+'>'+(t||'— Sin definir —')+'</option>').join('')+'</select>'
     +'<label>Fee (%)</label><input id="fin-fee" type="number" inputmode="decimal" value="'+(Math.round((f.fee||0)*10000)/100)+'">'
     +'<label>Crédito que necesita el cliente (opcional)</label><input id="fin-credito" value="'+esc(f.credito||'')+'" placeholder="Ej: +650, +700, sin crédito">'
+    +'<label>Plazo (opcional)</label><input id="fin-plazo" value="'+esc(f.plazo||'')+'" placeholder="Ej: 12 meses, 90 días, hasta 24 meses">'
     +'<label>¿Cómo se aplica el fee?</label><select id="fin-feemodo"><option value="resta"'+((f.feeModo||'resta')==='resta'?' selected':'')+'>Se resta del monto aprobado (la empresa recibe menos)</option><option value="suma"'+(f.feeModo==='suma'?' selected':'')+'>Se suma al monto aprobado (lo paga el cliente de más)</option></select>'
     +'<label>Cuotas / plan (opcional)</label><input id="fin-cuotas" value="'+esc(f.cuotas||'')+'" placeholder="Ej: 3, 6, 12 meses">'
     +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="fin-tax" style="width:auto;margin:0"'+(f.tax?' checked':'')+'> Lleva 7% de taxes</label>'
@@ -3443,7 +3445,7 @@ function _finSave(idx){
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   const n=g('fin-n');if(!n){alert('Poné un nombre.');return;}
   const sel=_DIAS_SEM.filter(d=>_finDiasSel.indexOf(d)>=0);
-  const item={n,tipo:g('fin-tipo'),codigo:g('fin-cod'),link:g('fin-link'),fee:(parseFloat(g('fin-fee'))||0)/100,feeModo:(g('fin-feemodo')==='suma'?'suma':'resta'),credito:g('fin-credito'),cuotas:g('fin-cuotas'),tax:document.getElementById('fin-tax').checked,activa:document.getElementById('fin-activa').checked,dias:_diasLabel(sel),diasSel:sel};
+  const item={n,tipo:g('fin-tipo'),codigo:g('fin-cod'),link:g('fin-link'),fee:(parseFloat(g('fin-fee'))||0)/100,feeModo:(g('fin-feemodo')==='suma'?'suma':'resta'),credito:g('fin-credito'),plazo:g('fin-plazo'),cuotas:g('fin-cuotas'),tax:document.getElementById('fin-tax').checked,activa:document.getElementById('fin-activa').checked,dias:_diasLabel(sel),diasSel:sel};
   if(idx<0)_FIN.push(item);else _FIN[idx]=Object.assign({},_FIN[idx],item);
   _finPersist();_audit({modulo:'FINANCIERAS',entidad:'FINANCIERA',accion:idx<0?'ALTA':'MODIFICACION',metodo:idx<0?'POST':'PUT',referencia:'Financiera '+n,cambios:1});cerrarModal();render();
 }
