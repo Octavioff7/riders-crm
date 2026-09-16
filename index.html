@@ -518,7 +518,7 @@
   .vt-ic{border:none;color:#fff;border-radius:7px;width:30px;height:28px;font-size:13px;cursor:pointer;display:inline-grid;place-items:center}
   .vt-ic.vt-del{background:var(--hover);color:var(--muted)}
 .fin-grip{display:inline-block;color:#b8b8bd;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;font-size:22px;line-height:1;padding:2px 6px;margin-left:6px;vertical-align:middle;border-radius:6px}.fin-grip:hover{color:var(--muted);background:var(--hover)}.fin-grip:active{cursor:grabbing}
-tr.fin-dragging td{background:var(--card);position:relative;z-index:5;box-shadow:0 8px 16px rgba(0,0,0,.14)}tr.fin-dragging td:first-child{border-radius:8px 0 0 8px}tr.fin-dragging td:last-child{border-radius:0 8px 8px 0}
+tr[data-idx]{will-change:transform}tr[data-idx] td{transition:box-shadow .18s ease,background .18s ease}tr.fin-dragging td{background:var(--card);position:relative;z-index:5;box-shadow:0 8px 16px rgba(0,0,0,.14)}tr.fin-dragging td:first-child{border-radius:8px 0 0 8px}tr.fin-dragging td:last-child{border-radius:0 8px 8px 0}
   .vt-ic.vt-del:hover{background:var(--sep-strong)}
   .vt-ic.vt-wa{background:#25d366}
   .vt-ic svg{display:block}
@@ -3392,14 +3392,14 @@ function _finRenderRows(){
   if(!rows.length){tb.innerHTML='<tr><td colspan="'+_ncol+'" style="text-align:center;padding:24px;color:var(--muted)">No se encontraron financieras.</td></tr>';}
   else tb.innerHTML=rows.map(({f,idx})=>'<tr data-idx="'+idx+'">'
     +'<td><span class="fin-logo" style="background:'+avColor(f.n)+'">'+esc(iniciales(f.n))+'</span></td>'
-    +'<td style="white-space:nowrap">'+(_finLink(f)?('<button class="btn sm ghost" title="Copiar el link para mandarselo al cliente" onclick="event.stopPropagation();_finCopyLink('+idx+',this)">📋 Copiar</button><a class="fin-link" href="'+esc(_finLink(f))+'" target="_blank" rel="noopener noreferrer" title="Abrir el sitio" onclick="event.stopPropagation()">🔗</a>'):'—')+'</td>'
+    +'<td style="white-space:nowrap">'+(_finLink(f)?('<button class="btn sm ghost" title="Copiar el link para mandarselo al cliente" onclick="event.stopPropagation();_finCopyLink(_finIdx(this),this)">📋 Copiar</button><a class="fin-link" href="'+esc(_finLink(f))+'" target="_blank" rel="noopener noreferrer" title="Abrir el sitio" onclick="event.stopPropagation()">🔗</a>'):'—')+'</td>'
     +'<td><b>'+esc(f.n)+'</b>'+(_finHoyDisp(f)?' <span class="vt-badge ok" title="Se puede usar hoy">Hoy</span>':'')+'<div class="faint" style="font-size:11.5px">'+esc(f.dias||'')+'</div></td>'
     +'<td>'+(_finTipo(f)?'<span class="vt-badge">'+esc(_finTipo(f))+'</span>':'—')+'</td>'+'<td class="fin-c">'+_pctLabel(f.fee)+'</td>'
     +'<td>'+(f.credito?'<span class="vt-badge" style="background:#5e5ce622;color:#5e5ce6">'+esc(f.credito)+'</span>':'—')+'</td>'
     +'<td>'+estBadge(f)+'</td>'
     +'<td>'+esc(f.cuotas||'—')+'</td>'
     +'<td class="faint" style="font-size:12px">'+esc(_finCalc(f))+'</td>'
-    +(_canEditFin()?('<td style="white-space:nowrap"><button class="vt-ic" style="background:'+(_finActiva(f)?'#8e8e93':'#34c759')+'" title="'+(_finActiva(f)?'Desactivar':'Activar')+'" onclick="_finToggle('+idx+')">'+(_finActiva(f)?'⏸':'▶')+'</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_finModal('+idx+')">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_finDel('+idx+')">🗑️</button> <span class="fin-grip" title="Mantené apretado y arrastrá para ordenar" onpointerdown="_finGripDown(event,this)">⋯</span></td>'):'')
+    +(_canEditFin()?('<td style="white-space:nowrap"><button class="vt-ic" style="background:'+(_finActiva(f)?'#8e8e93':'#34c759')+'" title="'+(_finActiva(f)?'Desactivar':'Activar')+'" onclick="_finToggle(_finIdx(this))">'+(_finActiva(f)?'⏸':'▶')+'</button> <button class="vt-ic" style="background:#ff9f0a" title="Editar" onclick="_finModal(_finIdx(this))">✏️</button> <button class="vt-ic vt-del" title="Eliminar" onclick="_finDel(_finIdx(this))">🗑️</button> <span class="fin-grip" title="Mantené apretado y arrastrá para ordenar" onpointerdown="_finGripDown(event,this)">⋯</span></td>'):'')
     +'</tr>').join('');
   const foot=document.getElementById('fin-foot');if(foot)foot.textContent=rows.length?(rows.length+' financiera(s)'):'Sin resultados';
   try{_segSlideAll();}catch(e){}
@@ -3451,6 +3451,7 @@ function _finSave(idx){
 }
 // Ordenar arrastrando: mantené apretado el agarre (⋯) y movelo. La fila flota por encima de las otras,
 // las demás se corren con una transición suave y al soltar encaja en su lugar. Mouse y dedo.
+function _finIdx(el){const tr=el.closest('tr[data-idx]');return tr?+tr.dataset.idx:-1;}
 function _finGripDown(e,btn){
   e.preventDefault();const tr=btn.closest('tr');if(!tr)return;const tb=tr.parentNode;
   const rows=[...tb.querySelectorAll('tr[data-idx]')];const i0=rows.indexOf(tr);if(i0<0)return;
@@ -3458,19 +3459,23 @@ function _finGripDown(e,btn){
   rows.forEach((r,k)=>{if(k!==i0){r.style.transition='transform .18s ease';}});
   tr.classList.add('fin-dragging');tr.style.transition='none';
   try{btn.setPointerCapture(e.pointerId);}catch(x){}
-  const move=ev=>{const dy=ev.clientY-y0;tr.style.transform='translateY('+dy+'px)';
-    const center=rects[i0].top+h/2+dy;let t=0;rows.forEach((r,k)=>{if(k!==i0&&(rects[k].top+rects[k].height/2)<center)t++;});target=t;
-    rows.forEach((r,k)=>{if(k===i0)return;let ty=0;if(k<i0&&k>=target)ty=h;else if(k>i0&&k<=target)ty=-h;r.style.transform=ty?'translateY('+ty+'px)':'';});};
+  let lastY=y0,raf=0;
+  const paint=()=>{raf=0;const dy=lastY-y0;tr.style.transform='translate3d(0,'+dy+'px,0)';
+    const center=rects[i0].top+h/2+dy;let t=0;rows.forEach((r,k)=>{if(k!==i0&&(rects[k].top+rects[k].height/2)<center)t++;});
+    if(t!==target){target=t;rows.forEach((r,k)=>{if(k===i0)return;let ty=0;if(k<i0&&k>=target)ty=h;else if(k>i0&&k<=target)ty=-h;r.style.transform=ty?'translate3d(0,'+ty+'px,0)':'';});}};
+  const move=ev=>{lastY=ev.clientY;if(!raf)raf=requestAnimationFrame(paint);};
   const up=()=>{btn.removeEventListener('pointermove',move);btn.removeEventListener('pointerup',up);btn.removeEventListener('pointercancel',up);
     // Encaja en el hueco con una transición corta y recién ahí se reordena y se guarda
     const slotTop=target<i0?rects[target].top:(target>i0?rects[target].bottom-h:rects[i0].top);
     tr.style.transition='transform .18s ease';tr.style.transform='translateY('+(slotTop-rects[i0].top)+'px)';
     setTimeout(()=>{
+      if(raf){cancelAnimationFrame(raf);raf=0;}
       if(target!==i0){const ref=target<i0?rows[target]:rows[target].nextSibling;tb.insertBefore(tr,ref);} // ya está visualmente ahí: el DOM lo alcanza sin que se note
       rows.forEach(r=>{r.style.transition='';r.style.transform='';});tr.classList.remove('fin-dragging');
       if(target===i0)return;const vis=rows.map(r=>+r.dataset.idx);const moved=vis.splice(i0,1)[0];vis.splice(target,0,moved);
       const slots=vis.slice().sort((a,b)=>a-b);const old=_FIN.slice();slots.forEach((sl,k)=>{_FIN[sl]=old[vis[k]];});_finPersist();
-      const wrap=tb.closest('.vtbl-wrap');const sx=wrap?wrap.scrollLeft:0,sy=main.scrollTop;_finRenderRows();if(wrap)wrap.scrollLeft=sx;main.scrollTop=sy;},190);};
+      // Sin redibujar: solo se actualiza el índice que guarda cada fila (los botones lo leen de ahí)
+      [...tb.querySelectorAll('tr[data-idx]')].forEach((r,k)=>{r.dataset.idx=slots[k];});},190);};
   btn.addEventListener('pointermove',move);btn.addEventListener('pointerup',up);btn.addEventListener('pointercancel',up);
 }
 function _finDel(idx){const f=_FIN[idx];if(!f)return;appModal({titulo:'Eliminar financiera',texto:'¿Eliminar "'+f.n+'"?',okLabel:'Eliminar',okDanger:true,onOk:()=>{_FIN.splice(idx,1);_finPersist();render();}});}
