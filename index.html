@@ -301,22 +301,22 @@
   .vf-field .v-selbtn.vf-fld{min-width:150px;width:100%;padding:9px 11px;font-size:13px;background:var(--card);border:1px solid var(--sep-strong);border-radius:8px;color:var(--txt)}
   .vf-field .v-selbtn.vf-fld.ph{color:var(--muted)}
   /* Calendario: se abre chico, al lado del campo que lo abrió */
-  .ad-back{position:fixed;inset:0;z-index:499;background:transparent}
-  .ad-pop.ad-movil{width:min(92vw,340px);padding:14px 14px 12px;font-size:15px}.ad-pop.ad-movil .ad-cell{padding:9px 0!important;font-size:15px!important}.ad-pop.ad-movil .ad-dowc{font-size:12px!important}
-.ad-pop{position:fixed;z-index:500;width:232px;background:var(--card);border:1px solid var(--sep-strong);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.20);padding:9px 10px}
-  .ad-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
-  .ad-nav b{font-size:12.5px}
-  .ad-nav .mini{padding:2px 7px;font-size:13px}
-  .ad-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
-  .ad-dowc{text-align:center;font-size:9.5px;color:var(--muted);font-weight:600;padding:1px 0}
-  .ad-cell{border:none;background:transparent;color:var(--txt);font-family:inherit;font-size:11.5px;padding:5px 0;border-radius:6px;cursor:pointer}
-  .ad-cell.empty{visibility:hidden;cursor:default}
-  .ad-cell:hover:not(.empty){background:var(--hover)}
-  .ad-cell.today{border:1px solid var(--accent)}
-  .ad-cell.sel{background:var(--accent);color:#fff;font-weight:700}
-  .ad-foot{display:flex;justify-content:flex-end;gap:6px;margin-top:6px;border-top:1px solid var(--sep);padding-top:6px}
-  .ad-foot button{border:none;background:transparent;color:var(--accent);font-family:inherit;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:6px;cursor:pointer}
-  .ad-foot button:hover{background:var(--hover)}
+  .cal-back{position:fixed;inset:0;z-index:499;background:transparent}
+  .cal-pop.cal-movil{width:min(92vw,340px);padding:14px 14px 12px;font-size:15px}.cal-pop.cal-movil .cal-cell{padding:9px 0!important;font-size:15px!important}.cal-pop.cal-movil .cal-dowc{font-size:12px!important}
+.cal-pop{position:fixed;z-index:500;width:232px;background:var(--card);border:1px solid var(--sep-strong);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.20);padding:9px 10px}
+  .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+  .cal-nav b{font-size:12.5px}
+  .cal-nav .mini{padding:2px 7px;font-size:13px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+  .cal-dowc{text-align:center;font-size:9.5px;color:var(--muted);font-weight:600;padding:1px 0}
+  .cal-cell{border:none;background:transparent;color:var(--txt);font-family:inherit;font-size:11.5px;padding:5px 0;border-radius:6px;cursor:pointer}
+  .cal-cell.empty{visibility:hidden;cursor:default}
+  .cal-cell:hover:not(.empty){background:var(--hover)}
+  .cal-cell.today{border:1px solid var(--accent)}
+  .cal-cell.sel{background:var(--accent);color:#fff;font-weight:700}
+  .cal-foot{display:flex;justify-content:flex-end;gap:6px;margin-top:6px;border-top:1px solid var(--sep);padding-top:6px}
+  .cal-foot button{border:none;background:transparent;color:var(--accent);font-family:inherit;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:6px;cursor:pointer}
+  .cal-foot button:hover{background:var(--hover)}
   .pv-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:14px 0}
   @media(max-width:900px){.pv-kpis{grid-template-columns:repeat(2,1fr)}}
   .pv-kpi{background:var(--card);border:1px solid var(--sep);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px}
@@ -1835,30 +1835,30 @@ function _adRender(){
   const S=_adState;const y=+S.view.slice(0,4),mo=+S.view.slice(5,7);
   const startDow=(new Date(y,mo-1,1).getDay()+6)%7;
   const dim=new Date(y,mo,0).getDate();const t=hoy();
-  let cells='';for(let i=0;i<startDow;i++)cells+='<div class="ad-cell empty"></div>';
+  let cells='';for(let i=0;i<startDow;i++)cells+='<div class="cal-cell empty"></div>';
   for(let d=1;d<=dim;d++){const ds=y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    cells+='<button type="button" class="ad-cell'+(ds===S.sel?' sel':'')+(ds===t?' today':'')+'" onclick="_adPick(\''+ds+'\')">'+d+'</button>';}
-  const wrap=document.createElement('div');wrap.className='ad-back';wrap.id='modal-date';
-  wrap.innerHTML='<div class="ad-pop" id="ad-pop">'
-    +'<div class="ad-nav"><button type="button" class="mini" onclick="_adMonth(-1)">‹</button><b>'+_AD_MESES[mo-1]+' '+y+'</b><button type="button" class="mini" onclick="_adMonth(1)">›</button></div>'
-    +'<div class="ad-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:2px">'+_AD_DOW.map(d=>'<div class="ad-dowc" style="display:block">'+d+'</div>').join('')+'</div>'
-    +'<div class="ad-grid" id="ad-dias" style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">'+cells+'</div>'
-    +'<div class="ad-foot">'+(S.clearable?'<button type="button" onclick="_adPick(\'\')">Limpiar</button>':'')+'<button type="button" onclick="_adPick(\''+t+'\')">Hoy</button></div>'
+    cells+='<button type="button" class="cal-cell'+(ds===S.sel?' sel':'')+(ds===t?' today':'')+'" onclick="_adPick(\''+ds+'\')">'+d+'</button>';}
+  const wrap=document.createElement('div');wrap.className='cal-back';wrap.id='modal-date';
+  wrap.innerHTML='<div class="cal-pop" id="cal-pop">'
+    +'<div class="cal-nav"><button type="button" class="mini" onclick="_adMonth(-1)">‹</button><b>'+_AD_MESES[mo-1]+' '+y+'</b><button type="button" class="mini" onclick="_adMonth(1)">›</button></div>'
+    +'<div class="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:2px">'+_AD_DOW.map(d=>'<div class="cal-dowc" style="display:block">'+d+'</div>').join('')+'</div>'
+    +'<div class="cal-grid" id="cal-dias" style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">'+cells+'</div>'
+    +'<div class="cal-foot">'+(S.clearable?'<button type="button" onclick="_adPick(\'\')">Limpiar</button>':'')+'<button type="button" onclick="_adPick(\''+t+'\')">Hoy</button></div>'
     +'</div>';
   wrap.onclick=e=>{if(e.target===wrap)_adClose();};document.body.appendChild(wrap);
   _adPlace();
 }
 function _adPlace(){
-  const pop=document.getElementById('ad-pop');if(!pop)return;
+  const pop=document.getElementById('cal-pop');if(!pop)return;
   // Red de seguridad: si algun estilo del entorno aplasta la grilla, se fuerza a mano.
-  try{const gd=document.getElementById('ad-dias');
+  try{const gd=document.getElementById('cal-dias');
     if(gd&&gd.getBoundingClientRect().height<40){
       gd.style.cssText='display:grid!important;grid-template-columns:repeat(7,1fr);gap:1px;visibility:visible!important';
-      pop.querySelectorAll('.ad-cell').forEach(function(c){if(!c.classList.contains('empty'))c.style.cssText='display:block!important;visibility:visible!important;padding:5px 0;font-size:11.5px;border:none;background:transparent;color:var(--txt);border-radius:6px;cursor:pointer';});
-      pop.querySelectorAll('.ad-dowc').forEach(function(c){c.style.cssText='display:block!important;visibility:visible!important;text-align:center;font-size:9.5px;color:var(--muted);font-weight:600';});
+      pop.querySelectorAll('.cal-cell').forEach(function(c){if(!c.classList.contains('empty'))c.style.cssText='display:block!important;visibility:visible!important;padding:5px 0;font-size:11.5px;border:none;background:transparent;color:var(--txt);border-radius:6px;cursor:pointer';});
+      pop.querySelectorAll('.cal-dowc').forEach(function(c){c.style.cssText='display:block!important;visibility:visible!important;text-align:center;font-size:9.5px;color:var(--muted);font-weight:600';});
     }}catch(e){}
   const a=_adState&&_adState.anchor,W=innerWidth,H=innerHeight,w=pop.offsetWidth,h=pop.offsetHeight,M=8;
-  if(W<=760){pop.classList.add('ad-movil');pop.style.left=Math.max(M,(W-pop.offsetWidth)/2)+'px';pop.style.top=Math.max(M,(H-pop.offsetHeight)/2)+'px';return;} // celu: centrado y más grande
+  if(W<=760){pop.classList.add('cal-movil');pop.style.left=Math.max(M,(W-pop.offsetWidth)/2)+'px';pop.style.top=Math.max(M,(H-pop.offsetHeight)/2)+'px';return;} // celu: centrado y más grande
   if(!a||!document.body.contains(a)){pop.style.left=Math.max(M,(W-w)/2)+'px';pop.style.top=Math.max(M,(H-h)/2)+'px';return;}
   const r=a.getBoundingClientRect();
   let left=r.left,top=r.bottom+6;
@@ -5145,7 +5145,7 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
    limpiamos la caché y recargamos. Nunca interrumpimos: si hay un formulario/modal abierto, esperamos. */
 let _appVer=null,_verBusy=false;
 function _verOcupado(){
-  if(document.querySelector('.modal-back')||document.querySelector('.ad-back'))return true; // modal/ficha/calendario abierto
+  if(document.querySelector('.modal-back')||document.querySelector('.cal-back'))return true; // modal/ficha/calendario abierto
   if(typeof _venta!=='undefined'&&_venta&&_venta.step)return true;   // cargando una venta
   const a=document.activeElement;
   if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return true;    // escribiendo algo
