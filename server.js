@@ -919,7 +919,10 @@ http.createServer((req,res)=>{
   // Actualizar un cliente/venta completo: admin/supervisor/dueño (editar ventas, acreditar pagos, fondeo)
   if(u==='/api/cliente-delete'&&req.method==='POST'){
     if(!me||me.rol!=='admin')return json(403,{error:'Solo admin'});
-    return readBody(b=>{if(!b||!b.id)return json(400,{error:'id'});const arr=loadClientes();const i=arr.findIndex(x=>x.id===b.id);if(i>=0){arr.splice(i,1);saveClientes(arr);}json(200,{ok:true});});
+    return readBody(b=>{if(!b||!b.id)return json(400,{error:'id'});const arr=loadClientes();const i=arr.findIndex(x=>x.id===b.id);let nombre='';if(i>=0){nombre=arr[i].nombre||'';arr.splice(i,1);saveClientes(arr);}
+      // "Como si nunca hubiese existido": se borran también sus registros de auditoría (por id o por nombre de cliente).
+      try{const a=loadAud();const antes=a.length;const rest=a.filter(e=>{const d=e.detalle&&typeof e.detalle==='object'?e.detalle:null;if(d&&(d.id===b.id||d.clienteId===b.id||d.cliente===b.id))return false;if(nombre&&e.referencia===nombre&&/CLIENTE|VENTA|PAGO/.test(e.entidad||''))return false;return true;});if(rest.length!==antes)saveAud(rest);}catch(e){}
+      json(200,{ok:true});});
   }
   if(u==='/api/cliente-save'&&req.method==='POST'){
     if(!esAdminRol)return json(403,{error:'Sin permiso'});
@@ -1059,7 +1062,7 @@ http.createServer((req,res)=>{
       const users=loadUsers();const us=String(body.usuario||'').trim().toLowerCase();
       if(!us||!body.nombre||!body.pass)return json(400,{error:'Faltan datos (nombre, usuario y clave)'});
       if(users.some(x=>x.usuario===us))return json(400,{error:'Ese usuario ya existe'});
-      let rol=['supervisor','dueno'].includes(body.rol)?body.rol:'vendedor',supervisorId=body.supervisorId||null;
+      let rol=['supervisor','dueno','admin'].includes(body.rol)?body.rol:'vendedor',supervisorId=body.supervisorId||null;
       if(me.rol==='supervisor'){rol='vendedor';supervisorId=me.id;}
       if(rol!=='vendedor')supervisorId=null;
       const {salt,hash}=hashPass(body.pass);
@@ -1079,7 +1082,15 @@ http.createServer((req,res)=>{
     if(body.usuario){const us=String(body.usuario).trim().toLowerCase();if(us&&us!==target.usuario){if(!/^[\w.]{3,}$/.test(us))return json(400,{error:'Usuario inválido (mín 3, letras/números)'});if(users.some(x=>x.usuario===us&&x.id!==target.id))return json(400,{error:'Ese usuario ya existe'});target.usuario=us;}}
     if(body.pass){const {salt,hash}=hashPass(body.pass);target.salt=salt;target.passHash=hash;}
     if(typeof body.activo==='boolean'&&me.rol!=='vendedor'&&target.rol!=='admin')target.activo=body.activo;
-    if(me.rol==='admin'){if(body.rol)target.rol=body.rol;if('supervisorId' in body)target.supervisorId=body.supervisorId||null;}
+    if(me.rol==='admin'){
+      if(body.rol&&body.rol!==target.rol){
+        if(!['admin','supervisor','dueno','vendedor'].includes(body.rol))return json(400,{error:'Tipo de acceso inválido'});
+        if(target.id===me.id)return json(400,{error:'No podés cambiar tu propio tipo de acceso'});
+        if(target.rol==='admin'&&users.filter(x=>x.rol==='admin'&&x.activo!==false&&x.id!==target.id).length===0)return json(400,{error:'Tiene que quedar al menos un administrativo activo'});
+        target.rol=body.rol;if(body.rol!=='vendedor')target.supervisorId=null;
+      }
+      if('supervisorId' in body&&target.rol==='vendedor')target.supervisorId=body.supervisorId||null;
+    }
     // Número de WhatsApp (phone_number_id de Meta) de esta cuenta: las consultas que lleguen a ese número van a este usuario.
     // Lo puede cargar el admin o el propio usuario desde "Mi perfil" (conexión por Dualhook).
     const puedeWa=(me.rol==='admin'||me.id===target.id);

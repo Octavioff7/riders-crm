@@ -2178,8 +2178,8 @@ function descartarCliente(id){const c=clientes.find(x=>x.id===id);if(!c)return;
 // Borrado real, sin vuelta atras. Solo admin.
 function eliminarDefinitivo(id){const c=clientes.find(x=>x.id===id);if(!c)return;
   if(!(me&&me.rol==='admin'))return descartarCliente(id);
-  appModal({titulo:'Eliminar para siempre',texto:'¿Eliminar a "'+c.nombre+'" PARA SIEMPRE?'+String.fromCharCode(10)+'Esto no se puede deshacer y no queda contado en las métricas.',okLabel:'Eliminar',okDanger:true,
-    onOk:()=>{try{_audit({modulo:'CLIENTES',entidad:'CLIENTE',accion:'ELIMINACION',metodo:'DELETE',referencia:c.nombre,cambios:1,detalle:{}});}catch(e){}
+  appModal({titulo:'Eliminar para siempre',texto:'¿Eliminar a "'+c.nombre+'" PARA SIEMPRE?'+String.fromCharCode(10)+'Desaparece del CRM, de las métricas y de la auditoría, como si nunca hubiera existido. No se puede deshacer.',okLabel:'Eliminar',okDanger:true,
+    onOk:()=>{
       const i=clientes.findIndex(x=>x.id===id);if(i>=0)clientes.splice(i,1);
       if(SERVER)api('/api/cliente-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).catch(()=>{});else save();
       render();}});
@@ -2281,7 +2281,7 @@ function asignables(){
   return usuarios.filter(u=>u.id===me.id);
 }
 // Quién puede editar a quién en Cuentas (coincide con el permiso del server): admin edita a cualquiera menos admin; supervisor solo a SUS vendedores.
-function puedoEditarUsuario(x){if(!me||x.id===me.id||x.rol==='admin')return false;if(me.rol==='admin')return true;if(me.rol==='supervisor')return x.rol==='vendedor'&&x.supervisorId===me.id;return false;}
+function puedoEditarUsuario(x){if(!me||x.id===me.id)return false;if(me.rol==='admin')return true;if(x.rol==='admin')return false;if(me.rol==='supervisor')return x.rol==='vendedor'&&x.supervisorId===me.id;return false;}
 function verVendedor(id){filtroVend=id;view='list';render();pushHistory();}
 function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render();pushHistory();}
 function irVista(v){view=v;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();}
@@ -4619,7 +4619,7 @@ async function renderCuentas(){
 }
 function nuevoUsuario(){
   cerrarModal();
-  const rolSel=me.rol==='admin'?`<label>Rol</label><select id="us-rol" onchange="var r=document.getElementById('us-suprow');if(r)r.style.display=this.value==='vendedor'?'':'none'"><option value="vendedor">Vendedor</option><option value="supervisor">Supervisor</option><option value="dueno">Dueño (solo ve métricas del equipo)</option></select>`:'';
+  const rolSel=me.rol==='admin'?`<label>Rol</label><select id="us-rol" onchange="var r=document.getElementById('us-suprow');if(r)r.style.display=this.value==='vendedor'?'':'none'">${_ROLES.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select>`:'';
   const sups=usuarios.filter(u=>u.rol==='supervisor'||u.rol==='admin');
   const supRow=me.rol==='admin'?`<div id="us-suprow"><label>Supervisor</label><select id="us-sup"><option value="">— (sin supervisor)</option>${sups.map(s=>`<option value="${s.id}">${esc(s.nombre)}</option>`).join('')}</select></div>`:'';
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
@@ -4638,7 +4638,7 @@ async function crearUsuario(){
 function editarUsuario(id){
   const x=usuarios.find(u=>u.id===id);if(!x)return;cerrarModal();
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
-  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>Editar cuenta</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b"><label>Nombre</label><input id="ue-nombre" value="${esc(x.nombre)}"><label>Nueva clave (vacío = no cambiar)</label><input id="ue-pass" type="text" placeholder="••••••"><label>Estado</label><select id="ue-activo"><option value="1" ${x.activo!==false?'selected':''}>Activo</option><option value="0" ${x.activo===false?'selected':''}>Inactivo (no puede entrar)</option></select>${me.rol==='admin'?`<label>📱 Número de WhatsApp (ID de Meta)</label><input id="ue-wa" inputmode="numeric" placeholder="Ej: 123456789012345" value="${esc(x.waPhoneId||'')}"><div class="faint" id="ue-wa-hint" style="font-size:12px;margin-top:4px">Las consultas de anuncios que lleguen a ese número entran a esta cuenta. Es el "Identificador de número de teléfono" que muestra Meta.</div><label>Clave de envío de Dualhook (dh_live_…)</label><input id="ue-wakey" type="password" autocomplete="new-password" placeholder="${x.waKeySet?'•••••••• (ya cargada, vacío = no cambiar)':'dh_live_…'}">`:''}<div id="ue-err" class="lg-err"></div></div><div class="modal-f">${me.rol==='admin'?`<button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="eliminarUsuario('${x.id}','${esc(x.nombre).replace(/'/g,"\\'")}')">🗑 Eliminar</button>`:''}<button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarUsuario('${x.id}')">Guardar</button></div></div>`;
+  wrap.innerHTML=`<div class="modal"><div class="modal-h"><b>Editar cuenta</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b"><label>Nombre</label><input id="ue-nombre" value="${esc(x.nombre)}"><label>Nueva clave (vacío = no cambiar)</label><input id="ue-pass" type="text" placeholder="••••••"><label>Estado</label><select id="ue-activo"><option value="1" ${x.activo!==false?'selected':''}>Activo</option><option value="0" ${x.activo===false?'selected':''}>Inactivo (no puede entrar)</option></select>${(me.rol==='admin'&&x.id!==me.id)?`<label>Tipo de acceso</label><select id="ue-rol" onchange="var r=document.getElementById('ue-suprow');if(r)r.style.display=this.value==='vendedor'?'':'none'">${_ROLES.map(r=>`<option value="${r[0]}" ${x.rol===r[0]?'selected':''}>${r[1]}</option>`).join('')}</select><div id="ue-suprow" style="display:${x.rol==='vendedor'?'':'none'}"><label>Manager a cargo</label><select id="ue-sup"><option value="">— (sin manager)</option>${usuarios.filter(u=>(u.rol==='supervisor'||u.rol==='admin')&&u.id!==x.id).map(s=>`<option value="${s.id}" ${x.supervisorId===s.id?'selected':''}>${esc(s.nombre)}</option>`).join('')}</select></div>`:''}${me.rol==='admin'?`<label>📱 Número de WhatsApp (ID de Meta)</label><input id="ue-wa" inputmode="numeric" placeholder="Ej: 123456789012345" value="${esc(x.waPhoneId||'')}"><div class="faint" id="ue-wa-hint" style="font-size:12px;margin-top:4px">Las consultas de anuncios que lleguen a ese número entran a esta cuenta. Es el "Identificador de número de teléfono" que muestra Meta.</div><label>Clave de envío de Dualhook (dh_live_…)</label><input id="ue-wakey" type="password" autocomplete="new-password" placeholder="${x.waKeySet?'•••••••• (ya cargada, vacío = no cambiar)':'dh_live_…'}">`:''}<div id="ue-err" class="lg-err"></div></div><div class="modal-f">${me.rol==='admin'?`<button class="btn ghost" style="color:#ff3b30;border-color:#ff3b3055;margin-right:auto" onclick="eliminarUsuario('${x.id}','${esc(x.nombre).replace(/'/g,"\\'")}')">🗑 Eliminar</button>`:''}<button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="guardarUsuario('${x.id}')">Guardar</button></div></div>`;
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);
   if(me.rol==='admin')_ueWaHint(x); // sugiere los números que el servidor vio llegar últimamente
 }
@@ -4656,6 +4656,7 @@ async function guardarUsuario(id){
   const body={nombre:g('ue-nombre').trim(),activo:g('ue-activo')==='1'};
   const p=g('ue-pass').trim();if(p)body.pass=p;
   if(me.rol==='admin'&&document.getElementById('ue-wa')){body.waPhoneId=g('ue-wa').trim();const k=g('ue-wakey').trim();if(k)body.waKey=k;}
+  if(me.rol==='admin'&&document.getElementById('ue-rol')){body.rol=g('ue-rol');if(body.rol==='vendedor')body.supervisorId=g('ue-sup');}
   const err=document.getElementById('ue-err');err.textContent='';
   try{const r=await api('/api/users/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok){err.textContent=j.error||'No se pudo guardar';return;}cerrarModal();renderCuentas();}
   catch(e){err.textContent='Error de conexión';}
@@ -5002,7 +5003,8 @@ function _toggleSide(){
   applyTheme();
 })();
 /* ---- Auth / arranque ---- */
-function roleLabel(r){return {admin:'Admin',dueno:'Dueño',supervisor:'Supervisor',vendedor:'Vendedor'}[r]||'';}
+function roleLabel(r){return {admin:'Administrativo',dueno:'Dueño',supervisor:'Manager',vendedor:'Vendedor'}[r]||'';}
+const _ROLES=[['vendedor','Vendedor'],['supervisor','Manager (ve y administra su equipo)'],['dueno','Dueño (solo ve métricas del equipo)'],['admin','Administrativo (acceso total)']];
 function renderAcct(){const acct=document.querySelector('.side-foot .acct');if(acct&&me)acct.innerHTML='<button class="perfil-btn" onclick="abrirPerfil()" title="Mi perfil"><span class="a">'+esc((me.nombre||'?').slice(0,1).toUpperCase())+'</span><span class="pf-info"><span class="pf-nm">'+esc(me.nombre||'')+'</span><span class="pf-rol">'+roleLabel(me.rol)+(RO()?' · solo lectura':'')+'</span></span><span class="pf-cog">⚙︎</span></button>';}
 function abrirPerfil(){
   cerrarModal();const m=me||{};
