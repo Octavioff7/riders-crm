@@ -302,7 +302,8 @@
   .vf-field .v-selbtn.vf-fld.ph{color:var(--muted)}
   /* Calendario: se abre chico, al lado del campo que lo abrió */
   .ad-back{position:fixed;inset:0;z-index:499;background:transparent}
-  .ad-pop{position:fixed;z-index:500;width:232px;background:var(--card);border:1px solid var(--sep-strong);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.20);padding:9px 10px}
+  .ad-pop.ad-movil{width:min(92vw,340px);padding:14px 14px 12px;font-size:15px}.ad-pop.ad-movil .ad-cell{padding:9px 0!important;font-size:15px!important}.ad-pop.ad-movil .ad-dowc{font-size:12px!important}
+.ad-pop{position:fixed;z-index:500;width:232px;background:var(--card);border:1px solid var(--sep-strong);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.20);padding:9px 10px}
   .ad-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
   .ad-nav b{font-size:12.5px}
   .ad-nav .mini{padding:2px 7px;font-size:13px}
@@ -1237,7 +1238,7 @@ function crmHTML(c){
     </div>`;
 }
 function pick(id){selectedId=id;document.body.classList.add('chat-open');renderInbox();pushHistory();}
-function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
+function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&c.sinAtender)c.sinAtender=false;if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
 function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.value.trim();if(!t||!c)return;c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:t});derive(c);save();renderInbox();}
 /* ---- Notas y agenda de seguimiento ---- */
 // El recuadro de nota crece solo con el texto (se ve la nota completa, sin cortar).
@@ -1253,7 +1254,7 @@ function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');con
   const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;}
 function editarNota(id,idx){editNotaKey=id+':'+idx;const c=clientes.find(x=>x.id===id);if(c)refrescarFicha(c);else renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
 function cancelarEdicionNota(){editNotaKey=null;const c=sel();if(c)refrescarFicha(c);else renderInboxKeepScroll();}
-function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:t});save();el.value='';autoGrow(el);refrescarFicha(c);}
+function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push({fecha:hoy(),hora:ahora(),texto:t});if(c.sinAtender)c.sinAtender=false;save();el.value='';autoGrow(el);refrescarFicha(c);}
 function borrarNota(id,idx){const c=clientes.find(x=>x.id===id);if(!c||!c.log||!c.log[idx])return;if(!confirm('¿Borrar esta nota? No se puede deshacer.'))return;c.log.splice(idx,1);editNotaKey=null;save();refrescarFicha(c);}
 function guardarEdicionNota(id,idx){const c=clientes.find(x=>x.id===id);const el=document.getElementById('edit-nota');if(!c||!el||!c.log[idx])return;const t=(el.value||'').trim();if(t)c.log[idx].texto=t;editNotaKey=null;save();refrescarFicha(c);}
 function actualizarBanner(c){
@@ -1342,6 +1343,7 @@ function setProximo(id,silent){
   const f=fe?fe.value:'',h=he?he.value:'',tp=te?te.value:'Llamada';
   if(!f){if(!silent)alert('Elegí una fecha para el contacto.');return;}
   c.proximo=f;c.proximoHora=h||'';c.proximoTipo=tp;c.proximoAuto=false; // agendado a mano: este si avisa
+  if(!silent&&c.sinAtender){c.sinAtender=false;} // agendar a mano = la consulta ya fue atendida
   c.log=c.log||[];
   const txt='📅 Agendado: '+tp+' para el '+f+(h?' '+h:'');
   const last=c.log[c.log.length-1];
@@ -1856,6 +1858,7 @@ function _adPlace(){
       pop.querySelectorAll('.ad-dowc').forEach(function(c){c.style.cssText='display:block!important;visibility:visible!important;text-align:center;font-size:9.5px;color:var(--muted);font-weight:600';});
     }}catch(e){}
   const a=_adState&&_adState.anchor,W=innerWidth,H=innerHeight,w=pop.offsetWidth,h=pop.offsetHeight,M=8;
+  if(W<=760){pop.classList.add('ad-movil');pop.style.left=Math.max(M,(W-pop.offsetWidth)/2)+'px';pop.style.top=Math.max(M,(H-pop.offsetHeight)/2)+'px';return;} // celu: centrado y más grande
   if(!a||!document.body.contains(a)){pop.style.left=Math.max(M,(W-w)/2)+'px';pop.style.top=Math.max(M,(H-h)/2)+'px';return;}
   const r=a.getBoundingClientRect();
   let left=r.left,top=r.bottom+6;
@@ -2282,7 +2285,7 @@ function asignables(){
 }
 // Quién puede editar a quién en Cuentas (coincide con el permiso del server): admin edita a cualquiera menos admin; supervisor solo a SUS vendedores.
 function puedoEditarUsuario(x){if(!me||x.id===me.id)return false;if(me.rol==='admin')return true;if(x.rol==='admin')return false;if(me.rol==='supervisor')return x.rol==='vendedor'&&x.supervisorId===me.id;return false;}
-function verVendedor(id){filtroVend=id;view='list';render();pushHistory();}
+function verVendedor(id){filtroVend=id;view='panel';render();pushHistory();}
 function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render();pushHistory();}
 function irVista(v){view=v;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();}
 function renderVendidos(){
@@ -3563,7 +3566,7 @@ async function renderEquipo(){
   main.innerHTML='<div class="page"><h1>📈 Equipo</h1><div class="sub">Cargando métricas…</div></div>';
   let data=[];try{data=await (await api('/api/metrics')).json();}catch(e){return;}
   try{usuarios=await (await api('/api/users')).json();}catch(e){}
-  let h='<div class="page"><div class="conv-head-row"><h1>📈 Equipo</h1><button class="btn" onclick="nuevoUsuario()">＋ Crear usuario</button></div><div class="sub">Con "Crear usuario" sumás cuentas (usuario y clave) para que tus vendedores entren al CRM. Tocá una tarjeta para ver su cartera.</div><div class="grid-eq">';
+  let h='<div class="page"><div class="conv-head-row"><h1>📈 Equipo</h1><button class="btn" onclick="nuevoUsuario()">＋ Crear usuario</button></div><div class="sub">Con "Crear usuario" sumás cuentas (usuario y clave) para que tus vendedores entren al CRM. Tocá una tarjeta para ver su panel completo, tal como lo ve esa persona.</div><div class="grid-eq">';
   for(const d of data){const m=d.metrics,us=d.user;
     h+=`<div class="panelcard eqcard" style="cursor:pointer" onclick="verVendedor('${us.id}')">
       <div style="display:flex;align-items:center;gap:10px"><span class="av" style="width:34px;height:34px;background:${avColor(us.id)};font-size:12px">${iniciales(us.nombre)}</span><div><b>${esc(us.nombre)}</b><div class="faint" style="font-size:11.5px">${roleLabel(us.rol)}</div></div></div>
@@ -4915,7 +4918,7 @@ function renderPanel(){
     for(let i=0;i<=lim;i++){const cx=xat(i),cy=yat(cumArr[i]),hx=Math.max(x0,cx-step/2),hw=Math.min(W-pr,cx+step/2)-hx,d=dias[i];const lbl=/^\d+$/.test(String(d.l))?('Día '+d.l):d.l;const tip=_pvJs(lbl+' · '+d.n+' venta'+(d.n===1?'':'s')+' · acumulado '+cumArr[i]);hits+='<rect x="'+hx.toFixed(1)+'" y="'+pt+'" width="'+Math.max(1,hw).toFixed(1)+'" height="'+plotH+'" class="hit" onmousemove="_vcHover(event,this,'+cx.toFixed(1)+','+cy.toFixed(1)+',\''+tip+'\')" onmouseleave="_vcLeave(this)"/>';}
     return '<div class="panelcard"><h3>'+titulo+'</h3><div class="vchart-top"><span class="'+(total>=obj?'done':'')+'">'+total+'</span><span class="obj"> / '+obj+' 🎯</span></div><svg viewBox="0 0 '+W+' '+H+'" class="vline">'+grid+'<line x1="'+x0+'" y1="'+yat(obj).toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yat(obj).toFixed(1)+'" class="tgt"/><line x1="'+x0+'" y1="'+pt+'" x2="'+x0+'" y2="'+y0+'" class="ax"/><line x1="'+x0+'" y1="'+y0+'" x2="'+(W-pr)+'" y2="'+y0+'" class="ax"/>'+yT+xT+'<polyline points="'+poly+'" class="ln"/>'+dots+'<circle class="vhl" r="4" style="display:none"/>'+hits+'</svg></div>';
   };
-  main.innerHTML=`<div class="page"><div class="conv-head-row panel-head"><h1>Panel</h1><div class="head-btns"><button class="btn ghost cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub panel-sub">Riders Miami · ${total} clientes en total</div>
+  main.innerHTML=`<div class="page"><div class="conv-head-row panel-head"><h1>Panel</h1><div class="head-btns"><button class="btn ghost cargar-venta-btn" onclick="abrirCargarVenta()">🧾 Cargar venta</button><button class="btn nuevo-cli-btn" onclick="abrirNuevoCliente()">＋ Nuevo cliente</button></div></div><div class="sub panel-sub">Riders Miami · ${total} clientes en total</div>${filtroVend?`<div class="vend-banner"><div>👤 Viendo el panel de <b>${esc(nombreVend(filtroVend))}</b>, tal como lo ve esa persona</div><button class="mini" onclick="filtroVend='';view='equipo';render();pushHistory()">← Volver a Equipo</button></div>`:''}
     <div class="tiles">
       <div class="tile"><div class="n">${total}</div><div class="l">Clientes</div></div>
       <div class="tile hot"><div class="n">🔥 ${cal.length}</div><div class="l">Calientes</div></div>
@@ -5142,7 +5145,7 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
    limpiamos la caché y recargamos. Nunca interrumpimos: si hay un formulario/modal abierto, esperamos. */
 let _appVer=null,_verBusy=false;
 function _verOcupado(){
-  if(document.querySelector('.modal-back'))return true;              // modal/ficha/calendario abierto
+  if(document.querySelector('.modal-back')||document.querySelector('.ad-back'))return true; // modal/ficha/calendario abierto
   if(typeof _venta!=='undefined'&&_venta&&_venta.step)return true;   // cargando una venta
   const a=document.activeElement;
   if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return true;    // escribiendo algo

@@ -265,12 +265,14 @@ function procesarWebhook(body){
   const paraResponder=[]; // {id,texto} → los contesta el asistente después de guardar
   for(const e of body.entry){
     for(const ch of (e.changes||[])){
+      if(ch.field&&ch.field!=='messages')continue; // "history" / "smb_message_echoes" (sincronización de historial y ecos de la app): no son consultas nuevas
       const v=ch.value||{};const pnid=(v.metadata&&v.metadata.phone_number_id)||'';
       const uWa=pnid?loadUsers().find(x=>x.waPhoneId===pnid&&x.activo!==false):null;
       const vendId=(uWa&&uWa.id)||map[pnid]||(admin&&admin.id)||''; // por número: a la cuenta que lo tiene asignado (Cuentas); si no, wamap.json; si no, al admin
       const contacts=v.contacts||[];
       for(const m of (v.messages||[])){
         if(!m||m.type==='reaction'||m.type==='system')continue;
+        const _ts=Number(m.timestamp||0)*1000;if(_ts&&Date.now()-_ts>48*3600000)continue; // mensaje viejo reenviado al conectar el número: no es una consulta nueva
         if(!m.referral){ // no viene de un anuncio: si escribe alguien del equipo de direccion, es una pregunta para el copiloto
           const cu=copiUsuarioPorTel(m.from);
           if(cu&&m.type==='text'&&m.text&&m.text.body){const q=String(m.text.body);const to=m.from;
