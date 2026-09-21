@@ -629,7 +629,8 @@ tr.fin-dragging{will-change:transform}tr.fin-dragging td{background:var(--card);
   .tagbtn:hover{background:var(--card)}.tagbtn:active{transform:scale(.96)}
   .tagbtn.on{color:#fff;border-color:transparent}
   .tagbtn.cal.on{background:#ff3b30}.tagbtn.fri.on{background:#3b82f6}.tagbtn.otr.on{background:#8e8e93}.tagbtn.seg.on{background:#ff9f0a}
-  .tagbtn.on:not(.cal):not(.fri):not(.otr):not(.ven):not(.seg){background:var(--accent)}
+  .tagbtn.on:not(.cal):not(.fri):not(.otr):not(.ven):not(.seg):not(.blk){background:var(--accent)}.tagbtn.blk.on{background:#111;color:#fff}
+.black-chip{display:inline-block;margin-left:6px;background:#111;color:#fff;font-size:10px;font-weight:800;letter-spacing:.06em;padding:2px 7px;border-radius:20px;vertical-align:middle}
   .tagbtn.ven.on{background:#34c759}
   .fnl{display:flex;align-items:center;gap:10px;padding:5px 0}
   .fnl-l{width:76px;font-size:13px;font-weight:600;color:var(--txt);flex-shrink:0}
@@ -888,7 +889,10 @@ function temperatura(c){
   return Object.assign({id:'seguimiento',motivo:'Hace '+dias+' días sin novedad — conviene un toque.'},TEMPS.seguimiento);
 }
 // Chip de etiqueta (caliente/frío/etc) para mostrar al lado del nombre en las listas
-function tempChip(c){const t=temperatura(c);if(!t)return '';return `<span class="temp-chip" style="color:${t.color};border-color:${t.color}55;background:${t.color}14">${t.emoji} ${esc(t.label)}</span>`;}
+// Etiqueta BLACK (cliente importante): es independiente de la temperatura y se ve en todas las listas y en la ficha.
+function esBlack(c){return !!(c&&c.tags&&c.tags.includes('black'));}
+function blackChip(c){return esBlack(c)?'<span class="black-chip">⚫ BLACK</span>':'';}
+function tempChip(c){const t=temperatura(c);if(!t)return blackChip(c);return blackChip(c)+`<span class="temp-chip" style="color:${t.color};border-color:${t.color}55;background:${t.color}14">${t.emoji} ${esc(t.label)}</span>`;}
 function esCalienteT(c){const t=temperatura(c);return !!(t&&t.id==='caliente');}
 // Solo lectura: supervisor y dueño ven la info del equipo pero NO editan clientes.
 function RO(){return !!(me&&(me.rol==='supervisor'||me.rol==='dueno'));}
@@ -1146,7 +1150,7 @@ function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.bod
 // Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
 function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 function filteredConvs(){const base=inboxCtx?(ctxList(inboxCtx)||[]):ordenados();return base.filter(c=>_buscaCliente(c,filtro));}
-function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(telVer(c.whatsapp)):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
+function convRow(c){const t=temperatura(c);return `<div class="conv ${c.id===selectedId?'sel':''}" data-id="${c.id}" onclick="pick('${c.id}')"><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="mid"><div class="nm">${esc(c.nombre)}${blackChip(c)}${t?`<span class="tdot" style="background:${t.color}"></span>`:''}</div><div class="pv wanum">${c.whatsapp?esc(telVer(c.whatsapp)):'sin número'}</div><div class="pv">${needsReply(c)?'<span class="dotreply" title="Te escribió — falta responder"></span>':''}${esc(convPreview(c))}</div></div><div class="rtcol"><div class="rt">${convWhen(c)}</div><span class="ch-badge" title="WhatsApp">${WA_SVG}</span></div></div>`;}
 // Bloques dentro de la lista de la izquierda (vista PC): los mismos cortes que muestra la sección.
 function _ctxGrupos(ctx,list){
   const d0=new Date();d0.setHours(0,0,0,0);const t0=d0.getTime();const tl=t0-7*86400000; // "últimos 7 días" = los 7 días previos a hoy
@@ -1208,20 +1212,21 @@ function crmHTML(c){
   const banner=t?`<div class="banner" style="background:${t.color}1a;color:${t.color}">${t.emoji}<div><b>${t.label}.</b>${t.motivo?' '+esc(t.motivo):''}</div></div>`:'<div class="banner" style="background:#34c7591a;color:#248a3d">✅<div><b>Cerrado.</b> Vendido / posventa.</div></div>';
   const notas=notasListHTML(c);
   const prox=proxSetHTML(c);
-  return `<div class="crm-h"><button class="backbtn" onclick="history.back()" aria-label="Volver">←</button><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="nm">${esc(c.nombre)}</div><div class="wa">${esc(telVer(c.whatsapp)||'Sin número guardado')}</div><button class="edit-cli send-cel" onclick="mandarAlCelu('${c.id}',this)" title="Mandar esta ficha a mi celular">📲</button><button class="edit-cli" onclick="editarCliente('${c.id}')" title="Editar nombre y teléfono">✏️</button></div>
+  return `<div class="crm-h"><button class="backbtn" onclick="history.back()" aria-label="Volver">←</button><div class="av" style="background:${avColor(c.id)}">${iniciales(c.nombre)}</div><div class="nm">${esc(c.nombre)}${blackChip(c)}</div><div class="wa">${esc(telVer(c.whatsapp)||'Sin número guardado')}</div><button class="edit-cli send-cel" onclick="mandarAlCelu('${c.id}',this)" title="Mandar esta ficha a mi celular">📲</button><button class="edit-cli" onclick="editarCliente('${c.id}')" title="Editar nombre y teléfono">✏️</button></div>
     <div class="crm-b">${waBtnBig(c)}
-      ${banner}
+      ${banner}${referidosHTML(c)}
       <div class="section-t" style="margin-top:2px">🏷️ Etiqueta manual</div>
       <div class="tagrow">
         <button class="tagbtn cal ${(c.tags||[]).includes('caliente')?'on':''}" onclick="toggleTag('${c.id}','caliente')">🔥 Caliente</button>
         <button class="tagbtn fri ${(c.tags||[]).includes('frio')?'on':''}" onclick="toggleTag('${c.id}','frio')">❄️ Frío</button>
         <button class="tagbtn otr ${(c.tags||[]).includes('otro')?'on':''}" onclick="toggleTag('${c.id}','otro')">🏷️ Otro</button>
         <button class="tagbtn seg ${(c.tags||[]).includes('seguimiento')?'on':''}" onclick="toggleTag('${c.id}','seguimiento')" title="Mantener en seguimiento aunque esté vendido">🟡 Seguimiento</button>
+        <button class="tagbtn blk ${(c.tags||[]).includes('black')?'on':''}" onclick="toggleTag('${c.id}','black')" title="Cliente importante">⚫ Black</button>
         <button class="tagbtn ven ${c.etapa==='vendido'?'on':''}" onclick="marcarVendido('${c.id}')" title="Marcar / desmarcar vendido">✅ Vendido</button>
-        <button class="tagbtn ${!(c.tags&&c.tags.length)&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
+        <button class="tagbtn ${!(c.tags||[]).some(t=>t!=='black')&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
       </div>
       <div class="field" style="margin-top:8px"><input placeholder="Tu nota para la etiqueta (opcional)" value="${esc(c.tempNota||'')}" onchange="setTagNota('${c.id}',this.value)"></div>
-      <div class="venta-det" style="margin-top:8px;background:#34c7591a;padding:13px 14px;border-radius:12px;display:${c.etapa==='vendido'?'block':'none'}">${c.venta?ventaResumenHTML(c):''}<div class="field"><label>🛒 Detalle de la venta</label><input placeholder="Escribí el producto y elegilo del inventario…" autocomplete="off" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)" oninput="_invSug(this,x=>_pickProdVenta('${c.id}',-1,x,this))" onfocus="_invSug(this,x=>_pickProdVenta('${c.id}',-1,x,this))" onblur="_invSugHide()"></div><div class="field" style="margin-top:8px"><label>📦 Cantidad de productos</label><div class="cantchips" id="cant-${c.id}">${cantChipsHTML(c)}</div></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" inputmode="numeric" placeholder="0" id="com-${c.id}" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📅 Fecha de la venta</label><input type="date" value="${esc(c.vendidoFecha||hoy())}" onchange="setFechaVenta('${c.id}',this.value)"></div>${ventasExtraHTML(c)}<button class="v-add" style="margin-top:10px;background:var(--card)" onclick="addVentaExtra('${c.id}')">＋ Agregar producto</button></div>
+      <div class="venta-det" style="margin-top:8px;background:#34c7591a;padding:13px 14px;border-radius:12px;display:${c.etapa==='vendido'?'block':'none'}">${c.venta?ventaResumenHTML(c):''}<div class="field"><label>🛒 Detalle de la venta</label><input placeholder="Escribí el producto y elegilo del inventario…" autocomplete="off" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)" oninput="_invSug(this,x=>_pickProdVenta('${c.id}',-1,x,this))" onfocus="_invSug(this,x=>_pickProdVenta('${c.id}',-1,x,this))" onblur="_invSugHide()"></div><div class="field" style="margin-top:8px"><label>📦 Cantidad de productos</label><div class="cantchips" id="cant-${c.id}">${cantChipsHTML(c)}</div></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" inputmode="numeric" placeholder="0" id="com-${c.id}" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📅 Fecha de la venta</label><input type="date" value="${esc(c.vendidoFecha||hoy())}" onchange="setFechaVenta('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>🤝 Referido por (opcional)</label><div style="display:flex;gap:6px;align-items:center"><input style="flex:1;min-width:0" placeholder="Nombre o número del cliente que lo refirió…" autocomplete="off" value="${esc(_refLabel(c))}" oninput="_refSug(this,'${c.id}')" onfocus="_refSug(this,'${c.id}')" onblur="_invSugHide()">${c.referidoPor?`<button class="mini" onclick="verFicha('${c.referidoPor}')" title="Ver ficha del que lo refirió">👁️</button><button class="mini" onclick="setReferido('${c.id}',null)" title="Quitar">✕</button>`:''}</div></div>${ventasExtraHTML(c)}<button class="v-add" style="margin-top:10px;background:var(--card)" onclick="addVentaExtra('${c.id}')">＋ Agregar producto</button></div>
       <div class="row2"><div class="field"><label>Etapa</label><select onchange="setF('${c.id}','etapa',this.value)">${ETAPAS.map(e=>`<option value="${e.id}" ${c.etapa===e.id?'selected':''}>${e.nombre}</option>`).join('')}</select></div><div class="field"><label>Producto</label><select onchange="setF('${c.id}','producto',this.value)">${PRODUCTOS.map(p=>`<option ${c.producto===p?'selected':''}>${p}</option>`).join('')}</select></div></div>
       <div class="row2"><div class="field"><label>Valor ($)</label><input type="number" inputmode="numeric" value="${c.valor||''}" onchange="setF('${c.id}','valor',Number(this.value)||0)"></div><div class="field"><label>Tipo de operación</label><select onchange="setF('${c.id}','operacion',this.value)">${OPERACIONES.map(o=>`<option value="${o}" ${(c.operacion||'')===o?'selected':''}>${o||'—'}</option>`).join('')}</select></div></div>
       ${(me&&me.rol!=='vendedor'&&asignables().length>1)?`<div class="field"><label>Vendedor asignado</label><select onchange="setF('${c.id}','vendedorId',this.value)">${asignables().map(u=>`<option value="${u.id}" ${c.vendedorId===u.id?'selected':''}>${esc(u.nombre)}</option>`).join('')}</select></div>`:''}
@@ -1271,8 +1276,9 @@ function refreshTagButtons(c){
     else if(b.classList.contains('fri'))on=tags.includes('frio');
     else if(b.classList.contains('otr'))on=tags.includes('otro');
     else if(b.classList.contains('seg'))on=tags.includes('seguimiento');
+    else if(b.classList.contains('blk'))on=tags.includes('black');
     else if(b.classList.contains('ven'))on=c.etapa==='vendido';
-    else on=!tags.length&&c.etapa!=='vendido';
+    else on=!tags.some(t=>t!=='black')&&c.etapa!=='vendido'; // "Auto" no cuenta la etiqueta Black
     b.classList.toggle('on',on);
   });
 }
@@ -1282,7 +1288,7 @@ function toggleTag(id,t){
   const i=c.tags.indexOf(t);if(i>=0)c.tags.splice(i,1);else c.tags.push(t);
   save();refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();
 }
-function limpiarTags(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.tags=[];c.tempManual='';save();refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();}
+function limpiarTags(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.tags=(c.tags||[]).filter(t=>t==='black');/* Black se mantiene */c.tempManual='';save();refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();}
 function marcarVendido(id){
   const c=clientes.find(x=>x.id===id);if(!c)return;
   if(c.etapa==='vendido'){c.etapa='negociando';}else{c.etapa='vendido';if(!c.vendidoFecha)c.vendidoFecha=hoy();c.tags=(c.tags||[]).filter(t=>t==='seguimiento');}
@@ -1319,6 +1325,17 @@ function _pickProdVenta(id,i,x,inp){const c=clientes.find(y=>y.id===id);if(!c||!
   if(i<0){c.ventaDetalle=txt;c.comision=com;const ce=document.getElementById('com-'+c.id);if(ce)ce.value=com||'';}
   else{const v=(c.ventasExtra||[])[i];if(!v)return;v.detalle=txt;v.comision=com;const ce=document.getElementById('com-'+c.id+'-'+i);if(ce)ce.value=com||'';}
   save();}
+/* ---- Referidos: quién trajo a este cliente (se elige buscando por nombre o número, como en Todos) ---- */
+function _refLabel(c){if(!c.referidoPor)return '';const r=clientes.find(x=>x.id===c.referidoPor);return r?(r.nombre+(r.whatsapp?' · '+telVer(r.whatsapp):'')):(c.referidoNombre||'');}
+function _refSug(inp,cid){const qv=(inp.value||'').trim();let box=document.getElementById('inv-sug');if(!box){box=document.createElement('div');box.id='inv-sug';box.className='inv-sug';document.body.appendChild(box);}
+  if(!qv){box.style.display='none';return;}
+  const items=clientes.filter(x=>x.id!==cid&&!x.borrado&&_buscaCliente(x,qv)).slice(0,8);
+  if(!items.length){box.style.display='none';return;}
+  box.innerHTML=items.map((x,i)=>'<button type="button" class="inv-sug-it" data-i="'+i+'"><b>'+esc(x.nombre)+'</b><span>'+esc(telVer(x.whatsapp)||'sin número')+'</span></button>').join('');
+  const r=inp.getBoundingClientRect();box.style.left=r.left+'px';box.style.top=(r.bottom+4)+'px';box.style.width=Math.max(240,r.width)+'px';box.style.display='block';
+  box.querySelectorAll('.inv-sug-it').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();const x=items[+b.dataset.i];box.style.display='none';setReferido(cid,x);};});}
+function setReferido(cid,ref){const c=clientes.find(x=>x.id===cid);if(!c)return;if(ref){c.referidoPor=ref.id;c.referidoNombre=ref.nombre||'';}else{delete c.referidoPor;delete c.referidoNombre;}save();renderInboxKeepScroll();}
+function referidosHTML(c){const r=clientes.filter(x=>x.referidoPor===c.id&&!x.borrado);if(!r.length)return '';return '<div class="banner" style="background:#5e5ce61a;color:#5e5ce6">🤝<div><b>Refirió a:</b> '+r.map(x=>'<a href="#" onclick="verFicha(\''+x.id+'\');return false" style="color:inherit;font-weight:600">'+esc(x.nombre)+'</a>').join(', ')+'</div></div>';}
 function _refreshCant(c){const el=document.getElementById('cant-'+c.id);if(el)el.innerHTML=cantChipsHTML(c);}
 function setCantidad(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.cantidad=Math.max(1,Number(v)||1);save();_refreshCant(c);}
 function setCantidadMas(id){const c=clientes.find(x=>x.id===id);if(!c)return;appModal({titulo:'Cantidad de productos',texto:'¿Cuántos productos compró? (más de 10)',conInput:true,inputPlaceholder:'Ej: 12',inputValue:(c.cantidad>10?String(c.cantidad):''),okLabel:'Guardar',onOk:v=>{c.cantidad=Math.max(1,parseInt(v,10)||1);save();_refreshCant(c);}});}
@@ -2294,7 +2311,7 @@ function renderVendidos(){
   let h=`<div class="page"><h1>✅ Vendidos</h1><div class="sub">${list.length} cliente(s) con venta cerrada · ${totalQty} producto(s)${totalCom?' · $'+totalCom.toLocaleString('es-AR')+' en comisiones':''}</div>`;
   if(!list.length){main.innerHTML=h+'<div class="empty">Todavía no hay ventas cerradas.</div></div>';return;}
   h+='<div class="panelcard">';
-  for(const c of list){const sub=(c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto))+((c.cantidad&&c.cantidad>1)?' · '+c.cantidad+' u.':'')+(c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):'')+((c.ventasExtra||[]).length?' · +'+c.ventasExtra.length+' compra(s) más':'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','vendidos')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${sub}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}${waIc(c)}</div>`;}
+  for(const c of list){const sub=(c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto))+((c.cantidad&&c.cantidad>1)?' · '+c.cantidad+' u.':'')+(c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):'')+((c.ventasExtra||[]).length?' · +'+c.ventasExtra.length+' compra(s) más':'')+(c.referidoPor?' · 🤝 referido por '+esc(_refLabel(c).split(' · ')[0]):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','vendidos')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${sub}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}${waIc(c)}</div>`;}
   main.innerHTML=h+'</div></div>';
 }
 /* ---- VENTAS (vista administrativa: supervisor/dueño/admin) ---- */
