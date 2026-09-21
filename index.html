@@ -891,7 +891,7 @@ function temperatura(c){
 // Chip de etiqueta (caliente/frío/etc) para mostrar al lado del nombre en las listas
 // Etiqueta BLACK (cliente importante): es independiente de la temperatura y se ve en todas las listas y en la ficha.
 function esBlack(c){return !!(c&&c.tags&&c.tags.includes('black'));}
-function blackChip(c){return esBlack(c)?'<span class="black-chip">⚫ BLACK</span>':'';}
+function blackChip(c){return esBlack(c)?'<span class="black-chip">💳 BLACK</span>':'';}
 function tempChip(c){const t=temperatura(c);if(!t)return blackChip(c);return blackChip(c)+`<span class="temp-chip" style="color:${t.color};border-color:${t.color}55;background:${t.color}14">${t.emoji} ${esc(t.label)}</span>`;}
 function esCalienteT(c){const t=temperatura(c);return !!(t&&t.id==='caliente');}
 // Solo lectura: supervisor y dueño ven la info del equipo pero NO editan clientes.
@@ -1221,7 +1221,7 @@ function crmHTML(c){
         <button class="tagbtn fri ${(c.tags||[]).includes('frio')?'on':''}" onclick="toggleTag('${c.id}','frio')">❄️ Frío</button>
         <button class="tagbtn otr ${(c.tags||[]).includes('otro')?'on':''}" onclick="toggleTag('${c.id}','otro')">🏷️ Otro</button>
         <button class="tagbtn seg ${(c.tags||[]).includes('seguimiento')?'on':''}" onclick="toggleTag('${c.id}','seguimiento')" title="Mantener en seguimiento aunque esté vendido">🟡 Seguimiento</button>
-        <button class="tagbtn blk ${(c.tags||[]).includes('black')?'on':''}" onclick="toggleTag('${c.id}','black')" title="Cliente importante">⚫ Black</button>
+        <button class="tagbtn blk ${(c.tags||[]).includes('black')?'on':''}" onclick="toggleTag('${c.id}','black')" title="Cliente importante">💳 Black</button>
         <button class="tagbtn ven ${c.etapa==='vendido'?'on':''}" onclick="marcarVendido('${c.id}')" title="Marcar / desmarcar vendido">✅ Vendido</button>
         <button class="tagbtn ${!(c.tags||[]).some(t=>t!=='black')&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
       </div>
