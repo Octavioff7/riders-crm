@@ -931,6 +931,20 @@ http.createServer((req,res)=>{
     a.push(e);if(a.length>20000)a.splice(0,a.length-20000);saveAud(a);json(200,{ok:true});});}
 
   // Actualizar un cliente/venta completo: admin/supervisor/dueño (editar ventas, acreditar pagos, fondeo)
+  // Papelera: la IA decide si cada lead descartado es basura (quiere para otro pais o para USA, spam, no sirve)
+  // o si puede servir mas adelante. Clasifica los que todavia no tienen decision y la guarda en el cliente.
+  if(u==='/api/papelera/clasificar'&&req.method==='POST'){
+    if(!CFG.geminiKey||CFG.geminiKey.length<10)return json(200,{ok:false,reason:'noconfig',clasificados:0});
+    const arr=loadClientes();const vis=scopedClientes(me).filter(c=>(c.borrado||c.descartado)&&!c.papeleraTipo).slice(0,30);
+    if(!vis.length)return json(200,{ok:true,clasificados:0});
+    const desc=vis.map(c=>{const notas=(c.log||[]).slice(-4).map(l=>l.texto).filter(Boolean).map(t=>String(t).slice(0,140));const msgs=(c.mensajes||[]).slice(-3).map(m=>(m.de==='yo'?'Vendedor: ':'Cliente: ')+String(m.texto||'').slice(0,120));
+      return {id:c.id,nombre:c.nombre,telefono:c.whatsapp||'',producto:c.producto||'',motivo_papelera:c.borradoMotivo||'',etiqueta:c.tempNota||'',ubicacion:c.ubicacion||'',notas,mensajes:msgs};});
+    const prompt='Sos el asistente de Riders Miami, un negocio de Miami que vende motos, triciclos, bicis eléctricas y kits solares y los ENVÍA A CUBA. Estos leads fueron mandados a la papelera. Clasificá cada uno:\n- "basura": no sirve para el negocio. Quiere el producto para OTRO PAÍS que no sea Cuba (Honduras, Venezuela, México, etc.) o para USA/Estados Unidos/Miami, número equivocado, spam, ya compró en otro lado, no le interesa, no responde nunca, o cualquier señal de que no va a comprar.\n- "luego": todavía puede comprar más adelante (para Cuba): sin crédito por ahora, sin plata ahora, lo está pensando, "para más adelante", esperando un pago, comparando precios, etc.\nSi no hay información suficiente, elegí "luego".\nRespondé SOLO con JSON: {"resultados":[{"id":"...","tipo":"basura"|"luego","por":"motivo en máximo 8 palabras"}]}\n\nLeads:\n'+JSON.stringify(desc);
+    return geminiCall(prompt).then(txt=>{let res=[];try{const j=JSON.parse(String(txt||'').replace(/^[^{]*/,'').replace(/[^}]*$/,''));res=(j&&j.resultados)||[];}catch(e){}
+      if(!res.length)return json(200,{ok:false,reason:'sin-respuesta',clasificados:0});
+      let k=0;for(const r of res){const c=arr.find(x=>x.id===r.id);if(!c||c.papeleraTipo)continue;const t=String(r.tipo||'').toLowerCase()==='basura'?'basura':'luego';c.papeleraTipo=t;c.papeleraIA={tipo:t,por:String(r.por||'').slice(0,80),ts:Date.now()};k++;}
+      if(k)saveClientes(arr);json(200,{ok:true,clasificados:k,pendientes:Math.max(0,vis.length-k)});});
+  }
   if(u==='/api/cliente-delete'&&req.method==='POST'){
     if(!me||me.rol!=='admin')return json(403,{error:'Solo admin'});
     return readBody(b=>{if(!b||!b.id)return json(400,{error:'id'});const arr=loadClientes();const i=arr.findIndex(x=>x.id===b.id);let nombre='';if(i>=0){nombre=arr[i].nombre||'';arr.splice(i,1);saveClientes(arr);}

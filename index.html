@@ -2286,14 +2286,26 @@ function abrirConsulta(id){abrirEnCtx(id,'nuevas');}
 // Guardar: recien aca la consulta deja de estar "sin atender" y pasa a la seccion que le corresponda.
 function guardarConsulta(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.sinAtender=false;save();renderInboxKeepScroll();} // se queda donde esta: misma seccion, misma ficha
 /* ---- Papelera en dos partes: "Otros países" (detección automática por país / teléfono) y "Para más adelante" ---- */
-const _PAIS_RE=/\b(honduras|cuba|venezuela|colombia|m[eé]xico|mexico|guatemala|el salvador|nicaragua|costa rica|panam[aá]|rep[uú]blica dominicana|dominicana|puerto rico|ecuador|per[uú]|chile|argentina|bolivia|paraguay|uruguay|espa[nñ]a|hait[ií]|jamaica|brasil|belice|canad[aá]|otro pa[ií]s|su pa[ií]s|en el exterior|internacional|fuera de (usa|eeuu|estados unidos|miami|florida|la florida))\b/i;
-function esOtroPais(c){
-  if(c.papeleraTipo==='pais')return true;if(c.papeleraTipo==='luego')return false; // elección manual
+const _PAIS_RE=/\b(honduras|cuba|venezuela|colombia|m[eé]xico|mexico|guatemala|el salvador|nicaragua|costa rica|panam[aá]|rep[uú]blica dominicana|dominicana|puerto rico|ecuador|per[uú]|chile|argentina|bolivia|paraguay|uruguay|espa[nñ]a|hait[ií]|jamaica|brasil|belice|canad[aá]|otro pa[ií]s|su pa[ií]s|en el exterior|internacional|para (usa|eeuu|estados unidos|miami|la florida|aqu[ií]|ac[aá])|fuera de (usa|eeuu|estados unidos|miami|florida|la florida)|n[uú]mero equivocado|spam|no sirve|ya compr[oó] en otro)\b/i;
+function esOtroPais(c){ // "basura": otro destino (incluido USA), spam o no sirve. Lo decide la IA; lo manual manda.
+  if(c.papeleraTipo==='pais'||c.papeleraTipo==='basura')return true;if(c.papeleraTipo==='luego')return false;
   const d=_soloDig(c.whatsapp||'');if(d.length>=10&&d[0]!=='1')return true; // número que no es de USA/Canadá (+1)
   const txt=[c.borradoMotivo,c.tempNota,c.ubicacion].concat((c.log||[]).map(l=>l.texto)).filter(Boolean).join(' · ');
   return _PAIS_RE.test(txt);
 }
-function setPapeleraTipo(id,t){const c=clientes.find(x=>x.id===id);if(!c)return;c.papeleraTipo=t;save();renderPapelera();}
+function setPapeleraTipo(id,t){const c=clientes.find(x=>x.id===id);if(!c)return;c.papeleraTipo=t;c.papeleraManual=true;save();renderPapelera();}
+// Pide a la IA que clasifique los de la papelera que todavía no tienen decisión; cuando termina, vuelve a dibujar.
+let _papClasBusy=false,_papClasFallo=false;
+async function _papClasificar(){
+  if(_papClasBusy||_papClasFallo||!SERVER)return;const pend=clientes.filter(c=>(c.borrado||c.descartado)&&!c.papeleraTipo);if(!pend.length)return;
+  _papClasBusy=true;const st=document.getElementById('pap-ia');if(st)st.textContent='🤖 La IA está clasificando '+pend.length+' lead(s)…';
+  try{const r=await (await api('/api/papelera/clasificar',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+    if(!r.ok||!r.clasificados){_papClasFallo=true;if(st)st.textContent=r.reason==='noconfig'?'Sin clave de IA: se usa la detección por país y teléfono.':'La IA no respondió; se usa la detección por país y teléfono.';_papClasBusy=false;return;}
+    const arr=await (await api('/api/clientes')).json();const sel=selectedId;initClientes(arr);if(sel)selectedId=sel;
+    _papClasBusy=false;if(view==='papelera')renderPapelera();return;
+  }catch(e){_papClasFallo=true;}
+  _papClasBusy=false;
+}
 function renderPapelera(){
   const esAdmin=!!(me&&me.rol==='admin');
   const ord=(a,b)=>String((b.descartadoFecha||b.borradoFecha)||'').localeCompare(String((a.descartadoFecha||a.borradoFecha)||''));
@@ -2304,24 +2316,26 @@ function renderPapelera(){
     else if(c.borradoFecha)meta.push('borrado el '+fmtFecha(c.borradoFecha));
     const btnDel=`<button class="btn sm danger" onclick="descartarCliente('${c.id}')">Descartar</button>`+(esAdmin?`<button class="btn sm ghost" style="color:#c0392b" title="Borrar de la base para siempre (no queda contado)" onclick="eliminarDefinitivo('${c.id}')">Eliminar</button>`:'');
     const motivoHtml=c.borradoMotivo?`<div style="font-size:12px;color:var(--txt);margin-top:2px">📝 <i>${esc(c.borradoMotivo)}</i></div>`:'';
-    const mover=esOtroPais(c)?`<button class="mini" title="Pasar a Para más adelante" onclick="setPapeleraTipo('${c.id}','luego')">⏳</button>`:`<button class="mini" title="Pasar a Otros países" onclick="setPapeleraTipo('${c.id}','pais')">🌎</button>`;
+    const mover=esOtroPais(c)?`<button class="mini" title="Pasar a Para más adelante" onclick="setPapeleraTipo('${c.id}','luego')">⏳</button>`:`<button class="mini" title="Pasar a Leads basura" onclick="setPapeleraTipo('${c.id}','basura')">🗑️</button>`;
+    if(c.papeleraIA&&c.papeleraIA.por&&!c.papeleraManual)meta.push('<span title="Lo decidió la IA">🤖 '+esc(c.papeleraIA.por)+'</span>');
     return `<div class="frow"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12px;color:var(--muted)">${meta.filter(Boolean).join(' · ')}</div>${motivoHtml}</div>${mover}<button class="btn sm ghost" onclick="restaurarCliente('${c.id}')">↩ Restaurar</button>${btnDel}</div>`;
   };
   // Cada papelera se parte en dos: los de otros países (se detectan solos por el teléfono o por lo anotado) y los que sirven para más adelante.
   const dosPartes=(arr,eq)=>{const pais=arr.filter(esOtroPais),luego=arr.filter(c=>!esOtroPais(c));
-    return `<h3 class="nc-sec">🌎 Otros países <span>· ${pais.length}</span></h3>${pais.length?pais.map(c=>fila(c,eq)).join(''):'<div class="empty" style="padding:10px">Nadie de otros países.</div>'}<h3 class="nc-sec">⏳ Para más adelante <span>· ${luego.length}</span></h3>${luego.length?luego.map(c=>fila(c,eq)).join(''):'<div class="empty" style="padding:10px">Nada guardado para más adelante.</div>'}`;};
+    return `<h3 class="nc-sec">🗑️ Leads basura <span>· ${pais.length} · otros destinos, USA, spam</span></h3>${pais.length?pais.map(c=>fila(c,eq)).join(''):'<div class="empty" style="padding:10px">Sin leads basura.</div>'}<h3 class="nc-sec">⏳ Para más adelante <span>· ${luego.length}</span></h3>${luego.length?luego.map(c=>fila(c,eq)).join(''):'<div class="empty" style="padding:10px">Nada guardado para más adelante.</div>'}`;};
   let h=`<div class="page"><h1>🗑️ Papelera</h1>`;
   if(esAdmin){
     const mias=clientes.filter(c=>c.borrado&&!c.descartado&&c.vendedorId===me.id).sort(ord);
     const equipo=clientes.filter(c=>c.vendedorId!==me.id&&(c.borrado||c.descartado)).sort(ord);
-    h+=`<div class="sub">Tu papelera y la de tu equipo. Lo que un vendedor descarta queda archivado acá.</div>`;
+    h+=`<div class="sub">Tu papelera y la de tu equipo. La IA separa los leads basura (otro destino, USA, spam) de los que pueden servir más adelante. Con 🗑️ o ⏳ lo cambiás a mano. <span id="pap-ia"></span></div>`;
     h+=`<div class="panelcard"><h3>🗑️ Mi papelera <span class="muted" style="font-weight:500">· ${mias.length}</span></h3>${mias.length?dosPartes(mias,false):'<div class="empty">Vacía.</div>'}</div>`;
     h+=`<div class="panelcard"><h3>👥 Papelera del equipo <span class="muted" style="font-weight:500">· ${equipo.length}</span></h3>${equipo.length?dosPartes(equipo,true):'<div class="empty">Nada del equipo por ahora.</div>'}</div>`;
   }else{
     const mias=misTodos().filter(c=>c.borrado&&!c.descartado).sort(ord);
-    h+=`<div class="sub">${mias.length} cliente(s) en tu papelera. Los de otros países se detectan solos; el resto queda para más adelante. Con 🌎 o ⏳ los cambiás de lugar.</div><div class="panelcard">${mias.length?dosPartes(mias,false):'<div class="empty">La papelera está vacía.</div>'}</div>`;
+    h+=`<div class="sub">${mias.length} cliente(s) en tu papelera. La IA separa los leads basura (otro destino, USA, spam) de los que pueden servir más adelante. Con 🗑️ o ⏳ lo cambiás a mano. <span id="pap-ia"></span></div><div class="panelcard">${mias.length?dosPartes(mias,false):'<div class="empty">La papelera está vacía.</div>'}</div>`;
   }
   main.innerHTML=h+'</div>';
+  _papClasificar();
 }
 /* ---- EQUIPO / CUENTAS (admin + supervisor) ---- */
 function nombreVend(id){const u=usuarios.find(x=>x.id===id);return u?u.nombre:'—';}
