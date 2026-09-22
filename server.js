@@ -222,7 +222,7 @@ function tokenUid(tok){
   return d.uid;
 }
 function userFromReq(req){const h=req.headers['authorization']||'';const t=h.startsWith('Bearer ')?h.slice(7):'';const uid=tokenUid(t);if(!uid)return null;return loadUsers().find(u=>u.id===uid&&u.activo!==false)||null;}
-function publicUser(u){return u?{id:u.id,nombre:u.nombre,apellido:u.apellido||'',telefono:u.telefono||'',email:u.email||'',usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length),waPhoneId:u.waPhoneId||'',waKeySet:!!u.waKey}:null;}
+function publicUser(u){return u?{id:u.id,nombre:u.nombre,apellido:u.apellido||'',telefono:u.telefono||'',email:u.email||'',usuario:u.usuario,rol:u.rol,supervisorId:u.supervisorId||null,activo:u.activo!==false,tgLinked:!!u.telegramChatId,pushOn:!!(u.pushSubs&&u.pushSubs.length),waPhoneId:u.waPhoneId||'',waKeySet:!!u.waKey,privado:!!u.privado}:null;}
 // Códigos de vinculación de Telegram (persistidos para sobrevivir a reinicios/deploys)
 const TGCODEPATH=path.join(DATA_DIR,'tgcodes.json');
 function loadTgCodes(){try{return JSON.parse(fs.readFileSync(TGCODEPATH,'utf8'))}catch(e){return {}}}
@@ -348,6 +348,8 @@ function ensureSetup(){
 /* ---------- Alcance por rol ---------- */
 function teamIds(users,sup){return users.filter(u=>u.supervisorId===sup.id).map(u=>u.id).concat(sup.id);}
 function canSeeCliente(user,c,users){
+  // Cuenta en modo privado: nadie más ve sus leads ni seguimientos; solo sus clientes ya vendidos (ventas, fichas de venta).
+  if(c.vendedorId&&c.vendedorId!==user.id){const dueno=(users||[]).find(u=>u.id===c.vendedorId);if(dueno&&dueno.privado&&!(c.etapa==='vendido'||c.etapa==='posventa'))return false;}
   if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')return true; // dueño y supervisor ven toda la operación (solo lectura)
   // El vendedor recibe todos sus clientes, incluidos los que descarto: no aparecen en sus listas
   // (el front los filtra) pero se necesitan para sus metricas de la semana.
@@ -441,7 +443,8 @@ function metricsScoped(user){
   const users=loadUsers();let targets;
   if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')targets=users.filter(u=>u.activo!==false&&u.rol!=='dueno');
   else targets=[user];
-  return targets.map(u=>({user:publicUser(u),metrics:metricsFor(u.id)}));
+  return targets.map(u=>{const m=metricsFor(u.id);if(u.privado&&u.id!==user.id){['total','atrasados','calientes','seguimientosSemana','nuevosMes','nuevosSemana'].forEach(k=>{if(k in m)m[k]=0;});m.privado=true;} // privado: solo se comparten los números de ventas
+    return {user:publicUser(u),metrics:m};});
 }
 
 /* ---------- Helpers de fecha / datos ---------- */
@@ -702,8 +705,11 @@ function _dig(v){v=String(v==null?'':v);let o='';for(let i=0;i<v.length;i++){con
 function copiPuede(u){return !!u&&(u.rol==='admin'||u.rol==='dueno'||u.rol==='supervisor');}
 function copiUsuarioPorTel(from){const d=_dig(from);if(d.length<7)return null;return loadUsers().find(u=>u.activo!==false&&copiPuede(u)&&(()=>{const t=_dig(u.telefono||'');return t.length>=7&&(t.endsWith(d)||d.endsWith(t));})())||null;}
 function copiContexto(user){
-  const users=loadUsers();const all=loadClientes();
-  const vis=(user.rol==='supervisor')?new Set(teamIds(users,user).concat([user.id])):null;
+  const users=loadUsers();
+  // Charly responde solo con lo que puede ver la cuenta que pregunta: vendedor = sus clientes; manager = su equipo;
+  // administrativo/dueño = lo visible respetando las cuentas en modo privado.
+  const all=scopedClientes(user);
+  const vis=(user.rol==='supervisor')?new Set(teamIds(users,user).concat([user.id])):(user.rol==='vendedor'?new Set([user.id]):null);
   const cl=all.filter(c=>!vis||vis.has(c.vendedorId));
   const act=cl.filter(c=>!c.borrado&&!c.descartado);
   const H=hoy(),mes=H.slice(0,7);
@@ -1127,6 +1133,8 @@ http.createServer((req,res)=>{
       if('supervisorId' in body&&target.rol==='vendedor')target.supervisorId=body.supervisorId||null;
     }
     // Número de WhatsApp (phone_number_id de Meta) de esta cuenta: las consultas que lleguen a ese número van a este usuario.
+    // Modo privado: solo el propio administrativo, sobre su propia cuenta.
+    if(target.id===me.id&&me.rol==='admin'&&typeof body.privado==='boolean')target.privado=body.privado;
     // Lo puede cargar el admin o el propio usuario desde "Mi perfil" (conexión por Dualhook).
     const puedeWa=(me.rol==='admin'||me.id===target.id);
     if(puedeWa&&body.waClear===true){target.waPhoneId='';target.waKey='';}
