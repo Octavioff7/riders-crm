@@ -629,7 +629,8 @@ tr.fin-dragging{will-change:transform}tr.fin-dragging td{background:var(--card);
   .tagbtn:hover{background:var(--card)}.tagbtn:active{transform:scale(.96)}
   .tagbtn.on{color:#fff;border-color:transparent}
   .tagbtn.cal.on{background:#ff3b30}.tagbtn.fri.on{background:#3b82f6}.tagbtn.otr.on{background:#8e8e93}.tagbtn.seg.on{background:#ff9f0a}
-  .tagbtn.on:not(.cal):not(.fri):not(.otr):not(.ven):not(.seg):not(.blk){background:var(--accent)}.tagbtn.blk.on{background:#111;color:#fff}
+  .tagbtn.on:not(.cal):not(.fri):not(.otr):not(.ven):not(.seg):not(.blk):not(.sol){background:var(--accent)}.tagbtn.blk.on{background:#111;color:#fff}
+.tagbtn.sol.on{background:#a2845e;color:#fff}.sol-chip{display:inline-block;margin-left:6px;background:#a2845e22;color:#8a6a3f;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;vertical-align:middle;border:1px solid #a2845e55}
 .black-chip{display:inline-block;margin-left:6px;background:#111;color:#fff;font-size:10px;font-weight:800;letter-spacing:.06em;padding:2px 7px;border-radius:20px;vertical-align:middle}
   .tagbtn.ven.on{background:#34c759}
   .fnl{display:flex;align-items:center;gap:10px;padding:5px 0}
@@ -822,6 +823,7 @@ tr.fin-dragging{will-change:transform}tr.fin-dragging td{background:var(--card);
         <button data-view="hoy"><span class="ic" aria-hidden="true">🟡</span><span class="lbl">Hoy</span><span class="count" id="cnt-hoy"></span></button>
         <button data-view="proximos"><span class="ic" aria-hidden="true">🔵</span><span class="lbl">Próximos días</span><span class="count" id="cnt-prox"></span></button>
         <button data-view="semana"><span class="ic" aria-hidden="true">🗓️</span><span class="lbl">Próxima semana</span><span class="count" id="cnt-sem"></span></button>
+        <button data-view="solucionar"><span class="ic" aria-hidden="true">🛠️</span><span class="lbl">Por solucionar</span><span class="count" id="cnt-solucionar"></span></button>
         <button data-view="anotar"><span class="ic" aria-hidden="true">📝</span><span class="lbl">Por anotar</span><span class="count" id="cnt-anotar"></span></button>
         <button data-view="vendidos"><span class="ic" aria-hidden="true">✅</span><span class="lbl">Vendidos</span><span class="count" id="cnt-vendidos"></span></button>
         <button class="vend-only" data-view="inventario"><span class="ic" aria-hidden="true">📦</span><span class="lbl">Inventario</span></button>
@@ -891,7 +893,18 @@ function temperatura(c){
 // Chip de etiqueta (caliente/frío/etc) para mostrar al lado del nombre en las listas
 // Etiqueta BLACK (cliente importante): es independiente de la temperatura y se ve en todas las listas y en la ficha.
 function esBlack(c){return !!(c&&c.tags&&c.tags.includes('black'));}
-function blackChip(c){return esBlack(c)?'<span class="black-chip">💳 BLACK</span>':'';}
+function blackChip(c){return (esBlack(c)?'<span class="black-chip">💳 BLACK</span>':'')+(esPorSolucionar(c)?'<span class="sol-chip">🛠️ Por solucionar</span>':'');}
+// "Por solucionar": situaciones a resolver con el cliente. Es una etiqueta manual; el cliente aparece en esa sección hasta que se la saques.
+function esPorSolucionar(c){return !!(c&&c.tags&&c.tags.includes('solucionar'));}
+function _solTs(c){const l=(c.log||[]);const u=l[l.length-1];return u?(Date.parse((u.fecha||'')+'T'+((u.hora||'00:00').length===5?u.hora:'00:00')+':00')||0):(creaKey(c)||0);}
+function renderSolucionar(){
+  const list=activos().filter(esPorSolucionar).sort((a,b)=>_solTs(b)-_solTs(a));
+  let h=`<div class="page"><h1>🛠️ Por solucionar</h1><div class="sub">${list.length} cliente(s) con una situación a resolver. Se marcan desde la ficha con la etiqueta "Por solucionar" y salen de acá cuando la sacás.</div>`;
+  if(!list.length){main.innerHTML=h+'<div class="empty">No hay nada por solucionar 🎉</div></div>';return;}
+  const fila=c=>{const l=(c.log||[]);const u=l[l.length-1];const sub=u?(fmtFecha(u.fecha)+' · '+esc((u.texto||'').slice(0,90))):esc(telVer(c.whatsapp)||'sin número');
+    return `<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','solucionar')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div></div>${waIc(c)}</div>`;};
+  main.innerHTML=h+'<div class="panelcard">'+list.map(fila).join('')+'</div></div>';
+}
 function tempChip(c){const t=temperatura(c);if(!t)return blackChip(c);return blackChip(c)+`<span class="temp-chip" style="color:${t.color};border-color:${t.color}55;background:${t.color}14">${t.emoji} ${esc(t.label)}</span>`;}
 function esCalienteT(c){const t=temperatura(c);return !!(t&&t.id==='caliente');}
 // Solo lectura: supervisor y dueño ven la info del equipo pero NO editan clientes.
@@ -1020,6 +1033,7 @@ function updateCounts(){
   const setc=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
   setc('cnt-atra',A.filter(c=>enBucket(c,'atrasado')).length);setc('cnt-hoy',A.filter(c=>enBucket(c,'hoy')).length);setc('cnt-prox',A.filter(c=>enBucket(c,'proximos')).length);setc('cnt-sem',A.filter(c=>enBucket(c,'semana')).length);
   setc('cnt-vendidos',A.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length);
+  setc('cnt-solucionar',A.filter(esPorSolucionar).length);
 }
 function render(){
   if(view!=='inbox')inboxCtx=null; // al salir del inbox se pierde el contexto de la sección
@@ -1028,7 +1042,7 @@ function render(){
   if(/^aud(Informe|Dashboard)$/.test(navActive))navActive='auditoria';
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',anotar:'Por anotar',vendidos:'Vendidos',calc:'Calculadora',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras',finanzas:'Dashboard Financiero',pedidos:'Pedidos y Logística',pedInforme:'Informe de Pedidos',pedAgrupado:'Pedidos Agrupado',pedOrganizar:'Organizar Pedidos',pedOrdenes:'Órdenes Pedidos',auditoria:'Auditoría',audInforme:'Informe de Auditoría',audDashboard:'Dashboard Auditoría'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',solucionar:'Por solucionar',anotar:'Por anotar',vendidos:'Vendidos',calc:'Calculadora',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras',finanzas:'Dashboard Financiero',pedidos:'Pedidos y Logística',pedInforme:'Informe de Pedidos',pedAgrupado:'Pedidos Agrupado',pedOrganizar:'Organizar Pedidos',pedOrdenes:'Órdenes Pedidos',auditoria:'Auditoría',audInforme:'Informe de Auditoría',audDashboard:'Dashboard Auditoría'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
@@ -1045,6 +1059,7 @@ function render(){
   else if(view==='hoy')renderAgendaSec('hoy');
   else if(view==='proximos')renderAgendaSec('proximos');
   else if(view==='semana')renderAgendaSec('semana');
+  else if(view==='solucionar')renderSolucionar();
   else if(view==='papelera')renderPapelera();
   else if(view==='equipo')renderEquipo();
   else if(view==='cuentas')renderCuentas();
@@ -1141,11 +1156,12 @@ function ctxList(ctx){const A=activos();
   if(ctx==='seg')return A.filter(c=>temperatura(c)).sort(byNuevo);
   if(ctx==='anotar')return A.filter(c=>sinAnotar(c)&&_enRango('anotar',c.creado)).sort(byNuevo);
   if(ctx==='vendidos')return A.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').sort(byVenta);
+  if(ctx==='solucionar')return A.filter(esPorSolucionar).sort((a,b)=>_solTs(b)-_solTs(a));
   if(ctx==='atrasado')return A.filter(c=>enBucket(c,'atrasado')&&_enRango('atrasado',c.proximo)).sort(byProxAsc);
   if(['hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)&&(ctx==='hoy'||_enRango(ctx,c.proximo))).sort(byProxDesc);
   return null;
 }
-const CTX_LABEL={nuevas:'🆕 Nuevas consultas',atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
+const CTX_LABEL={nuevas:'🆕 Nuevas consultas',atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',solucionar:'🛠️ Por solucionar',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
 function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 // Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
 function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
@@ -1222,8 +1238,9 @@ function crmHTML(c){
         <button class="tagbtn otr ${(c.tags||[]).includes('otro')?'on':''}" onclick="toggleTag('${c.id}','otro')">🏷️ Otro</button>
         <button class="tagbtn seg ${(c.tags||[]).includes('seguimiento')?'on':''}" onclick="toggleTag('${c.id}','seguimiento')" title="Mantener en seguimiento aunque esté vendido">🟡 Seguimiento</button>
         <button class="tagbtn blk ${(c.tags||[]).includes('black')?'on':''}" onclick="toggleTag('${c.id}','black')" title="Cliente importante">💳 Black</button>
+        <button class="tagbtn sol ${(c.tags||[]).includes('solucionar')?'on':''}" onclick="toggleTag('${c.id}','solucionar')" title="Hay una situación a resolver con este cliente">🛠️ Por solucionar</button>
         <button class="tagbtn ven ${c.etapa==='vendido'?'on':''}" onclick="marcarVendido('${c.id}')" title="Marcar / desmarcar vendido">✅ Vendido</button>
-        <button class="tagbtn ${!(c.tags||[]).some(t=>t!=='black')&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
+        <button class="tagbtn ${!(c.tags||[]).some(t=>t!=='black'&&t!=='solucionar')&&c.etapa!=='vendido'?'on':''}" onclick="limpiarTags('${c.id}')" title="Sacar etiquetas (volver al automático)">↺ Auto</button>
       </div>
       <div class="field" style="margin-top:8px"><input placeholder="Tu nota para la etiqueta (opcional)" value="${esc(c.tempNota||'')}" onchange="setTagNota('${c.id}',this.value)"></div>
       <div class="venta-det" style="margin-top:8px;background:#34c7591a;padding:13px 14px;border-radius:12px;display:${c.etapa==='vendido'?'block':'none'}">${c.venta?ventaResumenHTML(c):''}<div class="field"><label>🛒 Detalle de la venta</label><input placeholder="Escribí el producto y elegilo del inventario…" autocomplete="off" value="${esc(c.ventaDetalle||'')}" onchange="setVentaDetalle('${c.id}',this.value)" oninput="_invSug(this,x=>_pickProdVenta('${c.id}',-1,x,this))" onfocus="_invSug(this,x=>_pickProdVenta('${c.id}',-1,x,this))" onblur="_invSugHide()"></div><div class="field" style="margin-top:8px"><label>📦 Cantidad de productos</label><div class="cantchips" id="cant-${c.id}">${cantChipsHTML(c)}</div></div><div class="field" style="margin-top:8px"><label>💰 Comisión que ganaste ($)</label><input type="number" inputmode="numeric" placeholder="0" id="com-${c.id}" value="${c.comision||''}" onchange="setComision('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>📅 Fecha de la venta</label><input type="date" value="${esc(c.vendidoFecha||hoy())}" onchange="setFechaVenta('${c.id}',this.value)"></div><div class="field" style="margin-top:8px"><label>🤝 Referido por (opcional)</label><div style="display:flex;gap:6px;align-items:center"><input style="flex:1;min-width:0" placeholder="Nombre o número del cliente que lo refirió…" autocomplete="off" value="${esc(_refLabel(c))}" oninput="_refSug(this,'${c.id}')" onfocus="_refSug(this,'${c.id}')" onblur="_invSugHide()">${c.referidoPor?`<button class="mini" onclick="verFicha('${c.referidoPor}')" title="Ver ficha del que lo refirió">👁️</button><button class="mini" onclick="setReferido('${c.id}',null)" title="Quitar">✕</button>`:''}</div></div>${ventasExtraHTML(c)}<button class="v-add" style="margin-top:10px;background:var(--card)" onclick="addVentaExtra('${c.id}')">＋ Agregar producto</button></div>
@@ -1277,8 +1294,9 @@ function refreshTagButtons(c){
     else if(b.classList.contains('otr'))on=tags.includes('otro');
     else if(b.classList.contains('seg'))on=tags.includes('seguimiento');
     else if(b.classList.contains('blk'))on=tags.includes('black');
+    else if(b.classList.contains('sol'))on=tags.includes('solucionar');
     else if(b.classList.contains('ven'))on=c.etapa==='vendido';
-    else on=!tags.some(t=>t!=='black')&&c.etapa!=='vendido'; // "Auto" no cuenta la etiqueta Black
+    else on=!tags.some(t=>t!=='black'&&t!=='solucionar')&&c.etapa!=='vendido'; // "Auto" no cuenta Black ni Por solucionar
     b.classList.toggle('on',on);
   });
 }
@@ -1288,7 +1306,7 @@ function toggleTag(id,t){
   const i=c.tags.indexOf(t);if(i>=0)c.tags.splice(i,1);else c.tags.push(t);
   save();refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();
 }
-function limpiarTags(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.tags=(c.tags||[]).filter(t=>t==='black');/* Black se mantiene */c.tempManual='';save();refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();}
+function limpiarTags(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.tags=(c.tags||[]).filter(t=>t==='black'||t==='solucionar');/* Black y Por solucionar se mantienen */c.tempManual='';save();refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();}
 function marcarVendido(id){
   const c=clientes.find(x=>x.id===id);if(!c)return;
   if(c.etapa==='vendido'){c.etapa='negociando';}else{c.etapa='vendido';if(!c.vendidoFecha)c.vendidoFecha=hoy();c.tags=(c.tags||[]).filter(t=>t==='seguimiento');}
