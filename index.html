@@ -2295,15 +2295,15 @@ function esOtroPais(c){ // "basura": otro destino (incluido USA), spam o no sirv
 }
 function setPapeleraTipo(id,t){const c=clientes.find(x=>x.id===id);if(!c)return;c.papeleraTipo=t;c.papeleraManual=true;save();renderPapelera();}
 // Pide a la IA que clasifique los de la papelera que todavía no tienen decisión; cuando termina, vuelve a dibujar.
-let _papClasBusy=false,_papClasFallo=false;
+let _papClasBusy=false,_papClasFallo=0;
 async function _papClasificar(){
-  if(_papClasBusy||_papClasFallo||!SERVER)return;const pend=clientes.filter(c=>(c.borrado||c.descartado)&&!c.papeleraTipo);if(!pend.length)return;
+  if(_papClasBusy||!SERVER||(Date.now()-_papClasFallo<60000))return; // si la IA falló, reintenta recién al minutoconst pend=clientes.filter(c=>(c.borrado||c.descartado)&&!c.papeleraTipo);if(!pend.length)return;
   _papClasBusy=true;const st=document.getElementById('pap-ia');if(st)st.textContent='🤖 La IA está clasificando '+pend.length+' lead(s)…';
   try{const r=await (await api('/api/papelera/clasificar',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
-    if(!r.ok||!r.clasificados){_papClasFallo=true;if(st)st.textContent=r.reason==='noconfig'?'Sin clave de IA: se usa la detección por país y teléfono.':'La IA no respondió; se usa la detección por país y teléfono.';_papClasBusy=false;return;}
+    if(!r.ok||!r.clasificados){_papClasFallo=Date.now();if(st)st.textContent=r.reason==='noconfig'?'Sin clave de IA: se usa la detección por país y teléfono.':'La IA está saturada; se usa la detección por país y teléfono y se reintenta en un rato.';_papClasBusy=false;return;}
     const arr=await (await api('/api/clientes')).json();const sel=selectedId;initClientes(arr);if(sel)selectedId=sel;
     _papClasBusy=false;if(view==='papelera')renderPapelera();return;
-  }catch(e){_papClasFallo=true;}
+  }catch(e){_papClasFallo=Date.now();}
   _papClasBusy=false;
 }
 function renderPapelera(){

@@ -518,6 +518,13 @@ function _geminiVisionOnce(model,parts){return new Promise((resolve)=>{
 // gemini-flash-latest (el alias genérico) se satura seguido; los específicos suelen estar más libres.
 const VISION_MODELS=(CFG.geminiVisionModels||'gemini-3-flash-preview,gemini-3.5-flash-lite,gemini-flash-latest,gemini-3.5-flash').split(',').map(s=>s.trim()).filter(Boolean);
 // Cadena de modelos sobre 'parts' ya armadas (texto + inline_data). Devuelve {ok,text,model} o {ok:false,reason}
+// Texto con respaldo: prueba el modelo configurado y despues otros, con dos pasadas (503 = modelo saturado). Devuelve texto o null.
+async function geminiTexto(prompt){
+  if(!CFG.geminiKey||CFG.geminiKey.length<10)return null;
+  const models=[CFG.geminiModel||'gemini-2.0-flash'].concat(VISION_MODELS,['gemini-2.0-flash','gemini-2.5-flash','gemini-2.5-flash-lite']).filter((m,i,a)=>m&&a.indexOf(m)===i);
+  for(let pass=0;pass<2;pass++){for(const m of models){const r=await _geminiVisionOnce(m,[{text:prompt}]);if(r&&r.text)return r.text;}if(pass===0)await new Promise(res=>setTimeout(res,1500));}
+  return null;
+}
 async function geminiChain(parts){
   if(!CFG.geminiKey||CFG.geminiKey.length<10)return {ok:false,reason:'noconfig'};
   let last=0;
@@ -940,7 +947,7 @@ http.createServer((req,res)=>{
     const desc=vis.map(c=>{const notas=(c.log||[]).slice(-4).map(l=>l.texto).filter(Boolean).map(t=>String(t).slice(0,140));const msgs=(c.mensajes||[]).slice(-3).map(m=>(m.de==='yo'?'Vendedor: ':'Cliente: ')+String(m.texto||'').slice(0,120));
       return {id:c.id,nombre:c.nombre,telefono:c.whatsapp||'',producto:c.producto||'',motivo_papelera:c.borradoMotivo||'',etiqueta:c.tempNota||'',ubicacion:c.ubicacion||'',notas,mensajes:msgs};});
     const prompt='Sos el asistente de Riders Miami, un negocio de Miami que vende motos, triciclos, bicis eléctricas y kits solares y los ENVÍA A CUBA. Estos leads fueron mandados a la papelera. Clasificá cada uno:\n- "basura": no sirve para el negocio. Quiere el producto para OTRO PAÍS que no sea Cuba (Honduras, Venezuela, México, etc.) o para USA/Estados Unidos/Miami, número equivocado, spam, ya compró en otro lado, no le interesa, no responde nunca, o cualquier señal de que no va a comprar.\n- "luego": todavía puede comprar más adelante (para Cuba): sin crédito por ahora, sin plata ahora, lo está pensando, "para más adelante", esperando un pago, comparando precios, etc.\nSi no hay información suficiente, elegí "luego".\nRespondé SOLO con JSON: {"resultados":[{"id":"...","tipo":"basura"|"luego","por":"motivo en máximo 8 palabras"}]}\n\nLeads:\n'+JSON.stringify(desc);
-    return geminiCall(prompt).then(txt=>{let res=[];try{const j=JSON.parse(String(txt||'').replace(/^[^{]*/,'').replace(/[^}]*$/,''));res=(j&&j.resultados)||[];}catch(e){}
+    return geminiTexto(prompt).then(txt=>{let res=[];try{const j=JSON.parse(String(txt||'').replace(/^[^{]*/,'').replace(/[^}]*$/,''));res=(j&&j.resultados)||[];}catch(e){}
       if(!res.length)return json(200,{ok:false,reason:'sin-respuesta',clasificados:0});
       let k=0;for(const r of res){const c=arr.find(x=>x.id===r.id);if(!c||c.papeleraTipo)continue;const t=String(r.tipo||'').toLowerCase()==='basura'?'basura':'luego';c.papeleraTipo=t;c.papeleraIA={tipo:t,por:String(r.por||'').slice(0,80),ts:Date.now()};k++;}
       if(k)saveClientes(arr);json(200,{ok:true,clasificados:k,pendientes:Math.max(0,vis.length-k)});});
