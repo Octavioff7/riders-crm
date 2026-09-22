@@ -466,7 +466,11 @@ function findClient(clientes,text){
 const _PROD_RE={'Kit solar':new RegExp('\\b(kits?|solar(es)?|panel(es)?|ecoflow|placas?|bater(i|í)as?)\\b','g'),'Triciclo':new RegExp('\\btricicl','g'),'Moto':new RegExp('\\b(motos?|motocicletas?|scooters?|nafta)\\b','g')};
 function detProducto(t){t=String(t||'').toLowerCase();const sc=[];
   for(const p in _PROD_RE){const re=_PROD_RE[p];re.lastIndex=0;let m,k=0,first=1e9;while((m=re.exec(t))){k++;if(m.index<first)first=m.index;}if(k)sc.push({p,k,first});}
-  if(!sc.length)return null;sc.sort((x,y)=>y.k-x.k);
+  if(!sc.length)return null;
+  // Un vehiculo siempre le gana al kit: "panel solar" suele ser un accesorio del triciclo o la moto
+  // (ej. "Triciclo Hibrido con Panel Solar" repite "panel"/"solar" y antes ganaba Kit solar).
+  const veh=sc.filter(x=>x.p==='Triciclo'||x.p==='Moto');if(veh.length){veh.sort((x,y)=>x.first-y.first);return veh[0].p;}
+  sc.sort((x,y)=>y.k-x.k);
   // Si uno domina claramente (2+ menciones mas que el resto) gana; si no, gana el que se nombra primero.
   if(sc.length===1||sc[0].k-sc[1].k>=2)return sc[0].p;
   sc.sort((x,y)=>x.first-y.first);return sc[0].p;}
@@ -810,8 +814,9 @@ async function poll(){
 /* ---------- Servidor HTTP (CRM + API con auth por rol) ---------- */
 ensureSetup();
 // Una sola vez: re-clasifica el producto de las consultas de anuncio que todavia nadie atendio.
-try{const FLAG=path.join(DATA_DIR,'.prodfix1');if(!fs.existsSync(FLAG)){const cl=loadClientes();let k=0;
-  for(const c of cl){if(!c.sinAtender||c.origen!=='ad'||c.borrado)continue;const r=c.adReferral||{};const t0=(c.mensajes&&c.mensajes[0]&&c.mensajes[0].texto)||'';
+try{const FLAG=path.join(DATA_DIR,'.prodfix2');if(!fs.existsSync(FLAG)){const cl=loadClientes();let k=0;
+  // Corrige las consultas de anuncio que quedaron como "Kit solar" aunque el anuncio hable de un triciclo o una moto.
+  for(const c of cl){if(c.origen!=='ad'||c.borrado||c.producto!=='Kit solar')continue;const r=c.adReferral||{};const t0=(c.mensajes&&c.mensajes[0]&&c.mensajes[0].texto)||'';
     const p=detProducto(r.titulo||'')||detProducto(r.cuerpo||'')||detProducto(t0)||'Otro';if(p!==c.producto){c.producto=p;k++;}}
   if(k)saveClientes(cl);fs.writeFileSync(FLAG,String(Date.now()));console.log('[prodfix] consultas re-clasificadas: '+k);}}catch(e){console.log('[prodfix] error:',e.message);}
 http.createServer((req,res)=>{
