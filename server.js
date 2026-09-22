@@ -463,9 +463,9 @@ function findClient(clientes,text){
 }
 // Producto por puntaje: cuenta menciones de cada uno (palabras enteras); gana el mas mencionado y,
 // en empate, el que aparece primero. Antes 'kit' ganaba siempre por estar primero en la lista.
-const _PROD_RE={'Kit solar':new RegExp('\\b(kits?|solar(es)?|panel(es)?|ecoflow|placas?|bater(i|í)as?|inversor(es)?|combo)\\b','g'),'Triciclo':new RegExp('\\b(tricicl|tricimoto|trimoto|moto ?carga)','g'),'Moto':new RegExp('\\b(motos?|motocicletas?|scooters?|nafta|moto ?el(e|é)ctrica)\\b','g')};
+const _PROD_RE={'Kit solar':new RegExp('\\b(kits?|solar(es)?|panel(es)?|ecoflow|placas?|bater(i|í)as?|inversor(es)?|combo)\\b','g'),'Triciclo':new RegExp('\\b(tricicl|tricimoto|trimoto|moto ?carga)','g'),'Bici eléctrica':new RegExp('\\b(bicis?|bicicletas?|e-?bikes?)\\b','g'),'Moto':new RegExp('\\b(motos?|motocicletas?|scooters?|nafta|moto ?el(e|é)ctrica)\\b','g')};
 // Modelos del inventario (ej. "TANK SPORT", "DELTA 3", "TRICICLO ROOFHYBRID"): si la consulta nombra uno, el producto es su categoria.
-const _CAT_PROD={moto:'Moto',triciclo:'Triciclo',kit:'Kit solar'};let _modCache={t:0,list:[]};
+const _CAT_PROD={moto:'Moto',bici:'Bici eléctrica',triciclo:'Triciclo',kit:'Kit solar'};let _modCache={t:0,list:[]};
 function _modelosInv(){if(Date.now()-_modCache.t<60000)return _modCache.list;const inv=loadInventario()||DEFAULT_INVENTARIO;const out=[];
   for(const it of inv){const prod=_CAT_PROD[String(it.cat||'').toLowerCase()];if(!prod)continue;for(const nm of [it.nombre,it.modelo]){const n=String(nm||'').trim().toLowerCase();if(n.length<4||/^(kit|panel solar|sin asignar|—)$/.test(n)||/^kit \d$/.test(n))continue;out.push({n,prod,re:new RegExp('(^|[^a-z0-9])'+n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![a-z0-9])')});}}
   out.sort((a,b)=>b.n.length-a.n.length);_modCache={t:Date.now(),list:out};return out;}
@@ -475,7 +475,7 @@ function detProducto(t){t=String(t||'').toLowerCase();const sc=[];
   if(!sc.length)return null;
   // Un vehiculo siempre le gana al kit: "panel solar" suele ser un accesorio del triciclo o la moto
   // (ej. "Triciclo Hibrido con Panel Solar" repite "panel"/"solar" y antes ganaba Kit solar).
-  const veh=sc.filter(x=>x.p==='Triciclo'||x.p==='Moto');if(veh.length){veh.sort((x,y)=>x.first-y.first);return veh[0].p;}
+  const veh=sc.filter(x=>x.p==='Triciclo'||x.p==='Moto'||x.p==='Bici eléctrica');if(veh.length){veh.sort((x,y)=>x.first-y.first);return veh[0].p;}
   sc.sort((x,y)=>y.k-x.k);
   // Si uno domina claramente (2+ menciones mas que el resto) gana; si no, gana el que se nombra primero.
   if(sc.length===1||sc[0].k-sc[1].k>=2)return sc[0].p;
@@ -627,7 +627,7 @@ Mensaje del dueño: "${text}"
 
 Identificá al cliente por su NOMBRE o por su NÚMERO de teléfono (el que aparezca).
 Devolvé este JSON exacto:
-{"accion":"crear"|"actualizar"|"borrar"|"restaurar"|"ninguna","cliente":"<nombre o número que lo identifica, o el nombre del nuevo>","whatsapp":null|"<número tal cual aparezca, o null>","producto":null|"Moto"|"Kit solar"|"Triciclo"|"Otro","operacion":null|"Financiado"|"Cash","etapa":null|"nuevo"|"interesado"|"negociando"|"vendido"|"posventa","valor":null|<numero>,"agendarTipo":null|"Llamada"|"Entrevista"|"Visita presencial"|"Mensaje","agendarFecha":null|"YYYY-MM-DD","nota":null|"<texto de la nota o seguimiento a guardar>","respuesta":"<confirmación corta y amable en español>"}
+{"accion":"crear"|"actualizar"|"borrar"|"restaurar"|"ninguna","cliente":"<nombre o número que lo identifica, o el nombre del nuevo>","whatsapp":null|"<número tal cual aparezca, o null>","producto":null|"Moto"|"Bici eléctrica"|"Kit solar"|"Triciclo"|"Otro","operacion":null|"Financiado"|"Cash","etapa":null|"nuevo"|"interesado"|"negociando"|"vendido"|"posventa","valor":null|<numero>,"agendarTipo":null|"Llamada"|"Entrevista"|"Visita presencial"|"Mensaje","agendarFecha":null|"YYYY-MM-DD","nota":null|"<texto de la nota o seguimiento a guardar>","respuesta":"<confirmación corta y amable en español>"}
 Reglas: si pide agregar seguimiento o nota, accion "actualizar" con el texto en "nota". Si pide borrar/eliminar, accion "borrar". Si pide recuperar/restaurar, accion "restaurar". Si no identificás al cliente y no es para crear, accion "ninguna" y explicá en "respuesta".`;
   const raw=await geminiCall(prompt);
   if(!raw)return {reply:'⚠️ No pude conectar con la IA (Gemini). Revisá la clave.',changed:false};

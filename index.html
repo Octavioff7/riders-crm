@@ -852,7 +852,7 @@ tr.fin-dragging{will-change:transform}tr.fin-dragging td{background:var(--card);
 <script>
 /* ============ CONFIG ============ */
 const ETAPAS=[{id:'nuevo',nombre:'Nuevo',color:'#007aff'},{id:'interesado',nombre:'Interesado',color:'#5e5ce6'},{id:'negociando',nombre:'Negociando',color:'#ff9f0a'},{id:'vendido',nombre:'Vendido',color:'#34c759'},{id:'posventa',nombre:'Posventa',color:'#30b0c7'}];
-const PRODUCTOS=['Moto','Kit solar','Triciclo','Otro'];
+const PRODUCTOS=['Moto','Bici eléctrica','Kit solar','Triciclo','Otro'];
 const OPERACIONES=['','Financiado','Cash'];
 const TEMPS={caliente:{label:'Caliente',emoji:'🔥',color:'#ff3b30'},seguimiento:{label:'Seguimiento',emoji:'🟡',color:'#ff9f0a'},sinContacto:{label:'Sin contactar',emoji:'❄️',color:'#32ade6'},perdido:{label:'Perdido',emoji:'🔴',color:'#8e8e93'},frio:{label:'Frío',emoji:'❄️',color:'#3b82f6'},otro:{label:'Otro',emoji:'🏷️',color:'#8e8e93'}};
 const AVCOLORS=['#007aff','#5e5ce6','#ff9f0a','#34c759','#30b0c7','#ff3b30','#ff2d55','#af52de'];
@@ -1098,7 +1098,7 @@ function findClient(text){
   for(const c of clientes){const first=c.nombre.replace(/\(.*\)/,'').trim().toLowerCase().split(' ')[0];if(first&&new RegExp('\\b'+first+'\\b').test(low))return c;}
   return null;
 }
-function detProducto(t){t=t.toLowerCase();if(/kit|solar|panel/.test(t))return 'Kit solar';if(/tricicl/.test(t))return 'Triciclo';if(/moto/.test(t))return 'Moto';return null;}
+function detProducto(t){t=t.toLowerCase();if(/tricicl/.test(t))return 'Triciclo';if(/\bbici|e-?bike/.test(t))return 'Bici eléctrica';if(/moto/.test(t))return 'Moto';if(/kit|solar|panel/.test(t))return 'Kit solar';return null;}
 function detEtapa(t){t=t.toLowerCase();if(/vend[ií]|vendid|pag[oó]|compr[oó]|cerr[eé]|cerrado/.test(t))return 'vendido';if(/negoci|regate|oferta/.test(t))return 'negociando';if(/interes|pregunt|consult|quiere|averigu/.test(t))return 'interesado';return null;}
 function detFecha(t){t=t.toLowerCase();if(/pasado\s+mañana/.test(t))return daysAhead(2);if(/\bmañana\b/.test(t))return daysAhead(1);if(/\bhoy\b/.test(t))return hoy();if(/semana que viene|pr[oó]xima semana|la otra semana/.test(t))return daysAhead(7);const m=t.match(/en\s+(\d+)\s+d[ií]as/);if(m)return daysAhead(+m[1]);const dd=['domingo','lunes','martes','mi[eé]rcoles','jueves','viernes','s[aá]bado'];for(let i=0;i<7;i++)if(new RegExp('\\b'+dd[i]).test(t))return nextWeekday(i);return '';}
 function nuevoNombre(t){const m=t.match(/(?:cargá|carga|agregá|agrega|nuevo cliente|nuevo lead|anotá a|anota a|sumá a|suma a)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/);return m?m[1].trim():null;}
@@ -1622,9 +1622,9 @@ let INVENTARIO=[
   {n:42,nombre:'PANEL SOLAR',precio:230,cat:'kit'},{n:43,nombre:'RIVER 2',precio:1000,cat:'kit'},{n:44,nombre:'DELTA 3 CLASSIC',precio:1250,cat:'kit'},
   {n:45,nombre:'DELTA 3 PLUS',precio:1500,cat:'kit'},{n:46,nombre:'DELTA 2 MAX',precio:1950,cat:'kit'},{n:47,nombre:'DELTA PRO',precio:2900,cat:'kit'}
 ];
-const _PRODCAT={'Moto':'moto','Triciclo':'triciclo','Kit solar':'kit','Otro':null};
+const _PRODCAT={'Moto':'moto','Bici eléctrica':'bici','Triciclo':'triciclo','Kit solar':'kit','Otro':null};
 const _PROV_CUBA=['Pinar del Río','Artemisa','La Habana','Mayabeque','Matanzas','Cienfuegos','Villa Clara','Sancti Spíritus','Ciego de Ávila','Camagüey','Las Tunas','Holguín','Granma','Santiago de Cuba','Guantánamo','Isla de la Juventud'];
-const _CATLBL={moto:'Motos',triciclo:'Triciclos',kit:'Kits y Ecoflows'};
+const _CATLBL={moto:'Motos',bici:'Bicis eléctricas',triciclo:'Triciclos',kit:'Kits y Ecoflows'};
 async function cargarCatalogos(){
   if(!SERVER)return;
   try{const inv=await (await api('/api/inventario')).json();if(Array.isArray(inv)&&inv.length)INVENTARIO=inv;}catch(e){}
@@ -2866,7 +2866,7 @@ function _invActivo(p){return p.activo!==false;}
 function _invMoney(n){return '$'+Number(n||0).toLocaleString('es-AR');}
 function _invFiltrada(){
   return INVENTARIO.map((p,idx)=>({p,idx})).filter(({p})=>{
-    if(['moto','triciclo','kit'].indexOf(_invFiltro)>=0&&p.cat!==_invFiltro)return false;
+    if(['moto','bici','triciclo','kit'].indexOf(_invFiltro)>=0&&p.cat!==_invFiltro)return false;
     if(_invFiltro==='activos'&&!_invActivo(p))return false;
     if(_invFiltro==='inactivos'&&_invActivo(p))return false;
     if(_invQ){const s=[p.n,p.nombre,p.modelo,p.marca,p.motor,p.color].map(x=>String(x||'')).join(' ').toLowerCase();if(s.indexOf(_invQ)<0)return false;}
@@ -2886,7 +2886,7 @@ function renderInventario(){
   h+='<div class="fin-cards">'+card('Total',total,'Productos cargados')+card('Activos',act,'Disponibles para vender')+card('Inactivos',inact,'No visibles en ventas')+card('Con mínimo',conMin,'Con precio mínimo')+'</div>';
   if(sel)h+='<div class="inv-bulk" id="inv-bulk" style="display:none"></div>';
   h+='<div class="vf-bar"><input class="vf-search" placeholder="🔎 Buscar por nombre, modelo, marca o color…" value="'+esc(_invQ)+'" oninput="_invQ=this.value.toLowerCase();_invRenderRows()">';
-  h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todos','Todos'],['moto','Motos'],['triciclo','Triciclos'],['kit','Kits'],['inactivos','Inactivos']].map(t=>'<button class="fin-tab'+(_invFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_invSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
+  h+='<div class="fin-tabs"><span class="seg-thumb"></span>'+[['todos','Todos'],['moto','Motos'],['bici','Bicis eléctricas'],['triciclo','Triciclos'],['kit','Kits'],['inactivos','Inactivos']].map(t=>'<button class="fin-tab'+(_invFiltro===t[0]?' on':'')+'" data-k="'+t[0]+'" onclick="_invSetFiltro(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div></div>';
   const cols=(sel?['✓']:[]).concat(['N°','Producto','Modelo','Categoría','Marca','Motor','Watts','Kw','Colores','Precio','Mínimo','Comisión','Envío','Estado','']);
   h+='<div class="vtbl-wrap"><table class="vtbl"><thead><tr>'+cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody id="inv-tbody"></tbody></table></div>';
   h+='<div class="sub" id="inv-foot" style="margin-top:8px"></div>';
@@ -3009,7 +3009,7 @@ function _invModal(idx){
   wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(nw?'Agregar producto':'Editar producto')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
     +'<label>Nombre / Producto</label><input id="inv-nombre" value="'+esc(p.nombre)+'">'
     +'<label>Modelo (opcional)</label><input id="inv-modelo" value="'+esc(p.modelo||'')+'">'
-    +'<label>Categoría</label><select id="inv-cat">'+['moto','triciclo','kit'].map(c=>'<option value="'+c+'"'+(p.cat===c?' selected':'')+'>'+_CATLBL[c]+'</option>').join('')+'</select>'
+    +'<label>Categoría</label><select id="inv-cat">'+['moto','bici','triciclo','kit'].map(c=>'<option value="'+c+'"'+(p.cat===c?' selected':'')+'>'+_CATLBL[c]+'</option>').join('')+'</select>'
     +'<div class="inv-grid2"><div><label>Marca</label><input id="inv-marca" value="'+esc(p.marca||'')+'"></div><div><label>Motor</label><input id="inv-motor" value="'+esc(p.motor||'')+'" placeholder="Eléctrica / Combustión"></div></div>'
     +'<div class="inv-grid3"><div><label>Cil. CC</label><input id="inv-cc" type="number" inputmode="numeric" value="'+esc(num(p.cc))+'"></div><div><label>Watts</label><input id="inv-watts" type="number" inputmode="numeric" value="'+esc(num(p.watts))+'"></div><div><label>Kw</label><input id="inv-kw" type="number" inputmode="decimal" value="'+esc(num(p.kw))+'"></div></div>'
     +'<label>Colores</label><input id="inv-color" value="'+esc(p.color||'')+'" placeholder="Ej: ROJO, NEGRO, AZUL">'
@@ -4806,7 +4806,7 @@ function _segSlide(seg,tries){if(!seg)return;const on=seg.querySelector('.on');c
 th.style.width=w+'px';th.style.transform='translateX('+on.offsetLeft+'px)';}
 function _segSlideAll(){document.querySelectorAll('.fin-tabs,.in-seg').forEach(_segSlide);}
 // Rosca de clientes por producto (panel de inicio). Reusa el donut del dashboard de auditoria.
-const _PROD_COLOR={'Moto':'#0a84ff','Triciclo':'#34c759','Kit solar':'#ff9f0a','Otro':'#8e8e93'};
+const _PROD_COLOR={'Moto':'#0a84ff','Bici eléctrica':'#af52de','Triciclo':'#34c759','Kit solar':'#ff9f0a','Otro':'#8e8e93'};
 let _pdMode='dia',_pdList=[];
 function _pdFiltrar(list,m){
   const d0=new Date();d0.setHours(0,0,0,0);
