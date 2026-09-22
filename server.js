@@ -463,7 +463,7 @@ function findClient(clientes,text){
 }
 // Producto por puntaje: cuenta menciones de cada uno (palabras enteras); gana el mas mencionado y,
 // en empate, el que aparece primero. Antes 'kit' ganaba siempre por estar primero en la lista.
-const _PROD_RE={'Kit solar':new RegExp('\\b(kits?|solar(es)?|panel(es)?|ecoflow|placas?|bater(i|í)as?|inversor(es)?|combo)\\b','g'),'Triciclo':new RegExp('\\b(tricicl|tricimoto|trimoto|moto ?carga)','g'),'Moto':new RegExp('\\b(motos?|motocicletas?|scooters?|nafta|el(e|é)ctrica)\\b','g')};
+const _PROD_RE={'Kit solar':new RegExp('\\b(kits?|solar(es)?|panel(es)?|ecoflow|placas?|bater(i|í)as?|inversor(es)?|combo)\\b','g'),'Triciclo':new RegExp('\\b(tricicl|tricimoto|trimoto|moto ?carga)','g'),'Moto':new RegExp('\\b(motos?|motocicletas?|scooters?|nafta|moto ?el(e|é)ctrica)\\b','g')};
 // Modelos del inventario (ej. "TANK SPORT", "DELTA 3", "TRICICLO ROOFHYBRID"): si la consulta nombra uno, el producto es su categoria.
 const _CAT_PROD={moto:'Moto',triciclo:'Triciclo',kit:'Kit solar'};let _modCache={t:0,list:[]};
 function _modelosInv(){if(Date.now()-_modCache.t<60000)return _modCache.list;const inv=loadInventario()||DEFAULT_INVENTARIO;const out=[];
@@ -820,10 +820,10 @@ async function poll(){
 /* ---------- Servidor HTTP (CRM + API con auth por rol) ---------- */
 ensureSetup();
 // Una sola vez: re-clasifica el producto de las consultas de anuncio que todavia nadie atendio.
-try{const FLAG=path.join(DATA_DIR,'.prodfix3');if(!fs.existsSync(FLAG)){const cl=loadClientes();let k=0;
+try{const FLAG=path.join(DATA_DIR,'.prodfix4');if(!fs.existsSync(FLAG)){const cl=loadClientes();let k=0;
   // Re-clasifica con el detector nuevo: las consultas de anuncio que nadie atendio todavia, y las que quedaron
   // como "Kit solar" aunque el anuncio hable de un triciclo o una moto.
-  for(const c of cl){if(c.origen!=='ad'||c.borrado||!(c.sinAtender||c.producto==='Kit solar'||c.producto==='Otro'))continue;const r=c.adReferral||{};const t0=(c.mensajes&&c.mensajes[0]&&c.mensajes[0].texto)||'';
+  for(const c of cl){if(c.origen!=='ad'||c.borrado||!(c.sinAtender||c.producto==='Kit solar'||c.producto==='Otro'||c.producto==='Moto'))continue;const r=c.adReferral||{};const t0=(c.mensajes&&c.mensajes[0]&&c.mensajes[0].texto)||'';
     const p=detProducto(r.titulo||'')||detProducto(r.cuerpo||'')||detProducto(t0)||'Otro';if(p!==c.producto){c.producto=p;k++;}}
   if(k)saveClientes(cl);fs.writeFileSync(FLAG,String(Date.now()));console.log('[prodfix] consultas re-clasificadas: '+k);}}catch(e){console.log('[prodfix] error:',e.message);}
 http.createServer((req,res)=>{
