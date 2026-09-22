@@ -2299,7 +2299,7 @@ let _papClasBusy=false,_papClasFallo=0;
 async function _papClasificar(){
   if(_papClasBusy||!SERVER||(Date.now()-_papClasFallo<60000))return; // si la IA falló, reintenta recién al minutoconst pend=clientes.filter(c=>(c.borrado||c.descartado)&&!c.papeleraTipo);if(!pend.length)return;
   _papClasBusy=true;const st=document.getElementById('pap-ia');if(st)st.textContent='🤖 La IA está clasificando '+pend.length+' lead(s)…';
-  try{const r=await (await api('/api/papelera/clasificar',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+  try{let r=null;for(let n=0;n<8;n++){r=await (await api('/api/papelera/clasificar',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();if(!r.ok||!r.clasificados||!r.pendientes)break;if(st)st.textContent='🤖 La IA está clasificando… faltan '+r.pendientes;} // de a 30 hasta terminar
     if(!r.ok||!r.clasificados){_papClasFallo=Date.now();if(st)st.textContent=r.reason==='noconfig'?'Sin clave de IA: se usa la detección por país y teléfono.':'La IA está saturada; se usa la detección por país y teléfono y se reintenta en un rato.';_papClasBusy=false;return;}
     const arr=await (await api('/api/clientes')).json();const sel=selectedId;initClientes(arr);if(sel)selectedId=sel;
     _papClasBusy=false;if(view==='papelera')renderPapelera();return;

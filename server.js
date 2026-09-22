@@ -950,7 +950,7 @@ http.createServer((req,res)=>{
     return geminiTexto(prompt).then(txt=>{let res=[];try{const j=JSON.parse(String(txt||'').replace(/^[^{]*/,'').replace(/[^}]*$/,''));res=(j&&j.resultados)||[];}catch(e){}
       if(!res.length)return json(200,{ok:false,reason:'sin-respuesta',clasificados:0});
       let k=0;for(const r of res){const c=arr.find(x=>x.id===r.id);if(!c||c.papeleraTipo)continue;const t=String(r.tipo||'').toLowerCase()==='basura'?'basura':'luego';c.papeleraTipo=t;c.papeleraIA={tipo:t,por:String(r.por||'').slice(0,80),ts:Date.now()};k++;}
-      if(k)saveClientes(arr);json(200,{ok:true,clasificados:k,pendientes:Math.max(0,vis.length-k)});});
+      if(k)saveClientes(arr);const rest=scopedClientes(me).filter(c=>(c.borrado||c.descartado)&&!c.papeleraTipo).length;json(200,{ok:true,clasificados:k,pendientes:rest});});
   }
   if(u==='/api/cliente-delete'&&req.method==='POST'){
     if(!me||me.rol!=='admin')return json(403,{error:'Solo admin'});
