@@ -463,8 +463,14 @@ function findClient(clientes,text){
 }
 // Producto por puntaje: cuenta menciones de cada uno (palabras enteras); gana el mas mencionado y,
 // en empate, el que aparece primero. Antes 'kit' ganaba siempre por estar primero en la lista.
-const _PROD_RE={'Kit solar':new RegExp('\\b(kits?|solar(es)?|panel(es)?|ecoflow|placas?|bater(i|í)as?)\\b','g'),'Triciclo':new RegExp('\\btricicl','g'),'Moto':new RegExp('\\b(motos?|motocicletas?|scooters?|nafta)\\b','g')};
+const _PROD_RE={'Kit solar':new RegExp('\\b(kits?|solar(es)?|panel(es)?|ecoflow|placas?|bater(i|í)as?|inversor(es)?|combo)\\b','g'),'Triciclo':new RegExp('\\b(tricicl|tricimoto|trimoto|moto ?carga)','g'),'Moto':new RegExp('\\b(motos?|motocicletas?|scooters?|nafta|el(e|é)ctrica)\\b','g')};
+// Modelos del inventario (ej. "TANK SPORT", "DELTA 3", "TRICICLO ROOFHYBRID"): si la consulta nombra uno, el producto es su categoria.
+const _CAT_PROD={moto:'Moto',triciclo:'Triciclo',kit:'Kit solar'};let _modCache={t:0,list:[]};
+function _modelosInv(){if(Date.now()-_modCache.t<60000)return _modCache.list;const inv=loadInventario()||DEFAULT_INVENTARIO;const out=[];
+  for(const it of inv){const prod=_CAT_PROD[String(it.cat||'').toLowerCase()];if(!prod)continue;for(const nm of [it.nombre,it.modelo]){const n=String(nm||'').trim().toLowerCase();if(n.length<4||/^(kit|panel solar|sin asignar|—)$/.test(n)||/^kit \d$/.test(n))continue;out.push({n,prod,re:new RegExp('(^|[^a-z0-9])'+n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![a-z0-9])')});}}
+  out.sort((a,b)=>b.n.length-a.n.length);_modCache={t:Date.now(),list:out};return out;}
 function detProducto(t){t=String(t||'').toLowerCase();const sc=[];
+  try{for(const m of _modelosInv()){if(m.re.test(t))return m.prod;}}catch(e){} // nombra un modelo concreto del inventario
   for(const p in _PROD_RE){const re=_PROD_RE[p];re.lastIndex=0;let m,k=0,first=1e9;while((m=re.exec(t))){k++;if(m.index<first)first=m.index;}if(k)sc.push({p,k,first});}
   if(!sc.length)return null;
   // Un vehiculo siempre le gana al kit: "panel solar" suele ser un accesorio del triciclo o la moto
@@ -814,9 +820,10 @@ async function poll(){
 /* ---------- Servidor HTTP (CRM + API con auth por rol) ---------- */
 ensureSetup();
 // Una sola vez: re-clasifica el producto de las consultas de anuncio que todavia nadie atendio.
-try{const FLAG=path.join(DATA_DIR,'.prodfix2');if(!fs.existsSync(FLAG)){const cl=loadClientes();let k=0;
-  // Corrige las consultas de anuncio que quedaron como "Kit solar" aunque el anuncio hable de un triciclo o una moto.
-  for(const c of cl){if(c.origen!=='ad'||c.borrado||c.producto!=='Kit solar')continue;const r=c.adReferral||{};const t0=(c.mensajes&&c.mensajes[0]&&c.mensajes[0].texto)||'';
+try{const FLAG=path.join(DATA_DIR,'.prodfix3');if(!fs.existsSync(FLAG)){const cl=loadClientes();let k=0;
+  // Re-clasifica con el detector nuevo: las consultas de anuncio que nadie atendio todavia, y las que quedaron
+  // como "Kit solar" aunque el anuncio hable de un triciclo o una moto.
+  for(const c of cl){if(c.origen!=='ad'||c.borrado||!(c.sinAtender||c.producto==='Kit solar'||c.producto==='Otro'))continue;const r=c.adReferral||{};const t0=(c.mensajes&&c.mensajes[0]&&c.mensajes[0].texto)||'';
     const p=detProducto(r.titulo||'')||detProducto(r.cuerpo||'')||detProducto(t0)||'Otro';if(p!==c.producto){c.producto=p;k++;}}
   if(k)saveClientes(cl);fs.writeFileSync(FLAG,String(Date.now()));console.log('[prodfix] consultas re-clasificadas: '+k);}}catch(e){console.log('[prodfix] error:',e.message);}
 http.createServer((req,res)=>{
