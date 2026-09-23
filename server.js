@@ -348,6 +348,8 @@ function ensureSetup(){
 /* ---------- Alcance por rol ---------- */
 function teamIds(users,sup){return users.filter(u=>u.supervisorId===sup.id).map(u=>u.id).concat(sup.id);}
 function canSeeCliente(user,c,users){
+  // Asistente: trabaja sobre la cartera de la cuenta a la que asiste (supervisorId), aunque esa cuenta esté en modo privado.
+  if(user.rol==='asistente')return c.vendedorId===user.supervisorId||c.vendedorId===user.id;
   // Cuenta en modo privado: nadie más ve sus leads ni seguimientos; solo sus clientes ya vendidos (ventas, fichas de venta).
   if(c.vendedorId&&c.vendedorId!==user.id){const dueno=(users||[]).find(u=>u.id===c.vendedorId);if(dueno&&dueno.privado&&!(c.etapa==='vendido'||c.etapa==='posventa'))return false;}
   if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')return true; // dueño y supervisor ven toda la operación (solo lectura)
@@ -388,7 +390,7 @@ function mergeClientes(user,incoming){
       }
       byId[ic.id]=Object.assign({},ic,{vendedorId:vId});
     } else {
-      let vId=user.id;
+      let vId=(user.rol==='asistente'&&user.supervisorId)?user.supervisorId:user.id; // lo que carga la asistente va a la cartera de a quien asiste
       if(user.rol!=='vendedor'&&ic.vendedorId&&(user.rol==='admin'||teamIds(users,user).includes(ic.vendedorId)))vId=ic.vendedorId;
       byId[ic.id]=Object.assign({},ic,{vendedorId:vId});
       try{avisarLeadCompartido(user,ic,current,users);}catch(e){}
@@ -441,7 +443,7 @@ function metricsFor(vendId){
 }
 function metricsScoped(user){
   const users=loadUsers();let targets;
-  if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')targets=users.filter(u=>u.activo!==false&&u.rol!=='dueno');
+  if(user.rol==='admin'||user.rol==='dueno'||user.rol==='supervisor')targets=users.filter(u=>u.activo!==false&&u.rol!=='dueno'&&u.rol!=='asistente');
   else targets=[user];
   return targets.map(u=>{const m=metricsFor(u.id);if(u.privado&&u.id!==user.id){['total','atrasados','calientes','seguimientosSemana','nuevosMes','nuevosSemana'].forEach(k=>{if(k in m)m[k]=0;});m.privado=true;} // privado: solo se comparten los números de ventas
     return {user:publicUser(u),metrics:m};});
@@ -1103,11 +1105,11 @@ http.createServer((req,res)=>{
       const users=loadUsers();const us=String(body.usuario||'').trim().toLowerCase();
       if(!us||!body.nombre||!body.pass)return json(400,{error:'Faltan datos (nombre, usuario y clave)'});
       if(users.some(x=>x.usuario===us))return json(400,{error:'Ese usuario ya existe'});
-      let rol=['supervisor','dueno','admin'].includes(body.rol)?body.rol:'vendedor',supervisorId=body.supervisorId||null;
+      let rol=['supervisor','dueno','admin','asistente'].includes(body.rol)?body.rol:'vendedor',supervisorId=body.supervisorId||null;
       if(me.rol==='supervisor'){rol='vendedor';supervisorId=me.id;}
-      if(rol!=='vendedor')supervisorId=null;
+      if(rol!=='vendedor'&&rol!=='asistente')supervisorId=null;
       const {salt,hash}=hashPass(body.pass);
-      const nu={id:uidU(),nombre:String(body.nombre).trim(),usuario:us,passHash:hash,salt,rol,supervisorId:rol==='vendedor'?supervisorId:null,activo:true,creado:hoy()};
+      const nu={id:uidU(),nombre:String(body.nombre).trim(),usuario:us,passHash:hash,salt,rol,supervisorId:(rol==='vendedor'||rol==='asistente')?supervisorId:null,activo:true,creado:hoy()};
       users.push(nu);saveUsers(users);json(200,publicUser(nu));
     });
   }
@@ -1125,12 +1127,12 @@ http.createServer((req,res)=>{
     if(typeof body.activo==='boolean'&&me.rol!=='vendedor'&&target.rol!=='admin')target.activo=body.activo;
     if(me.rol==='admin'){
       if(body.rol&&body.rol!==target.rol){
-        if(!['admin','supervisor','dueno','vendedor'].includes(body.rol))return json(400,{error:'Tipo de acceso inválido'});
+        if(!['admin','supervisor','dueno','vendedor','asistente'].includes(body.rol))return json(400,{error:'Tipo de acceso inválido'});
         if(target.id===me.id)return json(400,{error:'No podés cambiar tu propio tipo de acceso'});
         if(target.rol==='admin'&&users.filter(x=>x.rol==='admin'&&x.activo!==false&&x.id!==target.id).length===0)return json(400,{error:'Tiene que quedar al menos un administrativo activo'});
-        target.rol=body.rol;if(body.rol!=='vendedor')target.supervisorId=null;
+        target.rol=body.rol;if(body.rol!=='vendedor'&&body.rol!=='asistente')target.supervisorId=null;
       }
-      if('supervisorId' in body&&target.rol==='vendedor')target.supervisorId=body.supervisorId||null;
+      if('supervisorId' in body&&(target.rol==='vendedor'||target.rol==='asistente'))target.supervisorId=body.supervisorId||null;
     }
     // Número de WhatsApp (phone_number_id de Meta) de esta cuenta: las consultas que lleguen a ese número van a este usuario.
     // Modo privado: solo el propio administrativo, sobre su propia cuenta.
