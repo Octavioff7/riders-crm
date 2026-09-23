@@ -895,7 +895,7 @@ function temperatura(c){
 // Chip de etiqueta (caliente/frío/etc) para mostrar al lado del nombre en las listas
 // Etiqueta BLACK (cliente importante): es independiente de la temperatura y se ve en todas las listas y en la ficha.
 function esBlack(c){return !!(c&&c.tags&&c.tags.includes('black'));}
-function blackChip(c){const an=(me&&me.rol!=='asistente')?asisAyudo(c):'';return (esBlack(c)?'<span class="black-chip">💳 BLACK</span>':'')+(an?'<span class="asis-chip" title="Atendido con ayuda de la asistente">🩷 '+esc(an)+'</span>':'')+(esPorSolucionar(c)?'<span class="sol-chip">🛠️ Por solucionar</span>':'');}
+function blackChip(c){const an=(me&&me.rol!=='asistente')?asisAyudo(c):'';return (esBlack(c)?'<span class="black-chip">💳 BLACK</span>':'')+(an?'<span class="asis-chip" title="Atendido con ayuda de la asistente">'+esc(an)+'</span>':'')+(esPorSolucionar(c)?'<span class="sol-chip">🛠️ Por solucionar</span>':'');}
 // "Por solucionar": situaciones a resolver con el cliente. Es una etiqueta manual; el cliente aparece en esa sección hasta que se la saques.
 function esPorSolucionar(c){return !!(c&&c.tags&&c.tags.includes('solucionar'));}
 function _solTs(c){const l=(c.log||[]);const u=l[l.length-1];return u?(Date.parse((u.fecha||'')+'T'+((u.hora||'00:00').length===5?u.hora:'00:00')+':00')||0):(creaKey(c)||0);}
@@ -1221,7 +1221,7 @@ function notasListHTML(c){
   return (c.log||[]).slice().reverse().map((l,ri)=>{
     const idx=(c.log.length-1)-ri;
     if(editNotaKey===c.id+':'+idx) return `<div class="logitem"><textarea id="edit-nota" class="nota-edit" oninput="autoGrow(this)">${esc(l.texto)}</textarea><div class="nota-actions"><button class="btn sm" onclick="guardarEdicionNota('${c.id}',${idx})">Guardar</button><button class="btn sm ghost" onclick="cancelarEdicionNota()">Cancelar</button></div></div>`;
-    return `<div class="logitem${l.porRol==='asistente'?' asis':''}"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}${l.porRol==='asistente'?' · 🩷 '+esc(l.porNombre||'asistente'):''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
+    return `<div class="logitem${l.porRol==='asistente'?' asis':''}"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}${l.porRol==='asistente'?' · '+esc(l.porNombre||'asistente'):''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
   }).join('')||'<div class="empty">Todavía no hay notas. Escribí la primera abajo 👇</div>';
 }
 function proxSetHTML(c){return c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';}
