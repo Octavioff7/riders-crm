@@ -1523,10 +1523,20 @@ function renderCalientes(){
 /* ---- FRÍOS (sin contactar) ---- */
 function renderFrios(){
   const list=activos().filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio')&&_enRango('frios',c.creado);}).sort((a,b)=>creaKey(b)-creaKey(a));
-  let h=`<div class="page"><h1>❄️ Fríos — sin contactar</h1><div class="sub">${list.length} clientes con los que casi no tuviste contacto${_rangoTxt('frios')}. Dales un primer toque para activarlos.</div><div class="note">💡 <div>Son leads que entraron pero quedaron sin seguimiento. Tocá el botón verde para escribirles por WhatsApp.</div></div>${_rangoBar('frios')}`;
+  let h=`<div class="page"><div class="conv-head-row"><h1>❄️ Fríos — sin contactar</h1><button class="btn ghost" onclick="exportarFriosVCF()" title="Descarga los contactos para importarlos al teléfono y armar una lista de difusión en WhatsApp">📇 Exportar contactos</button></div><div class="sub">${list.length} clientes con los que casi no tuviste contacto${_rangoTxt('frios')}. Dales un primer toque para activarlos.</div><div class="note">💡 <div>Son leads que entraron pero quedaron sin seguimiento. Tocá el botón verde para escribirles por WhatsApp.</div></div>${_rangoBar('frios')}`;
   if(!list.length){main.innerHTML=h+'<div class="empty">No hay clientes fríos 🎉</div></div>';return;}
   const fila=c=>`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','frios')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${esc(c.producto)}${c.whatsapp?' · '+esc(telVer(c.whatsapp)):''}</div></div>${waIc(c)}</div>`;
   main.innerHTML=h+_tresBloques(list,creaKey,fila,['🟢 Cargados hoy','🟠 Últimos 7 días','🕓 De otros días'])+'</div>';
+}
+// Exporta los fríos (no vendidos, con número) como contactos .vcf: se importan al teléfono y con ellos se arma la lista de difusión en WhatsApp.
+function exportarFriosVCF(){
+  const list=activos().filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio')&&c.etapa!=='vendido'&&c.etapa!=='posventa'&&_soloDig(c.whatsapp||'').length>=8;});
+  if(!list.length){alert('No hay fríos con número para exportar.');return;}
+  const esc2=v=>String(v||'').replace(/[\;,]/g,' ').replace(/\r?\n/g,' ').trim();
+  const vcf=list.map(c=>{const d=_soloDig(c.whatsapp);const tel='+'+d;const nom=esc2(c.nombre||tel)+' (Riders)';
+    return ['BEGIN:VCARD','VERSION:3.0','N:'+nom+';;;;','FN:'+nom,'TEL;TYPE=CELL:'+tel,'NOTE:Frío CRM · '+esc2(c.producto||''),'END:VCARD'].join('\r\n');}).join('\r\n')+'\r\n';
+  const blob=new Blob([vcf],{type:'text/vcard;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='frios-riders-'+hoy()+'.vcf';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+  alert('Se descargaron '+list.length+' contactos. Importalos al teléfono (abrí el archivo .vcf) y después en WhatsApp Business: Nueva difusión → elegí los contactos que dicen "(Riders)".');
 }
 /* ---- POR ANOTAR (sin nota propia) ---- */
 function esNotaAuto(t){t=(t||'').trim();return t.startsWith('🏷')||t.startsWith('💬')||t.startsWith('📅')||t.startsWith('✅');}
