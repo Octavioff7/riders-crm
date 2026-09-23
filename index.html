@@ -4981,7 +4981,7 @@ function renderPanel(){
     const W=320,H=180,pl=22,pr=10,pt=10,pb=18,plotW=W-pl-pr,plotH=H-pt-pb,x0=pl,y0=pt+plotH;
     const maxY=Math.max(obj,total,1),yat=v=>y0-(v/maxY*plotH),n=dias.length,xat=i=>x0+(n>1?i/(n-1)*plotW:0);
     const lim=(upTo==null?n-1:Math.max(0,Math.min(upTo,n-1)));
-    let cum=0;const pts=[];const cumArr=[]; // la línea arranca en el primer día, no desde cero (evitaba una raya vertical el lunes)for(let i=0;i<=lim;i++){cum+=dias[i].n;cumArr[i]=cum;pts.push([xat(i),yat(cum)]);}
+    let cum=0;const pts=[[x0,y0]];const cumArr=[];for(let i=0;i<=lim;i++){cum+=dias[i].n;cumArr[i]=cum;pts.push([xat(i),yat(cum)]);}
     const poly=pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
     const stepLbl=maxY<=8?1:5;
     let grid='',yT='';for(let v=1;v<=maxY;v++){if(v%stepLbl===0){const y=yat(v).toFixed(1);grid+='<line x1="'+x0+'" y1="'+y+'" x2="'+(W-pr)+'" y2="'+y+'" class="grid"/>';yT+='<text x="'+(x0-5)+'" y="'+(yat(v)+3).toFixed(1)+'" text-anchor="end" font-size="8">'+v+'</text>';}}
