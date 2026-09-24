@@ -909,7 +909,7 @@ http.createServer((req,res)=>{
   if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
   if(u==='/api/medios'&&req.method==='GET')return json(200,loadMedios()||[]);
   if(u==='/api/bonos'&&req.method==='GET')return json(200,loadBonos()||[]);
-  if(u==='/api/bonos'&&req.method==='POST'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveBonos(b);json(200,{ok:true});});}
+  if(u==='/api/bonos'&&req.method==='POST'){if(!['admin','dueno','supervisor'].includes(me.rol))return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveBonos(b);json(200,{ok:true});});}
   if(u==='/api/medios'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveMedios(b);json(200,{ok:true});});}
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
   /* ---- Asistente de WhatsApp (admin/supervisor/dueño) ---- */

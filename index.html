@@ -2385,12 +2385,13 @@ function _bonosSemana(AA){const lun=_lunesDe(hoy());return _bonosCalc(AA,(k,per)
 function _bonosTotal(AA){return _bonosCalc(AA,null).total;}
 // Progreso del período actual de cada bono para la cartera que se está viendo
 function _bonoProgreso(AA,b){const fechas=_ventasFechas(AA);const k=_bonoKey(hoy(),b.periodo);const n=fechas.filter(f=>_bonoKey(f,b.periodo)===k).length;return {n,falta:Math.max(0,b.cantidad-(n%b.cantidad||(n>=b.cantidad&&!b.repetir?b.cantidad:0))),logrado:n>=b.cantidad};}
-function _bonosCardHTML(AA){const adm=me&&me.rol==='admin';
+function _puedeBonos(){return !!(me&&['admin','dueno','supervisor'].includes(me.rol));} // administrativo, dueño y manager definen los bonos; el vendedor solo los ve
+function _bonosCardHTML(AA){const adm=_puedeBonos();
   const rows=_BONOS.map((b,i)=>{const p=_bonoProgreso(AA,b);const faltan=b.repetir?(b.cantidad-(p.n%b.cantidad)):Math.max(0,b.cantidad-p.n);
     const estado=p.logrado?`<span class="vt-badge ok">✅ Logrado · $${_money(b.monto*(b.repetir?Math.floor(p.n/b.cantidad):1))}</span>`:`<span class="faint">${p.n} de ${b.cantidad} · faltan ${faltan}</span>`;
     return `<div class="frow"><div style="flex:1;min-width:0"><b>${b.cantidad} venta${b.cantidad===1?'':'s'} ${_PER_LBL[b.periodo]||b.periodo} → $${_money(b.monto)}${b.repetir?' <span class="faint">(cada '+b.cantidad+')</span>':''}</b><div style="font-size:12.5px;margin-top:2px">${estado}</div></div>${adm?`<button class="mini" onclick="_bonoModal(${i})">✏️</button><button class="mini" onclick="_bonoDel(${i})">🗑️</button>`:''}</div>`;}).join('');
   return `<div class="panelcard" style="margin-bottom:14px"><div class="conv-head-row"><h3 style="margin:0">🎁 Bonos por objetivos</h3>${adm?`<button class="btn sm" onclick="_bonoModal(-1)">＋ Agregar bono</button>`:''}</div>${rows||`<div class="empty" style="padding:10px">${adm?'Todavía no hay bonos. Ej: 5 ventas por semana → $300.':'No hay bonos configurados.'}</div>`}</div>`;}
-function _bonoModal(i){if(!(me&&me.rol==='admin'))return;cerrarModal();const b=i<0?{cantidad:5,periodo:'semana',monto:300,repetir:false}:_BONOS[i];if(!b)return;
+function _bonoModal(i){if(!_puedeBonos())return;cerrarModal();const b=i<0?{cantidad:5,periodo:'semana',monto:300,repetir:false}:_BONOS[i];if(!b)return;
   const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
   wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(i<0?'Agregar bono':'Editar bono')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
     +'<div class="row2"><div class="field"><label>Cantidad de ventas</label><input id="bn-cant" type="number" inputmode="numeric" min="1" value="'+(b.cantidad||'')+'"></div><div class="field"><label>Período</label><select id="bn-per">'+[['dia','Por día'],['semana','Por semana'],['mes','Por mes']].map(o=>'<option value="'+o[0]+'"'+(b.periodo===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div></div>'
@@ -2500,7 +2501,7 @@ function renderVentasAdmin(){
   _backfillVentaNums();
   const all=_ventasList();
   if(!all.length){main.innerHTML='<div class="page"><h1>🧾 Ventas</h1><div class="sub">Todavía no hay ventas cargadas.</div></div>';return;}
-  let h='<div class="page page-wide"><div class="conv-head-row"><h1>🧾 Ventas</h1><div class="xbtn-row"><button class="xbtn excel" onclick="_exportarVentas()">⬇ Excel</button><button class="xbtn pdf" onclick="_pdfVentasTabla()">⬇ PDF</button></div></div>';
+  let h='<div class="page page-wide"><div class="conv-head-row"><h1>🧾 Ventas</h1><div class="xbtn-row"><button class="xbtn excel" onclick="_exportarVentas()">⬇ Excel</button><button class="xbtn pdf" onclick="_pdfVentasTabla()">⬇ PDF</button></div></div>'+(_puedeBonos()?_bonosCardHTML(activos()):'');
   const fld=(label,key)=>'<div class="vf-field"><label>'+label+'</label>'+_vSelBtn('vf-fld',_vfLbl(key),!_vf[key],'_pickVf(\''+key+'\')')+'</div>';
   h+='<div class="vf-grid">'
     +'<div class="vf-field"><label>Desde</label>'+_dateBtn('vf-fld',_vf.desde,'📅 Cualquiera','_pickVfFecha(\'desde\')')+'</div>'
