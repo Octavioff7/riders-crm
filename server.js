@@ -100,6 +100,10 @@ function loadFinancieras(){try{return JSON.parse(fs.readFileSync(FINPATH,'utf8')
 // Otros medios de pago (cash, Zelle, tarjetas...) con su fee: se editan desde Financieras.
 const MEDPATH=path.join(DATA_DIR,'medios.json');
 function loadMedios(){try{return JSON.parse(fs.readFileSync(MEDPATH,'utf8'))}catch(e){return null}}
+// Bonos por objetivos de ventas (ej. 5 ventas por semana = $300): los define el administrativo, los ven todos.
+const BONPATH=path.join(DATA_DIR,'bonos.json');
+function loadBonos(){try{return JSON.parse(fs.readFileSync(BONPATH,'utf8'))}catch(e){return null}}
+function saveBonos(a){fs.writeFileSync(BONPATH,JSON.stringify(a,null,1))}
 function saveMedios(a){fs.writeFileSync(MEDPATH,JSON.stringify(a,null,1))}
 function saveFinancieras(a){fs.writeFileSync(FINPATH,JSON.stringify(a,null,1))}
 function loadOrdenes(){try{return JSON.parse(fs.readFileSync(ORDPATH,'utf8'))}catch(e){return null}}
@@ -904,6 +908,8 @@ http.createServer((req,res)=>{
   if(u==='/api/inventario'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveInventario(b);json(200,{ok:true});});}
   if(u==='/api/financieras'&&req.method==='GET')return json(200,loadFinancieras()||DEFAULT_FINANCIERAS);
   if(u==='/api/medios'&&req.method==='GET')return json(200,loadMedios()||[]);
+  if(u==='/api/bonos'&&req.method==='GET')return json(200,loadBonos()||[]);
+  if(u==='/api/bonos'&&req.method==='POST'){if(me.rol!=='admin')return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveBonos(b);json(200,{ok:true});});}
   if(u==='/api/medios'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveMedios(b);json(200,{ok:true});});}
   if(u==='/api/financieras'&&req.method==='POST'){if(!esAdminRol)return json(403,{error:'Sin permiso'});return readBody(b=>{if(!Array.isArray(b))return json(400,{error:'formato'});saveFinancieras(b);json(200,{ok:true});});}
   /* ---- Asistente de WhatsApp (admin/supervisor/dueño) ---- */

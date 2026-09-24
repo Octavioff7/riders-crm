@@ -1365,7 +1365,7 @@ function setCantidad(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.ca
 function setCantidadMas(id){const c=clientes.find(x=>x.id===id);if(!c)return;appModal({titulo:'Cantidad de productos',texto:'¿Cuántos productos compró? (más de 10)',conInput:true,inputPlaceholder:'Ej: 12',inputValue:(c.cantidad>10?String(c.cantidad):''),okLabel:'Guardar',onOk:v=>{c.cantidad=Math.max(1,parseInt(v,10)||1);save();_refreshCant(c);}});}
 // Ganancias: mes (se reinicia el 1° de cada mes) o total (histórico). Switch en la tarjeta del panel.
 let earnMode='mes';
-function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const enMes=f=>(f||'').slice(0,7)===mesAct;const gMes=vend.reduce((s,c)=>s+(enMes(c.vendidoFecha)?_comisionBase(c):0)+_extrasCom(c,enMes),0);const nMes=vend.reduce((s,c)=>s+(enMes(c.vendidoFecha)?(Number(c.cantidad)||1):0)+_extrasQty(c,enMes),0);const g=a=>a.reduce((s,c)=>s+_comisionVenta(c),0);const q=a=>a.reduce((s,c)=>s+(Number(c.cantidad)||1)+_extrasQty(c),0);return {mes:{g:gMes,n:nMes},total:{g:g(vend),n:q(vend)}};}
+function computeEarn(){const AA=activos();const mesAct=hoy().slice(0,7);const vend=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa');const enMes=f=>(f||'').slice(0,7)===mesAct;const gMes=vend.reduce((s,c)=>s+(enMes(c.vendidoFecha)?_comisionBase(c):0)+_extrasCom(c,enMes),0);const nMes=vend.reduce((s,c)=>s+(enMes(c.vendidoFecha)?(Number(c.cantidad)||1):0)+_extrasQty(c,enMes),0);const g=a=>a.reduce((s,c)=>s+_comisionVenta(c),0);const q=a=>a.reduce((s,c)=>s+(Number(c.cantidad)||1)+_extrasQty(c),0);return {mes:{g:gMes+_bonosMes(AA,mesAct),n:nMes},total:{g:g(vend)+_bonosTotal(AA),n:q(vend)}};}
 function _earnMoney(v){return '$'+Number(v||0).toLocaleString('es-AR');}
 function earnCardHTML(){return `<div class="ec-top"><div class="ec-label" id="ec-label"></div><div class="ec-switch ${earnMode==='total'?'is-total':''}"><span class="ec-thumb"></span><span class="ec-tab ${earnMode==='mes'?'on':''}">Este mes</span><span class="ec-tab ${earnMode==='total'?'on':''}">Total</span></div></div><div class="ec-amount" id="ec-amount"></div><div class="ec-sub" id="ec-sub"></div>`;}
 // Actualiza los textos + desliza el thumb SIN redibujar la tarjeta (para que la transición se vea).
@@ -1664,6 +1664,7 @@ async function cargarCatalogos(){
   try{const inv=await (await api('/api/inventario')).json();if(Array.isArray(inv)&&inv.length)INVENTARIO=inv;}catch(e){}
   try{const fin=await (await api('/api/financieras')).json();if(Array.isArray(fin)&&fin.length){_FIN=fin;_rebuildFin();}}catch(e){}
   try{const md=await (await api('/api/medios')).json();if(Array.isArray(md)&&md.length){_MEDIOS=md;_rebuildMedios();}}catch(e){}
+  try{const bn=await (await api('/api/bonos')).json();if(Array.isArray(bn))_BONOS=bn;}catch(e){}
   try{const ord=await (await api('/api/ordenes')).json();if(Array.isArray(ord))_ORDENES=ord;}catch(e){}
 }
 function abrirCargarVenta(){
@@ -2366,10 +2367,44 @@ function puedoEditarUsuario(x){if(!me||x.id===me.id)return false;if(me.rol==='ad
 function verVendedor(id){filtroVend=id;view='panel';render();pushHistory();}
 function verEtapa(id){filtroEtapa=id;filtroVend='';filtro='';view='list';render();pushHistory();}
 function irVista(v){view=v;filtroEtapa='';filtroVend='';filtro='';render();pushHistory();}
+/* ---- Bonos por objetivos: X ventas por día / semana / mes = $Y. Se suman solos a las ganancias del vendedor. ---- */
+let _BONOS=[];const _PER_LBL={dia:'por día',semana:'por semana',mes:'por mes'};
+function _bonosPersist(){if(SERVER)api('/api/bonos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_BONOS)}).catch(()=>{});}
+function _esVentaC(c){return (c.etapa==='vendido'||c.etapa==='posventa')&&!c.anulada;}
+function _lunesDe(f){const d=new Date(f+'T00:00:00');if(isNaN(d))return f;d.setDate(d.getDate()-((d.getDay()+6)%7));return _fechaTs(d.getTime());}
+// Fechas de cada venta (la principal y las compras adicionales cuentan como una venta cada una)
+function _ventasFechas(AA){const out=[];AA.forEach(c=>{if(!_esVentaC(c))return;out.push(c.vendidoFecha||c.creado||'');(c.ventasExtra||[]).forEach(v=>out.push(v.fecha||''));});return out.filter(Boolean);}
+function _bonoKey(f,per){return per==='dia'?f:(per==='mes'?f.slice(0,7):_lunesDe(f));}
+// filtro(k,periodo) decide qué períodos entran (ej. solo el mes actual). Devuelve {total, det:[{b,k,veces,cnt}]}
+function _bonosCalc(AA,filtro){const fechas=_ventasFechas(AA);let total=0;const det=[];
+  for(const b of _BONOS){if(!b||!(b.cantidad>0)||!(b.monto>0))continue;const cnt={};fechas.forEach(f=>{const k=_bonoKey(f,b.periodo);cnt[k]=(cnt[k]||0)+1;});
+    for(const k in cnt){if(filtro&&!filtro(k,b.periodo))continue;const veces=b.repetir?Math.floor(cnt[k]/b.cantidad):(cnt[k]>=b.cantidad?1:0);if(veces>0){total+=veces*b.monto;det.push({b,k,veces,cnt:cnt[k]});}}}
+  return {total,det};}
+function _bonosMes(AA,ym){return _bonosCalc(AA,k=>k.slice(0,7)===ym).total;}
+function _bonosSemana(AA){const lun=_lunesDe(hoy());return _bonosCalc(AA,(k,per)=>per==='semana'?k===lun:(per==='dia'?k>=lun:k===hoy().slice(0,7))).total;}
+function _bonosTotal(AA){return _bonosCalc(AA,null).total;}
+// Progreso del período actual de cada bono para la cartera que se está viendo
+function _bonoProgreso(AA,b){const fechas=_ventasFechas(AA);const k=_bonoKey(hoy(),b.periodo);const n=fechas.filter(f=>_bonoKey(f,b.periodo)===k).length;return {n,falta:Math.max(0,b.cantidad-(n%b.cantidad||(n>=b.cantidad&&!b.repetir?b.cantidad:0))),logrado:n>=b.cantidad};}
+function _bonosCardHTML(AA){const adm=me&&me.rol==='admin';
+  const rows=_BONOS.map((b,i)=>{const p=_bonoProgreso(AA,b);const faltan=b.repetir?(b.cantidad-(p.n%b.cantidad)):Math.max(0,b.cantidad-p.n);
+    const estado=p.logrado?`<span class="vt-badge ok">✅ Logrado · $${_money(b.monto*(b.repetir?Math.floor(p.n/b.cantidad):1))}</span>`:`<span class="faint">${p.n} de ${b.cantidad} · faltan ${faltan}</span>`;
+    return `<div class="frow"><div style="flex:1;min-width:0"><b>${b.cantidad} venta${b.cantidad===1?'':'s'} ${_PER_LBL[b.periodo]||b.periodo} → $${_money(b.monto)}${b.repetir?' <span class="faint">(cada '+b.cantidad+')</span>':''}</b><div style="font-size:12.5px;margin-top:2px">${estado}</div></div>${adm?`<button class="mini" onclick="_bonoModal(${i})">✏️</button><button class="mini" onclick="_bonoDel(${i})">🗑️</button>`:''}</div>`;}).join('');
+  return `<div class="panelcard" style="margin-bottom:14px"><div class="conv-head-row"><h3 style="margin:0">🎁 Bonos por objetivos</h3>${adm?`<button class="btn sm" onclick="_bonoModal(-1)">＋ Agregar bono</button>`:''}</div>${rows||`<div class="empty" style="padding:10px">${adm?'Todavía no hay bonos. Ej: 5 ventas por semana → $300.':'No hay bonos configurados.'}</div>`}</div>`;}
+function _bonoModal(i){if(!(me&&me.rol==='admin'))return;cerrarModal();const b=i<0?{cantidad:5,periodo:'semana',monto:300,repetir:false}:_BONOS[i];if(!b)return;
+  const wrap=document.createElement('div');wrap.className='modal-back';wrap.id='modal-nuevo';
+  wrap.innerHTML='<div class="modal"><div class="modal-h"><b>'+(i<0?'Agregar bono':'Editar bono')+'</b><button class="mini" onclick="cerrarModal()">✕</button></div><div class="modal-b">'
+    +'<div class="row2"><div class="field"><label>Cantidad de ventas</label><input id="bn-cant" type="number" inputmode="numeric" min="1" value="'+(b.cantidad||'')+'"></div><div class="field"><label>Período</label><select id="bn-per">'+[['dia','Por día'],['semana','Por semana'],['mes','Por mes']].map(o=>'<option value="'+o[0]+'"'+(b.periodo===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div></div>'
+    +'<label>Bono ($)</label><input id="bn-monto" type="number" inputmode="decimal" min="0" value="'+(b.monto||'')+'">'
+    +'<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" id="bn-rep" style="width:auto;margin:0"'+(b.repetir?' checked':'')+'> Se repite: el bono se paga de nuevo por cada vez que se alcanza la cantidad en el mismo período</label>'
+    +'</div><div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" onclick="_bonoSave('+i+')">Guardar</button></div></div>';
+  wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};document.body.appendChild(wrap);}
+function _bonoSave(i){const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};const item={cantidad:parseInt(g('bn-cant'),10)||0,periodo:g('bn-per')||'semana',monto:parseFloat(g('bn-monto'))||0,repetir:!!(document.getElementById('bn-rep')||{}).checked};
+  if(item.cantidad<1||item.monto<=0){alert('Poné la cantidad de ventas y el monto del bono.');return;}if(i<0)_BONOS.push(item);else _BONOS[i]=item;_bonosPersist();cerrarModal();render();}
+function _bonoDel(i){if(!confirm('¿Eliminar este bono?'))return;_BONOS.splice(i,1);_bonosPersist();render();}
 function renderVendidos(){
   const list=activos().filter(c=>c.etapa==='vendido'||c.etapa==='posventa').sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));
   const totalQty=list.reduce((s,c)=>s+(Number(c.cantidad)||1)+_extrasQty(c),0);const totalCom=list.reduce((s,c)=>s+_comisionVenta(c),0);
-  let h=`<div class="page"><h1>✅ Vendidos</h1><div class="sub">${list.length} cliente(s) con venta cerrada · ${totalQty} producto(s)${(totalCom&&!(me&&me.rol==='asistente'))?' · $'+totalCom.toLocaleString('es-AR')+' en comisiones':''}</div>`;
+  let h=`<div class="page"><h1>✅ Vendidos</h1><div class="sub">${list.length} cliente(s) con venta cerrada · ${totalQty} producto(s)${(totalCom&&!(me&&me.rol==='asistente'))?' · $'+totalCom.toLocaleString('es-AR')+' en comisiones':''}${(!(me&&me.rol==='asistente')&&_bonosTotal(activos()))?' · $'+_bonosTotal(activos()).toLocaleString('es-AR')+' en bonos':''}</div>`+((me&&me.rol==='asistente')?'':_bonosCardHTML(activos()));
   if(!list.length){main.innerHTML=h+'<div class="empty">Todavía no hay ventas cerradas.</div></div>';return;}
   h+='<div class="panelcard">';
   for(const c of list){const sub=(c.ventaDetalle?esc(c.ventaDetalle):esc(c.producto))+((c.cantidad&&c.cantidad>1)?' · '+c.cantidad+' u.':'')+(c.vendidoFecha?' · '+fmtFecha(c.vendidoFecha):'')+((c.ventasExtra||[]).length?' · +'+c.ventasExtra.length+' compra(s) más':'')+(c.referidoPor?' · 🤝 referido por '+esc(_refLabel(c).split(' · ')[0]):'');h+=`<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','vendidos')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b><div style="font-size:12.5px;color:var(--muted)">${sub}</div></div>${c.comision?'<b style="color:#34c759">$'+Number(c.comision).toLocaleString('es-AR')+'</b>':''}${waIc(c)}</div>`;}
@@ -4947,7 +4982,7 @@ function renderPanel(){
   const _fueraFecha=c=>[c.descartadoFecha,c.borradoFecha].filter(Boolean).sort().pop()||'';
   const vendidosMes=AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===mesAct);
   const ventasMesMonto=vendidosMes.reduce((s,c)=>s+(Number(c.valor)||0),0);
-  const gananciaMes=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').reduce((s,c)=>s+((c.vendidoFecha||'').slice(0,7)===mesAct?_comisionBase(c):0)+_extrasCom(c,f=>f.slice(0,7)===mesAct),0);
+  const gananciaMes=AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').reduce((s,c)=>s+((c.vendidoFecha||'').slice(0,7)===mesAct?_comisionBase(c):0)+_extrasCom(c,f=>f.slice(0,7)===mesAct),0)+_bonosMes(AA,mesAct);
   const conteoE=id=>AA.filter(c=>c.etapa===id).length;
   // Embudo: barra "Atrasados" (hoy / esta semana / otros días) y barra "Para hoy" (atender / atendidos).
   const atrL=AA.filter(c=>enBucket(c,'atrasado'));
@@ -4978,7 +5013,7 @@ function renderPanel(){
   const ventasWk=[];for(let i=0;i<7;i++){const d=new Date(_mon);d.setDate(_mon.getDate()+i);const ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());ventasWk.push({l:diasSemNom[i],n:AA.filter(esVenta).reduce((s,c)=>s+((c.vendidoFecha||'')===ds?(Number(c.cantidad)||1):0)+_extrasQty(c,f=>f===ds),0)});}
   const ventasSemTotal=ventasWk.reduce((s,d)=>s+d.n,0);
   const ventasSemLista=AA.filter(c=>esVenta(c)&&(c.vendidoFecha||'')>=monDs).sort((a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')));
-  const gananciaSem=AA.filter(esVenta).reduce((s,c)=>s+((c.vendidoFecha||'')>=monDs?_comisionBase(c):0)+_extrasCom(c,f=>f>=monDs),0);
+  const gananciaSem=AA.filter(esVenta).reduce((s,c)=>s+((c.vendidoFecha||'')>=monDs?_comisionBase(c):0)+_extrasCom(c,f=>f>=monDs),0)+_bonosSemana(AA);
   const _now2=new Date();const _yr=_now2.getFullYear(),_mo=_now2.getMonth();const diasEnMes=new Date(_yr,_mo+1,0).getDate();
   const ventasMo=[];for(let day=1;day<=diasEnMes;day++){const ds=_yr+'-'+pad(_mo+1)+'-'+pad(day);ventasMo.push({l:day,n:AA.filter(esVenta).reduce((s,c)=>s+((c.vendidoFecha||'')===ds?(Number(c.cantidad)||1):0)+_extrasQty(c,f=>f===ds),0),showL:(day===1||day%5===0)});}
   const qtyMes=ventasMo.reduce((s,d)=>s+d.n,0);const hoyDiaIdx=new Date().getDate()-1;
