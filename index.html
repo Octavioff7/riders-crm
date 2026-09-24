@@ -4814,7 +4814,8 @@ function enBucket(c,b){
   if(!c.proximo)return false;
   if(c.sinAtender)return false; // consulta nueva sin atender: vive solo en "Nuevas consultas" hasta que la atiendan
   // Un cliente vendido/posventa sale de las carpetas de agenda, salvo que tenga la etiqueta "seguimiento"
-  if((c.etapa==='vendido'||c.etapa==='posventa')&&!(c.tags&&c.tags.includes('seguimiento')))return false;
+  // o que se le haya agendado un contacto después de la venta (ya compró y quiere otro producto).
+  if((c.etapa==='vendido'||c.etapa==='posventa')&&!(c.tags&&c.tags.includes('seguimiento'))&&!_agendaPostVenta(c))return false;
   if(b==='atrasado')return esAtrasado(c);
   if(b==='hoy')return esHoy(c);
   if(b==='proximos'){const d=diasA(c);return d>=1;} // de mañana en adelante (la sección lo divide en mañana / próxima semana / otros días)
@@ -4822,8 +4823,11 @@ function enBucket(c,b){
   return false;
 }
 // bucket "principal" (para donde se necesite uno solo)
+// Contacto agendado en la fecha de la venta o después: el vendido vuelve a Hoy / Próximos / Atrasados como cualquier otro.
+function _agendaPostVenta(c){return !!(c.proximo&&!c.proximoAuto&&c.proximo>=(c.vendidoFecha||''));}
 function estadoAgenda(c){
   if(!c.proximo||c.sinAtender)return null;
+  if((c.etapa==='vendido'||c.etapa==='posventa')&&!(c.tags&&c.tags.includes('seguimiento'))&&!_agendaPostVenta(c))return null;
   if(esAtrasado(c))return 'atrasado';
   if(esHoy(c))return 'hoy';
   const d=diasA(c);return (d>=1&&d<=6)?'proximos':'semana';
