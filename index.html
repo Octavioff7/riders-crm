@@ -1225,7 +1225,10 @@ function notasListHTML(c){
   }).join('')||'<div class="empty">Todavía no hay notas. Escribí la primera abajo 👇</div>';
 }
 function proxSetHTML(c){return c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';}
-function refrescarFicha(c){const nl=document.getElementById('notas-list');if(!nl){renderInboxKeepScroll();return;}nl.innerHTML=notasListHTML(c);const pw=document.getElementById('prox-set-wrap');if(pw)pw.innerHTML=proxSetHTML(c);updateCounts();autoGrow(document.getElementById('edit-nota'));}
+function refrescarFicha(c){const nl=document.getElementById('notas-list');if(!nl){renderInboxKeepScroll();return;}nl.innerHTML=notasListHTML(c);const pw=document.getElementById('prox-set-wrap');if(pw)pw.innerHTML=proxSetHTML(c);updateCounts();autoGrow(document.getElementById('edit-nota'));_refrescarListaConv();}
+// Redibuja solo la lista de la izquierda (PC) sin perder el scroll: el cliente se mueve al bloque/orden que le corresponde
+// después de agendar, cambiar la etapa, etc. Si el cliente salió de esta sección, queda visible hasta que cambies de vista.
+function _refrescarListaConv(){const cl=document.querySelector('.conv-list');if(!cl)return;const y=cl.scrollTop;cl.innerHTML=convListItems();cl.scrollTop=y;}
 function crmHTML(c){
   const t=temperatura(c);
   const banner=t?`<div class="banner" style="background:${t.color}1a;color:${t.color}">${t.emoji}<div><b>${t.label}.</b>${t.motivo?' '+esc(t.motivo):''}</div></div>`:'<div class="banner" style="background:#34c7591a;color:#248a3d">✅<div><b>Cerrado.</b> Vendido / posventa.</div></div>';
@@ -1270,7 +1273,7 @@ function pick(id){selectedId=id;document.body.classList.add('chat-open');
     autoGrow(document.getElementById('edit-nota'));autoGrow(document.getElementById('nueva-nota'));hydrateVentaDocs();}
   else renderInbox();
   pushHistory();}
-function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&c.sinAtender)c.sinAtender=false;if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
+function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&c.sinAtender)c.sinAtender=false;if(f==='etapa')setTimeout(_refrescarListaConv,0);if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
 function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.value.trim();if(!t||!c)return;c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:t});derive(c);save();renderInbox();}
 /* ---- Notas y agenda de seguimiento ---- */
 // El recuadro de nota crece solo con el texto (se ve la nota completa, sin cortar).
