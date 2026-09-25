@@ -4859,13 +4859,15 @@ function _tresBloques(list,tsFn,fila,labels){const d0=new Date();d0.setHours(0,0
   const g=[[labels[0],list.filter(c=>tsFn(c)>=t0)],[labels[1],list.filter(c=>{const t=tsFn(c);return t<t0&&t>=tl;})],[labels[2],list.filter(c=>tsFn(c)<tl)]];
   return g.map(([t,arr])=>arr.length?`<div class="panelcard"><h3>${t} <span style="color:var(--muted);font-weight:600">· ${arr.length}</span></h3>${arr.map(fila).join('')}</div>`:'').join('');}
 function _fechaTs(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+const _agQ={}; // buscador por sección de agenda (Hoy, Atrasados, Próximos, Próxima semana)
+function _agBuscar(estado,v){_agQ[estado]=v;renderAgendaSec(estado);const inp=document.getElementById('ag-q');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);}}
 function renderAgendaSec(estado){
-  const info=AG_SECS[estado];
+  const info=AG_SECS[estado];const agq=_agQ[estado]||'';
   // Atrasados: puro orden por fecha (más atrasado arriba). Resto: calientes primero, luego por fecha.
-  const list=activos().filter(c=>enBucket(c,estado)&&(estado==='hoy'||_enRango(estado,c.proximo))).sort((a,b)=> estado==='atrasado' ? (proxDateTime(a)-proxDateTime(b)) : (proxDateTime(b)-proxDateTime(a)));
+  const list=activos().filter(c=>enBucket(c,estado)&&(estado==='hoy'||_enRango(estado,c.proximo))&&_buscaCliente(c,agq)).sort((a,b)=> estado==='atrasado' ? (proxDateTime(a)-proxDateTime(b)) : (proxDateTime(b)-proxDateTime(a)));
   const nCal=list.filter(esCalienteT).length;
-  let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s)${estado==='hoy'?'':_rangoTxt(estado)}. ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div>${estado==='hoy'?'':_rangoBar(estado)}`;
-  if(!list.length){main.innerHTML=h+'<div class="empty">Nada por acá 🎉</div></div>';return;}
+  let h=`<div class="page"><h1>${info.emoji} ${info.label}</h1><div class="sub">${list.length} cliente(s)${estado==='hoy'?'':_rangoTxt(estado)}. ${info.sub}${nCal?` · <b style="color:#ff3b30">🔥 ${nCal} caliente(s)</b>`:''}</div><div class="vf-bar" style="margin:10px 0 8px"><input class="vf-search" id="ag-q" placeholder="🔎 Buscar por nombre, número o producto…" value="${esc(agq)}" oninput="_agBuscar('${estado}',this.value)">${agq?`<button class="vf-clear" onclick="_agBuscar('${estado}','')">✕ Limpiar</button>`:''}</div>${estado==='hoy'?'':_rangoBar(estado)}`;
+  if(!list.length){main.innerHTML=h+(agq?'<div class="empty">No encontré clientes con esa búsqueda.</div></div>':'<div class="empty">Nada por acá 🎉</div></div>');return;}
   const fila=c=>{const cuando=fmtFecha(c.proximo)+(c.proximoHora?(' · '+esc(c.proximoHora)):'');return `<div class="frow" style="cursor:pointer" onclick="abrirEnCtx('${c.id}','${estado}')"><div class="av" style="width:34px;height:34px;background:${avColor(c.id)};font-size:12px">${iniciales(c.nombre)}</div><div style="flex:1;min-width:0"><b>${esc(c.nombre)}</b>${tempChip(c)}<div style="font-size:12.5px;color:var(--muted)">${esc(c.proximoTipo||'Seguimiento')} · ${cuando}</div>${c.whatsapp?`<div style="font-size:12.5px;color:var(--muted)">${esc(telVer(c.whatsapp))}</div>`:''}</div>${waIc(c)}</div>`;};
   if(estado==='hoy'){
     // Dentro de Hoy: arriba los de hoy que ya se pasaron de hora (atrasados), abajo los que todavía faltan.
