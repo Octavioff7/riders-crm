@@ -1252,7 +1252,7 @@ function crmHTML(c){
       ${(me&&me.rol!=='vendedor'&&asignables().length>1)?`<div class="field"><label>Vendedor asignado</label><select onchange="setF('${c.id}','vendedorId',this.value)">${asignables().map(u=>`<option value="${u.id}" ${c.vendedorId===u.id?'selected':''}>${esc(u.nombre)}</option>`).join('')}</select></div>`:''}
       <div class="section-t">📅 Programar próximo contacto</div>
       <div id="prox-set-wrap">${prox}</div>
-      <div class="field"><label>Tipo</label><select id="prox-tipo">${['Llamada','Entrevista','Visita presencial','Mensaje','Otro'].map(x=>`<option ${c.proximoTipo===x?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="field"><label>Tipo</label><select id="prox-tipo" onchange="_proxTipoOtro()">${['Llamada','Entrevista','Visita presencial','Mensaje','Otro'].map(x=>`<option ${_proxTipoSel(c)===x?'selected':''}>${x}</option>`).join('')}</select><input id="prox-tipo-otro" placeholder="Escribí el tipo de seguimiento (ej: Enviar fotos)" style="margin-top:6px;display:${_proxTipoSel(c)==='Otro'?'':'none'}" value="${_proxTipoSel(c)==='Otro'&&c.proximoTipo!=='Otro'?esc(c.proximoTipo||''):''}"></div>
       <div class="row2"><div class="field"><label>Fecha</label><input type="hidden" id="prox-fecha" value="${c.proximo||hoy()}"><button type="button" class="v-selbtn v-full" id="prox-fecha-btn" onclick="_pickProxFecha()">📅 ${fmtFecha(c.proximo||hoy())}<span class="v-selarr">▾</span></button></div><div class="field"><label>Hora</label><input type="text" id="prox-hora" inputmode="numeric" placeholder="14:30" maxlength="5" autocomplete="off" value="${c.proximoHora||''}" oninput="_hora24(this)" onblur="_hora24Fin(this)"></div></div>
       <button class="btn" style="width:100%;margin-bottom:6px" onclick="agendarProximo('${c.id}')">Agendar contacto</button>
       <button class="btn ghost" style="width:100%;margin-bottom:6px" onclick="googleCal('${c.id}')">📅 Agendar en Google Calendar</button>
@@ -1278,10 +1278,11 @@ function autoGrow(el){if(!el)return;el.style.height='auto';el.style.height=(el.s
 // Redibuja el inbox SIN perder la posición del scroll de la ficha (evita el salto al editar notas).
 function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');const y=el?el.scrollTop:0;const cl=document.querySelector('.conv-list');const cy=cl?cl.scrollTop:0;
   // Conserva lo que haya escrito sin guardar: nota nueva, fecha/hora/tipo del próximo contacto, nota en edición y el foco.
-  const keep={};['nueva-nota','prox-fecha','prox-hora','prox-tipo','edit-nota'].forEach(id=>{const e=document.getElementById(id);if(e)keep[id]=e.value;});
+  const keep={};['nueva-nota','prox-fecha','prox-hora','prox-tipo','prox-tipo-otro','edit-nota'].forEach(id=>{const e=document.getElementById(id);if(e)keep[id]=e.value;});
   const ae=document.activeElement;const focusId=ae&&ae.id;let selS=null;try{selS=ae&&ae.selectionStart;}catch(e){}
   renderInbox();
   for(const id in keep){const e=document.getElementById(id);if(!e)continue;e.value=keep[id];if(id==='prox-fecha'&&keep[id]){const b=document.getElementById('prox-fecha-btn');if(b)b.innerHTML='📅 '+esc(fmtFecha(keep[id]))+'<span class="v-selarr">▾</span>';}if(e.tagName==='TEXTAREA')autoGrow(e);}
+  _proxTipoOtro();
   if(focusId){const f=document.getElementById(focusId);if(f){f.focus({preventScroll:true});try{if(selS!=null)f.setSelectionRange(selS,selS);}catch(e){}}}
   const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;const cl2=document.querySelector('.conv-list');if(cl2)cl2.scrollTop=cy;}
 function editarNota(id,idx){editNotaKey=id+':'+idx;const c=clientes.find(x=>x.id===id);if(c)refrescarFicha(c);else renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
@@ -1388,7 +1389,7 @@ function setTagNota(id,v){const c=clientes.find(x=>x.id===id);if(!c)return;c.tem
 function setProximo(id,silent){
   const c=clientes.find(x=>x.id===id);if(!c)return;
   const fe=document.getElementById('prox-fecha'),he=document.getElementById('prox-hora'),te=document.getElementById('prox-tipo');
-  const f=fe?fe.value:'',h=he?he.value:'',tp=te?te.value:'Llamada';
+  const f=fe?fe.value:'',h=he?he.value:'',tp=te?_proxTipoValor():'Llamada';
   if(!f){if(!silent)alert('Elegí una fecha para el contacto.');return;}
   c.proximo=f;c.proximoHora=h||'';c.proximoTipo=tp;c.proximoAuto=false; // agendado a mano: este si avisa
   if(!silent&&c.sinAtender){c.sinAtender=false;} // agendar a mano = la consulta ya fue atendida
@@ -1417,6 +1418,11 @@ async function mandarAlCelu(id,btn){
   _toastCel(msg);
 }
 function _toastCel(msg){let t=document.getElementById('toast-cel');if(!t){t=document.createElement('div');t.id='toast-cel';t.className='toast-cel';document.body.appendChild(t);}t.textContent=msg;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),3200);}
+// Tipo de seguimiento: los fijos, o "Otro" con texto libre. Lo que escribís es lo que sale en la notificación ("Es hora de tu X con ...").
+const _PROX_TIPOS=['Llamada','Entrevista','Visita presencial','Mensaje'];
+function _proxTipoSel(c){const t=c.proximoTipo||'';if(!t||t==='Seguimiento')return 'Llamada';return _PROX_TIPOS.includes(t)?t:'Otro';}
+function _proxTipoOtro(){const sel=document.getElementById('prox-tipo'),inp=document.getElementById('prox-tipo-otro');if(!sel||!inp)return;inp.style.display=sel.value==='Otro'?'':'none';if(sel.value==='Otro')inp.focus();}
+function _proxTipoValor(){const sel=document.getElementById('prox-tipo'),inp=document.getElementById('prox-tipo-otro');if(!sel)return 'Llamada';if(sel.value!=='Otro')return sel.value;const v=inp?inp.value.trim():'';return v||'Otro';}
 function agendarProximo(id){setProximo(id,false);}
 function autoAgendar(id){setProximo(id,true);}
 function editarCliente(id){
@@ -5301,7 +5307,7 @@ let _dataSig=null,_syncBusy=false;
 async function _refreshSig(){try{if(!SERVER)return;const d=await (await api('/api/clientes/sig')).json();_dataSig=d.s;}catch(e){}}
 function _hayTextoSinGuardar(){const a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT'||a.isContentEditable))return true;const n=document.getElementById('nueva-nota');if(n&&n.value.trim())return true;if(document.getElementById('edit-nota'))return true;
   // Fecha / hora / tipo del próximo contacto cambiados pero todavía no agendados
-  const c=(typeof sel==='function')?sel():null;if(c){const f=document.getElementById('prox-fecha'),h=document.getElementById('prox-hora'),t=document.getElementById('prox-tipo');if(f&&f.value!==(c.proximo||hoy()))return true;if(h&&h.value!==(c.proximoHora||''))return true;if(t&&t.value!==(c.proximoTipo||'Llamada'))return true;}
+  const c=(typeof sel==='function')?sel():null;if(c){const f=document.getElementById('prox-fecha'),h=document.getElementById('prox-hora'),t=document.getElementById('prox-tipo');if(f&&f.value!==(c.proximo||hoy()))return true;if(h&&h.value!==(c.proximoHora||''))return true;if(t&&_proxTipoValor()!==(c.proximoTipo&&c.proximoTipo!=='Seguimiento'?c.proximoTipo:'Llamada'))return true;}
   return false;}
 async function _syncClientes(){
   if(!SERVER||!me||_syncBusy||_saving>0||document.hidden)return;
