@@ -1262,21 +1262,28 @@ function crmHTML(c){
       ${c.sinAtender?`<div class="row2" style="margin-top:18px"><button class="btn" onclick="guardarConsulta('${c.id}')">Guardar</button><button class="btn danger" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button></div>`:`<button class="btn danger" style="width:100%;margin-top:18px" onclick="eliminarCliente('${c.id}')">🗑️ Eliminar cliente</button>`}
     </div>`;
 }
-function pick(id){selectedId=id;document.body.classList.add('chat-open');renderInbox();pushHistory();}
+// Elegir un cliente de la lista: se redibuja SOLO la ficha (columna derecha). La lista no se toca, así no parpadea ni vuelve arriba.
+function pick(id){selectedId=id;document.body.classList.add('chat-open');
+  const col=document.querySelector('.col-crm');
+  if(col){const c=sel();col.innerHTML=c?crmHTML(c):'<div class="empty" style="margin:auto">Elegí un cliente para ver su ficha</div>';col.scrollTop=0;
+    document.querySelectorAll('.conv-list .conv').forEach(el=>el.classList.toggle('sel',el.dataset.id===id));
+    autoGrow(document.getElementById('edit-nota'));autoGrow(document.getElementById('nueva-nota'));hydrateVentaDocs();}
+  else renderInbox();
+  pushHistory();}
 function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&c.sinAtender)c.sinAtender=false;if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
 function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.value.trim();if(!t||!c)return;c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:t});derive(c);save();renderInbox();}
 /* ---- Notas y agenda de seguimiento ---- */
 // El recuadro de nota crece solo con el texto (se ve la nota completa, sin cortar).
 function autoGrow(el){if(!el)return;el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
 // Redibuja el inbox SIN perder la posición del scroll de la ficha (evita el salto al editar notas).
-function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');const y=el?el.scrollTop:0;
+function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');const y=el?el.scrollTop:0;const cl=document.querySelector('.conv-list');const cy=cl?cl.scrollTop:0;
   // Conserva lo que haya escrito sin guardar: nota nueva, fecha/hora/tipo del próximo contacto, nota en edición y el foco.
   const keep={};['nueva-nota','prox-fecha','prox-hora','prox-tipo','edit-nota'].forEach(id=>{const e=document.getElementById(id);if(e)keep[id]=e.value;});
   const ae=document.activeElement;const focusId=ae&&ae.id;let selS=null;try{selS=ae&&ae.selectionStart;}catch(e){}
   renderInbox();
   for(const id in keep){const e=document.getElementById(id);if(!e)continue;e.value=keep[id];if(id==='prox-fecha'&&keep[id]){const b=document.getElementById('prox-fecha-btn');if(b)b.innerHTML='📅 '+esc(fmtFecha(keep[id]))+'<span class="v-selarr">▾</span>';}if(e.tagName==='TEXTAREA')autoGrow(e);}
   if(focusId){const f=document.getElementById(focusId);if(f){f.focus({preventScroll:true});try{if(selS!=null)f.setSelectionRange(selS,selS);}catch(e){}}}
-  const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;}
+  const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;const cl2=document.querySelector('.conv-list');if(cl2)cl2.scrollTop=cy;}
 function editarNota(id,idx){editNotaKey=id+':'+idx;const c=clientes.find(x=>x.id===id);if(c)refrescarFicha(c);else renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
 function cancelarEdicionNota(){editNotaKey=null;const c=sel();if(c)refrescarFicha(c);else renderInboxKeepScroll();}
 function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push(_conAutor({fecha:hoy(),hora:ahora(),texto:t}));if(c.sinAtender)c.sinAtender=false;save();el.value='';autoGrow(el);refrescarFicha(c);}
