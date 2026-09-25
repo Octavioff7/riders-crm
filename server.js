@@ -293,8 +293,8 @@ function procesarWebhook(body){
           c.ultimoContacto=fecha;c.respondioUltimo='cliente';
           if(!c.producto||c.producto==='Otro'){const p=productoDeConsulta(m,texto);if(p!=='Otro')c.producto=p;}
         }else{
-          c={id:uid(),nombre,whatsapp:'+'+dig,waPnid:pnid,producto:productoDeConsulta(m,texto),etapa:'nuevo',valor:0,proximo:fecha,proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
-          if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:'')});}
+          c={id:uid(),nombre,whatsapp:'+'+dig,waPnid:pnid,producto:productoDeConsulta(m,texto),etapa:'nuevo',valor:0,proximo:fecha,proximoAuto:true,proximoTipo:'Seguimiento',proximoHora:'',creado:fecha,creadoTs:Date.now(),ultimoContacto:fecha,respondioUltimo:'cliente',canal:'whatsapp',vendedorId:vendId,sinAtender:true,log:[{fecha,hora,texto,auto:true}],mensajes:[{de:'cliente',fecha,hora,texto,canal:'whatsapp'}]};
+          if(m.referral){c.origen='ad';c.adReferral={titulo:m.referral.headline||'',cuerpo:m.referral.body||'',url:m.referral.source_url||'',id:m.referral.source_id||m.referral.ctwa_clid||''};c.log.unshift({fecha,hora,texto:'🟢 Consulta desde un anuncio'+(m.referral.headline?': '+m.referral.headline:''),auto:true});}
           clientes.push(c);
           // No se avisa por push cuando entra una consulta nueva: las notificaciones son solo para
           // los seguimientos agendados. Se marca el recordatorio automatico de hoy como "enviado" para
@@ -415,7 +415,8 @@ function metricsFor(vendId){
   const cl=loadClientes().filter(c=>c.vendedorId===vendId&&!c.borrado);
   const weekAgo=daysAhead(-7),catorce=daysAhead(-14),mes=hoy().slice(0,7);
   let seguim=0;const acts=[];
-  cl.forEach(c=>{(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguim++;acts.push({cliente:c.nombre,fecha:l.fecha,hora:l.hora||'',texto:l.texto});});});
+  const esAuto=(c,l)=>!!(l.auto||/^(🏷|💬|📅|✅|🟢)/.test(String(l.texto||''))||(c.mensajes&&c.mensajes[0]&&l.texto===c.mensajes[0].texto&&l.fecha===c.mensajes[0].fecha)); // notas automaticas (mensaje inicial, aviso de anuncio, etiquetas, agenda)
+  cl.forEach(c=>{(c.log||[]).forEach(l=>{if(esAuto(c,l))return;if((l.fecha||'')>=weekAgo)seguim++;acts.push({cliente:c.nombre,fecha:l.fecha,hora:l.hora||'',texto:l.texto});});});
   acts.sort((a,b)=>(b.fecha+(b.hora||'')).localeCompare(a.fecha+(a.hora||'')));
   const esVend=c=>(c.etapa==='vendido'||c.etapa==='posventa')&&!c.anulada;
   const vendidosMes=cl.filter(c=>esVend(c)&&(c.vendidoFecha||'').slice(0,7)===mes);

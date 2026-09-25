@@ -176,7 +176,7 @@
   .auto{background:var(--grouped);border:1px solid var(--sep);border-radius:9px;padding:9px 11px;font-size:12.5px;color:var(--muted)}
   .auto b{color:var(--txt)}
   .section-t{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;margin:18px 0 9px}
-  .logitem{background:var(--grouped);border:1px solid var(--sep);border-radius:10px;padding:9px 11px;margin-bottom:7px}.logitem.asis{background:rgba(255,105,180,.10);border-color:rgba(255,105,180,.28)}
+  .logitem{background:var(--grouped);border:1px solid var(--sep);border-radius:10px;padding:9px 11px;margin-bottom:7px}.logitem.asis{background:rgba(255,105,180,.10);border-color:rgba(255,105,180,.28)}.logitem.auto{opacity:.72}
 .asis-chip{display:inline-block;margin-left:6px;background:rgba(255,105,180,.14);color:#c2185b;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;vertical-align:middle;border:1px solid rgba(255,105,180,.35)}
   .logitem .lt{font-size:11px;color:var(--muted);margin-bottom:2px}.logitem .lx{font-size:13px;white-space:pre-wrap;line-height:1.4}
   .btn{background:var(--accent);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:500;font-size:13.5px;transition:filter .1s}
@@ -1221,7 +1221,7 @@ function notasListHTML(c){
   return (c.log||[]).slice().reverse().map((l,ri)=>{
     const idx=(c.log.length-1)-ri;
     if(editNotaKey===c.id+':'+idx) return `<div class="logitem"><textarea id="edit-nota" class="nota-edit" oninput="autoGrow(this)">${esc(l.texto)}</textarea><div class="nota-actions"><button class="btn sm" onclick="guardarEdicionNota('${c.id}',${idx})">Guardar</button><button class="btn sm ghost" onclick="cancelarEdicionNota()">Cancelar</button></div></div>`;
-    return `<div class="logitem${l.porRol==='asistente'?' asis':''}"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}${l.porRol==='asistente'?' · '+esc(l.porNombre||'asistente'):''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
+    return `<div class="logitem${l.porRol==='asistente'?' asis':''}${esLogAuto(c,l)?' auto':''}"><div class="lt">📅 ${fmtFecha(l.fecha)}${l.hora?' · '+l.hora:''}${esLogAuto(c,l)?' · <span title="La creó el CRM, no cuenta como seguimiento">automática</span>':''}${l.porRol==='asistente'?' · '+esc(l.porNombre||'asistente'):''}</div><div class="lx">${esc(l.texto)}</div><div class="nota-actions"><button class="mini" title="Editar nota" onclick="editarNota('${c.id}',${idx})">✏️ Editar</button><button class="mini" title="Borrar nota" onclick="borrarNota('${c.id}',${idx})">🗑️ Borrar</button></div></div>`;
   }).join('')||'<div class="empty">Todavía no hay notas. Escribí la primera abajo 👇</div>';
 }
 function proxSetHTML(c){return c.proximo?`<div class="prox-set"><div>📅 <b>${esc(c.proximoTipo||'Seguimiento')}</b> · ${fmtFecha(c.proximo)}${c.proximoHora?' · '+esc(c.proximoHora):''}</div></div>`:'';}
@@ -1560,8 +1560,10 @@ function exportarFriosVCF(){
   alert('Se descargaron '+list.length+' contactos. Importalos al teléfono (abrí el archivo .vcf) y después en WhatsApp Business: Nueva difusión → elegí los contactos que dicen "(Riders)".');
 }
 /* ---- POR ANOTAR (sin nota propia) ---- */
-function esNotaAuto(t){t=(t||'').trim();return t.startsWith('🏷')||t.startsWith('💬')||t.startsWith('📅')||t.startsWith('✅');}
-function tieneNotaReal(c){return (c.log||[]).some(l=>{const t=(l.texto||'').trim();return t&&!esNotaAuto(t);});}
+function esNotaAuto(t){t=(t||'').trim();return t.startsWith('🏷')||t.startsWith('💬')||t.startsWith('📅')||t.startsWith('✅')||t.startsWith('🟢');}
+// Nota automática: la creó el CRM (mensaje inicial del anuncio, aviso "Consulta desde un anuncio", etiquetas, agenda). No cuenta como seguimiento.
+function esLogAuto(c,l){if(!l)return false;if(l.auto)return true;if(esNotaAuto(l.texto))return true;const m0=c&&c.mensajes&&c.mensajes[0];return !!(m0&&l.texto===m0.texto&&l.fecha===m0.fecha);}
+function tieneNotaReal(c){return (c.log||[]).some(l=>{const t=(l.texto||'').trim();return t&&!esLogAuto(c,l);});}
 function sinAnotar(c){return !tieneNotaReal(c);}
 function renderPorAnotar(){
   const list=activos().filter(c=>sinAnotar(c)&&_enRango('anotar',c.creado)).sort((a,b)=>creaKey(b)-creaKey(a));
@@ -5026,7 +5028,7 @@ function renderPanel(){
     return `<div class="fnl" style="cursor:pointer" onclick="${onclick}"><div class="fnl-l">${label}</div><div class="fnl-bar"><div class="seg" style="width:${w}%">${parts.filter(p=>p.n>0).map(p=>`<span style="flex:${p.n} 0 0;background:${p.color}"></span>`).join('')}</div></div><div class="fnl-n">${tot}</div></div><div class="fnl-leg">${parts.map(p=>`<span><i style="background:${p.color}"></i>${p.l} <b>${p.n}</b></span>`).join('')}</div>`;};
   const fnlEtapa=e=>{const n=conteoE(e.id);return `<div class="fnl" style="cursor:pointer" onclick="verEtapa('${e.id}')"><div class="fnl-l">${esc(e.nombre)}</div><div class="fnl-bar"><div style="width:${Math.round(n/maxE*100)}%;background:${e.color}"></div></div><div class="fnl-n">${n}</div></div><div class="fnl-leg">&nbsp;</div>`;};
   const conv=total?Math.round((AA.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length/total)*100):0;
-  let seguimSemana=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'')>=weekAgo)seguimSemana++;}));
+  let seguimSemana=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if(!esLogAuto(c,l)&&(l.fecha||'')>=weekAgo)seguimSemana++;}));
   const nuevosSemana=NUEV.filter(c=>(c.creado||'')>=weekAgo).length;
   // Sacados de circulacion esta semana: cuenta tanto los mandados a papelera como los descartados
   // (se toma la fecha mas reciente de las dos, para no contar dos veces al mismo cliente).
@@ -5034,7 +5036,7 @@ function renderPanel(){
   const _dow=(new Date().getDay()+6)%7;const _mon=new Date();_mon.setHours(0,0,0,0);_mon.setDate(_mon.getDate()-_dow);
   _wbNuev=NUEV;_wbOff=0; // datos para la tarjeta "Clientes nuevos" (con flechas para ver semanas anteriores)
   const _mesLbl=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if((l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:NUEV.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg,desc:NUEV.filter(c=>(c.descartado||c.borrado)&&_fueraFecha(c).slice(0,7)===ym).length});}
+  const meses=[];for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);const ym=d.getFullYear()+'-'+pad(d.getMonth()+1);let seg=0;AA.forEach(c=>(c.log||[]).forEach(l=>{if(!esLogAuto(c,l)&&(l.fecha||'').slice(0,7)===ym)seg++;}));meses.push({label:_mesLbl[d.getMonth()]+' '+d.getFullYear(),nuevos:NUEV.filter(c=>(c.creado||'').slice(0,7)===ym).length,ventas:AA.filter(c=>(c.etapa==='vendido'||c.etapa==='posventa')&&(c.vendidoFecha||'').slice(0,7)===ym).length,seg,desc:NUEV.filter(c=>(c.descartado||c.borrado)&&_fueraFecha(c).slice(0,7)===ym).length});}
   // --- Métricas prácticas: enfriándose, ventas semana/mes, objetivos ---
   const OBJ_SEM=5, OBJ_MES=20;
   const esVenta=c=>(c.etapa==='vendido'||c.etapa==='posventa');
