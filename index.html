@@ -2003,8 +2003,10 @@ function _calcPagos(pagos){
       // La financiera presta el monto y le descuenta tax+fee → el negocio recibe MENOS
       resta=true;
       // Financiado: primero el fee sobre el monto aprobado y después el 7% de tax sobre lo que queda (en cadena, no los dos sobre el monto original).
-      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];if(fin.feeModo==='suma')resta=false;f=m*fin.fee;const r2=resta?(m-f):(m+f);t=fin.tax?r2*0.07:0;}
-      var lt=resta?(m-t-f):(m+t+f),fpct=fin?fin.fee:0,fsg=resta?'−':'+',tsg=fsg;
+      // Financiado: el banco se queda con su fee sobre lo aprobado, y lo que entrega ya incluye el 7% de tax
+      // (monto aprobado = precio × 1.07 ÷ (1 − fee)). Lo que le queda a la empresa es el precio sin tax.
+      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];if(fin.feeModo==='suma')resta=false;f=m*fin.fee;const r2=resta?(m-f):(m+f);t=fin.tax?(r2-r2/1.07):0;}
+      var lt=resta?(m-f-t):(m+f-t),fpct=fin?fin.fee:0,fsg=resta?'−':'+',tsg='−';
     }else{
       // Otros medios (cash, Zelle, tarjetas, los que se agreguen): fee del medio (se suma al cliente o lo absorbe la empresa) y 7% de tax si lo lleva.
       const md=_MEDBY[p.metodo];const feeSuma=!md||(md.feeModo||'suma')!=='resta';
@@ -2034,6 +2036,9 @@ function _ventaCalcHTML(pagos,prod){ // sin parámetros: usa la venta en curso
     if(diff>0.009)h+='<div class="v-calc-warn">▲ Sobran $'+_money(diff)+' (le entra de más al precio)</div>';
     else if(diff<-0.009)h+='<div class="v-calc-warn">▼ Faltan $'+_money(-diff)+' para llegar al precio</div>';
     else h+='<div class="v-calc-ok">✓ Justo: le entra el precio exacto</div>';
+    const fins=pagos.filter(p=>p.metodo==='financiado'&&p.financiera&&_FINBY[p.financiera]);
+    if(fins.length===1&&pagos.length===1){const fin=_FINBY[fins[0].financiera];const resta=fin.feeModo!=='suma';const need=resta?(prod*(fin.tax?1.07:1)/(1-(fin.fee||0))):(prod*(fin.tax?1.07:1)/(1+(fin.fee||0)));
+      h+='<div class="v-calc-rec"><span>Monto a pedir a '+esc(fin.n)+' para llegar al precio</span><span><b>$'+_money(Math.ceil(need))+'</b></span></div>';}
   }
   if(pagos.some(p=>p.metodo==='financiado'&&!p.financiera))h+='<div class="v-calc-note">⚠️ Elegí la financiera para calcular su fee.</div>';
   return h;
@@ -2054,7 +2059,7 @@ function renderCalc(){
   });
   h+='</div><button class="v-add" onclick="_calcAddPago()">＋ Agregar pago</button>';
   h+='<div class="v-calc" id="v-calc">'+_ventaCalcHTML(S.pagos,parseFloat(S.precio)||0)+'</div>';
-  h+='<div class="faint" style="font-size:12px;margin-top:10px;line-height:1.5">Financiado: la financiera descuenta el 7% de tax (si lo lleva) y su fee, y la empresa recibe menos. Zelle y tarjeta: el cliente paga 7% de tax de más. Cash no lleva tax.</div>';
+  h+='<div class="faint" style="font-size:12px;margin-top:10px;line-height:1.5">Financiado: el banco se queda con su fee sobre el monto aprobado y lo que entrega ya incluye el 7% de tax; a la empresa le queda el precio sin tax (monto aprobado = precio × 1.07 ÷ (1 − fee)). Zelle y tarjeta: el cliente paga 7% de tax de más. Cash no lleva tax.</div>';
   h+='<button class="btn ghost" style="margin-top:12px" onclick="_calcReset()">↺ Limpiar</button></div></div>';
   main.innerHTML=h;
 }
@@ -2680,7 +2685,7 @@ function _waVenta(id){
     L.push('');
     let t=0,f=0,fin=null;
     if(p.metodo==='financiado'){
-      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];f=mm*fin.fee;const r2=fin.feeModo==='suma'?(mm+f):(mm-f);t=fin.tax?r2*0.07:0;}
+      if(p.financiera&&_FINBY[p.financiera]){fin=_FINBY[p.financiera];f=mm*fin.fee;const r2=fin.feeModo==='suma'?(mm+f):(mm-f);t=fin.tax?(r2-r2/1.07):0;}
       L.push(_E.card+' CRÉDITO FINANCIERA');
       if(p.financiera)L.push(_E.bank+' Financiera: '+p.financiera);
       L.push(_E.cash+' Aplicado a venta: US$ '+m(mm));
