@@ -724,7 +724,7 @@ tr.fin-dragging{will-change:transform}tr.fin-dragging td{background:var(--card);
   .fam-box{border:1px solid var(--sep);border-radius:12px;padding:10px 12px;margin-bottom:14px;background:var(--hover)}.fam-t{font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:6px;margin-bottom:6px}.fam-t .mini{margin-left:auto;font-weight:600}
   .fam-it{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--sep)}.fam-it .av{width:30px;height:30px;font-size:11px;flex:none}.fam-mid{flex:1;min-width:0}.fam-nm{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.fam-nm a{color:inherit;text-decoration:none}.fam-nm .tdot{width:8px;height:8px;border-radius:50%;display:inline-block}.fam-rel{font-size:11px;font-weight:600;color:var(--muted);background:var(--card);border:1px solid var(--sep);border-radius:6px;padding:1px 6px}.fam-wa{font-size:12px;color:var(--muted);font-weight:600}
   .fam-sub{font-weight:700;font-size:12.5px;margin-top:8px;padding-top:8px;border-top:1px solid var(--sep)}.fam-notes{max-height:240px;overflow:auto;margin-top:4px}.fam-note{padding:6px 0;border-top:1px dashed var(--sep);font-size:13px}.fam-note:first-child{border-top:0}.fam-note .lt{font-size:11.5px;color:var(--muted);margin-bottom:2px}.fam-note .lt a{color:var(--accent);font-weight:700;text-decoration:none}.fam-note .lx{white-space:pre-wrap}
-  .fam-chip{font-size:11px;margin-left:4px;opacity:.85}.fam-or{text-align:center;color:var(--muted);font-size:12px;margin:10px 0 4px}.toast-cel{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13.5px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:all .25s;z-index:900;max-width:92vw;text-align:center}.toast-cel.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .fam-chip{font-size:11px;margin-left:4px;opacity:.85}.fam-sug{max-height:230px;overflow-y:auto;border:1px solid var(--sep-strong);border-radius:10px;margin-top:6px;background:var(--card);overscroll-behavior:contain}.fam-sug .inv-sug-it b{display:flex;flex-direction:column;gap:1px;min-width:0}.fam-sug .inv-sug-it small{font-weight:500;color:var(--muted);font-size:11.5px}.fam-sug .inv-sug-it span{flex:none}.fam-or{text-align:center;color:var(--muted);font-size:12px;margin:10px 0 4px}.toast-cel{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13.5px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:all .25s;z-index:900;max-width:92vw;text-align:center}.toast-cel.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .edit-cli{position:absolute;top:12px;right:12px;background:var(--hover);border:1px solid var(--sep);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:14px;transition:background .12s}
   .edit-cli:hover{background:var(--card);border-color:var(--sep-strong)}.edit-cli:active{transform:scale(.94)}
   @media(max-width:760px){.col-resizer{display:none}}
@@ -1514,7 +1514,7 @@ function famModal(cid){
     +'<div class="modal-h"><b>👨‍👩‍👧 Agregar familiar o amigo</b><button class="mini" onclick="cerrarModal()">✕</button></div>'
     +'<div class="modal-b">'
     +'<div class="faint" style="font-size:12.5px;margin-bottom:8px">Se agrupa con <b>'+esc(c.nombre)+'</b>. Al buscar a cualquiera del grupo aparecen todos, y en cada ficha ves los números y el seguimiento de los demás.</div>'
-    +'<label>Buscar cliente ya cargado</label><input id="fam-q" placeholder="Nombre o número…" autocomplete="off" oninput="_famSug(this,\''+cid+'\')" onfocus="_famSug(this,\''+cid+'\')" onblur="_invSugHide()">'
+    +'<label>Buscar cliente ya cargado</label><input id="fam-q" placeholder="Nombre o número…" autocomplete="off" oninput="_famSug(this,\''+cid+'\')"><div id="fam-sug" class="fam-sug" style="display:none"></div>'
     +'<div class="fam-or">— o cargar uno nuevo —</div>'
     +'<label>Nombre</label><input id="fam-nombre" placeholder="Nombre y apellido">'
     +'<label>WhatsApp</label><input id="fam-wa" value="+1 " inputmode="tel" oninput="this.value=fmtTel(this.value)" onfocus="var v=this.value;this.setSelectionRange(v.length,v.length)" placeholder="+1 (305) 555-1234">'
@@ -1526,13 +1526,13 @@ function famModal(cid){
   document.body.appendChild(wrap);
   const q=document.getElementById('fam-q');if(q)setTimeout(()=>q.focus(),30);
 }
-function _famSug(inp,cid){const qv=(inp.value||'').trim();let box=document.getElementById('inv-sug');if(!box){box=document.createElement('div');box.id='inv-sug';box.className='inv-sug';document.body.appendChild(box);}
-  const c=clientes.find(x=>x.id===cid);if(!qv||!c){box.style.display='none';return;}
-  const items=clientes.filter(x=>x.id!==cid&&!x.borrado&&!(c.familia&&x.familia===c.familia)&&_buscaDirecto(x,qv.toLowerCase())).slice(0,8);
-  if(!items.length){box.style.display='none';return;}
-  box.innerHTML=items.map((x,i)=>'<button type="button" class="inv-sug-it" data-i="'+i+'"><b>'+esc(x.nombre)+(x.familia?' 👨‍👩‍👧':'')+'</b><span>'+esc(telVer(x.whatsapp)||'sin número')+'</span></button>').join('');
-  const r=inp.getBoundingClientRect();box.style.left=r.left+'px';box.style.top=(r.bottom+4)+'px';box.style.width=Math.max(240,r.width)+'px';box.style.zIndex='1200';box.style.display='block';
-  box.querySelectorAll('.inv-sug-it').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();const x=items[+b.dataset.i];box.style.display='none';box.style.zIndex='';const rel=(document.getElementById('fam-rel')||{}).value||'';famAgregar(cid,x,rel.trim());cerrarModal();};});}
+function _famSug(inp,cid){const qv=(inp.value||'').trim().toLowerCase();const box=document.getElementById('fam-sug');const c=clientes.find(x=>x.id===cid);if(!box||!c)return;
+  if(!qv){box.style.display='none';box.innerHTML='';return;}
+  const items=clientes.filter(x=>x.id!==cid&&!x.borrado&&!(c.familia&&x.familia===c.familia)&&_buscaDirecto(x,qv)).sort((x,y)=>creaKey(y)-creaKey(x)).slice(0,40);
+  if(!items.length){box.innerHTML='<div class="empty" style="padding:10px">Nadie coincide con "'+esc(inp.value)+'". Cargalo como nuevo abajo 👇</div>';box.style.display='block';return;}
+  box.innerHTML=items.map((x,i)=>'<button type="button" class="inv-sug-it" data-i="'+i+'"><b>'+esc(x.nombre)+(x.familia?' 👨‍👩‍👧':'')+(x.etapa==='vendido'?' ✅':'')+'<small>'+esc(x.producto||'')+(x.creado?' · '+fmtFecha(x.creado):'')+(x.vendedorId&&me&&x.vendedorId!==me.id?' · '+esc(nombreVend(x.vendedorId)):'')+'</small></b><span>'+esc(telVer(x.whatsapp)||'sin número')+'</span></button>').join('');
+  box.style.display='block';
+  box.querySelectorAll('.inv-sug-it').forEach(b=>{b.onclick=e=>{e.preventDefault();const x=items[+b.dataset.i];const rel=(document.getElementById('fam-rel')||{}).value||'';famAgregar(cid,x,rel.trim());cerrarModal();};});}
 // Une a x con el grupo de c (si alguno ya tenía grupo, se fusionan)
 function famAgregar(cid,x,rel){const c=clientes.find(y=>y.id===cid);if(!c||!x||x.id===c.id)return;
   let fid=c.familia||x.familia||_famId();
