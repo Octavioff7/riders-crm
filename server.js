@@ -352,6 +352,7 @@ function ensureSetup(){
 /* ---------- Alcance por rol ---------- */
 function teamIds(users,sup){return users.filter(u=>u.supervisorId===sup.id).map(u=>u.id).concat(sup.id);}
 function canSeeCliente(user,c,users){
+  if(c.transferidoPor&&c.transferidoPor===user.id)return true; // el que lo transfirió sigue viendo el seguimiento (como con su asistente)
   // Asistente: trabaja sobre la cartera de la cuenta a la que asiste (supervisorId), aunque esa cuenta esté en modo privado.
   if(user.rol==='asistente')return c.vendedorId===user.supervisorId||c.vendedorId===user.id;
   // Cuenta en modo privado: nadie más ve sus leads ni seguimientos; solo sus clientes ya vendidos (ventas, fichas de venta).
@@ -378,6 +379,14 @@ function avisarLeadCompartido(user,nuevo,clientes,users){
   try{if(typeof pushToUser==='function')pushToUser(admin.id,{title:'⚠️ Lead compartido',body,cid:mio.id});}catch(e){}
   try{if(admin.telegramChatId)tg('sendMessage',{chat_id:admin.telegramChatId,text:'⚠️ *Lead compartido*: '+body});}catch(e){}
 }
+// Aviso al vendedor que recibe un lead transferido (push a su celu + Telegram si lo tiene vinculado)
+function avisarTransferencia(user,c,users){
+  const dest=users.find(u=>u.id===c.vendedorId);if(!dest||dest.id===user.id)return;
+  const quien=user.nombre||user.usuario||'Un compañero';
+  const body=quien+' te transfirió a "'+(c.nombre||c.whatsapp||'un lead')+'"'+(c.whatsapp?' · '+c.whatsapp:'');
+  try{pushToUser(dest.id,{title:'📤 Lead transferido',body,cid:c.id});}catch(e){}
+  try{if(dest.telegramChatId)tg('sendMessage',{chat_id:dest.telegramChatId,text:'📤 *Lead transferido*: '+body});}catch(e){}
+}
 function mergeClientes(user,incoming){
   const users=loadUsers(),current=loadClientes(),byId={};
   current.forEach(c=>byId[c.id]=c);
@@ -391,8 +400,10 @@ function mergeClientes(user,incoming){
       if(ic.vendedorId&&ic.vendedorId!==cur.vendedorId){
         if(user.rol==='admin')vId=ic.vendedorId;
         else if(user.rol==='supervisor'&&teamIds(users,user).includes(ic.vendedorId))vId=ic.vendedorId;
+        else if(ic.transferidoPor===user.id&&cur.vendedorId===user.id)vId=ic.vendedorId; // transferencia de un lead propio
       }
       byId[ic.id]=Object.assign({},ic,{vendedorId:vId});
+      if(vId!==cur.vendedorId&&ic.transferidoA===vId&&ic.transferidoPor===user.id){try{avisarTransferencia(user,byId[ic.id],users);}catch(e){}}
     } else {
       let vId=(user.rol==='asistente'&&user.supervisorId)?user.supervisorId:user.id; // lo que carga la asistente va a la cartera de a quien asiste
       if(user.rol!=='vendedor'&&ic.vendedorId&&(user.rol==='admin'||teamIds(users,user).includes(ic.vendedorId)))vId=ic.vendedorId;
@@ -1100,6 +1111,7 @@ http.createServer((req,res)=>{
 
   if(u==='/api/metrics'&&req.method==='GET')return json(200,metricsScoped(me));
 
+  if(u==='/api/users/nombres'&&req.method==='GET')return json(200,loadUsers().filter(x=>x.activo!==false&&x.rol!=='asistente').map(x=>({id:x.id,nombre:x.nombre,rol:x.rol})));
   if(u==='/api/users'){
     if(req.method==='GET'){
       const users=loadUsers();let list;
