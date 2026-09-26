@@ -178,7 +178,7 @@
   .section-t{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;margin:18px 0 9px}
   .logitem{background:var(--grouped);border:1px solid var(--sep);border-radius:10px;padding:9px 11px;margin-bottom:7px}.logitem.asis{background:rgba(255,105,180,.10);border-color:rgba(255,105,180,.28)}.logitem.otro{background:rgba(10,132,255,.08);border-color:rgba(10,132,255,.28)}.logitem.otro .lt b{color:#0a84ff}.logitem.auto{opacity:.72}
 .tr-chip{display:inline-block;margin-left:6px;background:rgba(10,132,255,.12);color:#0a84ff;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;vertical-align:middle;border:1px solid rgba(10,132,255,.3);white-space:nowrap}.conv.sel .tr-chip{background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.4)}
-.tr-btn{right:144px !important}.tr-opt{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--sep);border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--card)}.tr-opt.on{border-color:var(--accent);background:rgba(10,132,255,.08)}.tr-opt .av{width:30px;height:30px;font-size:11px;flex:none}.tr-opt small{color:var(--muted)}
+.tr-btn{right:144px !important}.tr-lista{max-height:260px;overflow-y:auto;overscroll-behavior:contain}.tr-opt{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--sep);border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--card)}.tr-opt.on{border-color:var(--accent);background:rgba(10,132,255,.08)}.tr-opt .av{width:30px;height:30px;font-size:11px;flex:none}.tr-opt small{color:var(--muted)}
 .asis-chip{display:inline-block;margin-left:6px;background:rgba(255,105,180,.14);color:#c2185b;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;vertical-align:middle;border:1px solid rgba(255,105,180,.35)}
   .logitem .lt{font-size:11px;color:var(--muted);margin-bottom:2px}.logitem .lx{font-size:13px;white-space:pre-wrap;line-height:1.4}
   .btn{background:var(--accent);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:500;font-size:13.5px;transition:filter .1s}
@@ -1543,14 +1543,17 @@ async function transferirModal(cid){
     +'<div class="modal-h"><b>📤 Transferir a otro vendedor</b><button class="mini" onclick="cerrarModal()">✕</button></div>'
     +'<div class="modal-b">'
     +'<div class="faint" style="font-size:12.5px;margin-bottom:8px"><b>'+esc(c.nombre)+'</b> pasa a la cartera del vendedor que elijas. Vos lo seguís viendo en tus listas y en la ficha, con el seguimiento que él le haga.</div>'
-    +'<label>¿A quién?</label><div id="tr-lista">'+(lista.length?lista.map(u=>'<div class="tr-opt" data-id="'+u.id+'" onclick="_trElegir(this)"><div class="av" style="background:'+avColor(u.id)+'">'+iniciales(u.nombre)+'</div><div style="flex:1"><b>'+esc(u.nombre)+'</b> <small>· '+(ROL[u.rol]||u.rol)+'</small></div></div>').join(''):'<div class="empty">No hay otros vendedores activos.</div>')+'</div>'
+    +'<label>¿A quién?</label><input id="tr-q" placeholder="🔎 Buscar vendedor por nombre…" autocomplete="off" oninput="_trFiltrar(this.value)" style="margin-bottom:8px"><div id="tr-lista" class="tr-lista">'+(lista.length?lista.map(u=>'<div class="tr-opt" data-id="'+u.id+'" data-n="'+esc((u.nombre+' '+(ROL[u.rol]||u.rol)).toLowerCase())+'" onclick="_trElegir(this)"><div class="av" style="background:'+avColor(u.id)+'">'+iniciales(u.nombre)+'</div><div style="flex:1"><b>'+esc(u.nombre)+'</b> <small>· '+(ROL[u.rol]||u.rol)+'</small></div></div>').join(''):'<div class="empty">No hay otros vendedores activos.</div>')+'<div id="tr-vacio" class="empty" style="display:none;padding:10px">Ningún vendedor coincide.</div></div>'
     +'<label>Mensaje para el vendedor (opcional)</label><textarea id="tr-msg" placeholder="Ej: quiere un triciclo, llamarlo después de las 5"></textarea>'
     +'</div>'
     +'<div class="modal-f"><button class="btn ghost" onclick="cerrarModal()">Cancelar</button><button class="btn" id="tr-ok" disabled onclick="transferirLead(\''+cid+'\')">Transferir</button></div>'
     +'</div>';
   wrap.onclick=e=>{if(e.target===wrap)cerrarModal();};
   document.body.appendChild(wrap);
+  const q=document.getElementById('tr-q');if(q){setTimeout(()=>q.focus(),30);q.onkeydown=e=>{if(e.key==='Enter'){const v=[...document.querySelectorAll('.tr-opt')].filter(x=>x.style.display!=='none');if(v.length===1)_trElegir(v[0]);}};}
 }
+// Filtra la lista de vendedores por lo que se escribe (nombre o rol); si queda uno solo, Enter lo elige
+function _trFiltrar(v){const q=(v||'').trim().toLowerCase();let n=0;document.querySelectorAll('.tr-opt').forEach(x=>{const ok=!q||(x.dataset.n||'').indexOf(q)>=0;x.style.display=ok?'':'none';if(ok)n++;});const e=document.getElementById('tr-vacio');if(e)e.style.display=n?'none':'';}
 function _trElegir(el){document.querySelectorAll('.tr-opt').forEach(x=>x.classList.toggle('on',x===el));const b=document.getElementById('tr-ok');if(b)b.disabled=false;}
 function transferirLead(cid){
   const c=clientes.find(x=>x.id===cid);if(!c)return;const sel_=document.querySelector('.tr-opt.on');if(!sel_){alert('Elegí a quién transferirlo.');return;}
