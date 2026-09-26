@@ -1352,7 +1352,7 @@ function toggleTag(id,t){
 function limpiarTags(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.tags=(c.tags||[]).filter(t=>t==='black'||t==='solucionar');/* Black y Por solucionar se mantienen */c.tempManual='';save();refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();}
 // Vendido: ¿se queda en Vendidos o sigue apareciendo en la agenda y las listas para más seguimiento? (etiqueta 'seguimiento')
 function segVendidoSwHTML(c){const on=(c.tags||[]).includes('seguimiento');
-  return '<label class="priv-sw seg-sw" style="margin-bottom:10px;background:var(--card)"><input type="checkbox" '+(on?'checked':'')+' onchange="setSeguirVendido(\''+c.id+'\',this.checked)"><span class="priv-track"></span><span class="priv-lbl"><b class="seg-sw-lbl">'+(on?'🟡 Sigue en seguimiento':'✅ Se queda en Vendidos')+'</b><span class="faint" style="display:block;font-size:12px">Apagado: va a Vendidos y deja de aparecer en la agenda y las listas. Encendido: te sigue apareciendo para darle más seguimiento.</span></span></label>';}
+  return '<label class="priv-sw seg-sw" style="margin-bottom:10px;background:var(--card);align-items:center"><input type="checkbox" '+(on?'checked':'')+' onchange="setSeguirVendido(\''+c.id+'\',this.checked)"><span class="priv-track"></span><span class="priv-lbl" style="align-self:center"><b class="seg-sw-lbl">'+(on?'🟡 Sigue en seguimiento':'✅ Se queda en Vendidos')+'</b></span></label>';}
 function setSeguirVendido(id,on){const c=clientes.find(x=>x.id===id);if(!c)return;c.tags=(c.tags||[]).filter(t=>t!=='seguimiento');if(on)c.tags.push('seguimiento');
   save();const l=document.querySelector('.col-crm .seg-sw-lbl');if(l)l.textContent=on?'🟡 Sigue en seguimiento':'✅ Se queda en Vendidos';refreshTagButtons(c);actualizarBanner(c);actualizarConvRow(c);updateCounts();}
 function marcarVendido(id){
@@ -1428,6 +1428,7 @@ function setProximo(id,silent){
   c.proximo=f;c.proximoHora=h||'';c.proximoTipo=tp;c.proximoAuto=false; // agendado a mano: este si avisa
   if(!silent&&c.sinAtender){c.sinAtender=false;} // agendar a mano = la consulta ya fue atendida
   if(!silent)_atendidoAsignado(c);
+  if(!silent&&(c.etapa==='vendido'||c.etapa==='posventa')&&!(c.tags||[]).includes('seguimiento')){c.tags=(c.tags||[]);c.tags.push('seguimiento');const sw=document.querySelector('.col-crm .seg-sw input');if(sw)sw.checked=true;const l=document.querySelector('.col-crm .seg-sw-lbl');if(l)l.textContent='🟡 Sigue en seguimiento';}
   c.log=c.log||[];
   const txt='📅 Agendado: '+tp+' para el '+f+(h?' '+h:'');
   const last=c.log[c.log.length-1];
@@ -5028,7 +5029,7 @@ function enBucket(c,b){
 }
 // bucket "principal" (para donde se necesite uno solo)
 // Contacto agendado en la fecha de la venta o después: el vendido vuelve a Hoy / Próximos / Atrasados como cualquier otro.
-function _agendaPostVenta(c){return !!(c.proximo&&!c.proximoAuto&&c.proximo>=(c.vendidoFecha||''));}
+function _agendaPostVenta(c){return false;} // el switch "Sigue en seguimiento" (etiqueta seguimiento) es lo único que manda
 function estadoAgenda(c){
   if(!c.proximo||c.sinAtender)return null;
   if((c.etapa==='vendido'||c.etapa==='posventa')&&!(c.tags&&c.tags.includes('seguimiento'))&&!_agendaPostVenta(c))return null;
