@@ -78,9 +78,10 @@
   nav button:nth-of-type(1) .ic{background:#5e5ce6}
   nav button:nth-of-type(2) .ic{background:#34c759}
   nav button:nth-of-type(3) .ic{background:#0a84ff}
-  nav button:nth-of-type(4) .ic{background:#ff9f0a}
-  nav button:nth-of-type(5) .ic{background:#32ade6}
-  nav button:nth-of-type(6) .ic{background:#ff2d55}
+  nav button:nth-of-type(4) .ic{background:#0a84ff}
+  nav button:nth-of-type(5) .ic{background:#ff9f0a}
+  nav button:nth-of-type(6) .ic{background:#32ade6}
+  nav button:nth-of-type(7) .ic{background:#ff2d55}
   .nav-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:8px 12px 4px}
   nav button .count{margin-left:auto;font-size:11px;font-weight:600;color:var(--muted);background:var(--hover);border-radius:9px;padding:0 7px;min-width:20px;height:18px;display:grid;place-items:center}
   nav button.active .count{color:#fff;background:rgba(255,255,255,.28)}
@@ -1050,7 +1051,8 @@ function updateCounts(){
 function render(){
   if(view!=='inbox')inboxCtx=null; // al salir del inbox se pierde el contexto de la sección
   let navActive=(view==='inbox'&&inboxCtx)?inboxCtx:view; // resalta la sección de origen mientras mirás la ficha
-  if(/^ped(Informe|Agrupado|Organizar|Ordenes)$/.test(navActive))navActive='pedidos'; // sub-vistas de logística resaltan el menú Pedidos
+  if(/^ped(Informe|Agrupado|Organizar|Ordenes)$/.test(navActive))navActive='pedidos';
+  if(/^asigv:/.test(navActive))navActive='asignados'; // sub-vistas de logística resaltan el menú Pedidos
   if(/^aud(Informe|Dashboard)$/.test(navActive))navActive='auditoria';
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
@@ -1165,6 +1167,7 @@ function ctxList(ctx){const A=activos();
   // Se respeta el filtro Desde/Hasta que tenga puesto la sección, así la lista de la izquierda muestra lo mismo.
   if(ctx==='nuevas')return A.filter(c=>c.sinAtender&&_enRango('nuevas',_fechaTs(_consultaTs(c)))).sort((a,b)=>_consultaTs(b)-_consultaTs(a));
   if(ctx==='asignados')return A.filter(esAsignadoAMi).sort(_asigOrden);
+  if(ctx&&ctx.startsWith('asigv:')){const vid=ctx.slice(6);return A.filter(c=>me&&c.transferidoPor===me.id&&c.vendedorId===vid&&c.transferidoA===vid).sort(_asigOrden);}
   if(ctx==='calientes')return A.filter(c=>{const t=temperatura(c);return t&&t.id==='caliente'&&_enRango('calientes',c.creado);}).sort(byNuevo);
   if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio')&&_enRango('frios',c.creado);}).sort(byNuevo);
   if(ctx==='seg')return A.filter(c=>temperatura(c)).sort(byNuevo);
@@ -1201,7 +1204,7 @@ function _ctxGrupos(ctx,list){
   if(ctx==='hoy')return [['🔴 De hoy, atrasados',list.filter(esAtrasado).sort(asc)],['🟡 Pendientes de hoy',list.filter(c=>!esAtrasado(c)).sort(asc)]];
   if(ctx==='proximos')return [['🟢 Mañana',list.filter(c=>diasA(c)===1).sort(asc)],['🔵 Próxima semana',list.filter(c=>{const d=diasA(c);return d>=2&&d<=7;}).sort(asc)],['🗓️ Otros días',list.filter(c=>diasA(c)>7).sort(asc)]];
   if(ctx==='nuevas')return tres(_consultaTs,['🟢 Llegaron hoy','🟠 Últimos 7 días','🕓 De otros días']);
-  if(ctx==='asignados')return [['⏳ Sin atender',list.filter(c=>c.asignadoPendiente)],['✅ Ya atendidos',list.filter(c=>!c.asignadoPendiente)]];
+  if(ctx==='asignados'||(ctx&&ctx.startsWith('asigv:')))return [['⏳ Sin atender',list.filter(c=>c.asignadoPendiente)],['✅ Ya atendidos',list.filter(c=>!c.asignadoPendiente)]];
   if(ctx==='anotar'||ctx==='calientes'||ctx==='frios')return tres(creaKey,['🟢 Cargados hoy','🟠 Últimos 7 días','🕓 De otros días']);
   return null;
 }
@@ -1569,14 +1572,24 @@ function recuperarLead(cid){const c=clientes.find(x=>x.id===cid);if(!c||!me||c.t
 function esAsignadoAMi(c){return !!(me&&c.transferidoA===me.id&&c.vendedorId===me.id&&!c.borrado);}
 function _atendidoAsignado(c){if(c.asignadoPendiente&&esAsignadoAMi(c))delete c.asignadoPendiente;}
 function _asigOrden(a,b){return (b.asignadoPendiente?1:0)-(a.asignadoPendiente?1:0)||String(b.transferidoFecha||'').localeCompare(String(a.transferidoFecha||''));}
+function _asigMios(){return me?activos().filter(c=>c.transferidoPor===me.id&&c.transferidoA&&c.vendedorId===c.transferidoA):[];}
+// Abre la lista de leads que le asigné a un vendedor (lista a la izquierda + ficha de cada uno)
+function abrirAsigVend(vid){const ctx='asigv:'+vid;CTX_LABEL[ctx]='📤 Asignados a '+_nomUser(vid);const l=ctxList(ctx);inboxCtx=ctx;view='inbox';selectedId=l.length?l[0].id:null;
+  // En PC: lista a la izquierda + primera ficha. En celular: primero la lista, y de ahí se entra a cada ficha.
+  document.body.classList.toggle('chat-open',window.innerWidth>900&&!!selectedId);render();pushHistory();}
 function renderAsignados(){
   const all=activos().filter(esAsignadoAMi).sort(_asigOrden);const pend=all.filter(c=>c.asignadoPendiente),ok=all.filter(c=>!c.asignadoPendiente);
-  let h='<div class="page"><h1>📥 Asignados</h1><div class="sub">'+(all.length?(pend.length+' sin atender · '+ok.length+' ya atendido(s). Leads que otro vendedor te transfirió.'):'Acá aparecen los leads que otro vendedor te transfiera.')+'</div>';
-  if(!all.length){main.innerHTML=h+'<div class="empty">Por ahora no te asignaron ningún lead.</div></div>';return;}
+  const mios=_asigMios();const porV={};mios.forEach(c=>{(porV[c.vendedorId]=porV[c.vendedorId]||[]).push(c);});const vids=Object.keys(porV).sort((x,y)=>porV[y].length-porV[x].length);
+  let h='<div class="page"><h1>📥 Asignados</h1><div class="sub">'+(all.length?(pend.length+' sin atender · '+ok.length+' ya atendido(s) que te transfirieron.'):'Leads que te transfirieron')+(mios.length?' · Vos asignaste '+mios.length+' a '+vids.length+' vendedor(es).':'')+'</div>';
+  if(!all.length&&!mios.length){main.innerHTML=h+'<div class="empty">Por ahora no te asignaron ningún lead ni asignaste ninguno. Desde la ficha de un cliente, el botón 📤 lo transfiere a otro vendedor.</div></div>';return;}
   const fila=c=>{const l=(c.log||[]).slice().reverse().find(x=>!esLogAuto(c,x));const sub=(c.transferidoPor?'De '+esc(_nomUser(c.transferidoPor)):'')+(c.transferidoFecha?' · '+fmtFecha(c.transferidoFecha):'')+(c.whatsapp?' · '+esc(telVer(c.whatsapp)):'')+(l?' · '+esc((l.texto||'').slice(0,80)):'');
     return '<div class="frow" style="cursor:pointer" onclick="abrirEnCtx(\''+c.id+'\',\'asignados\')"><div class="av" style="width:36px;height:36px;background:'+avColor(c.id)+';font-size:12px">'+iniciales(c.nombre)+'</div><div style="flex:1;min-width:0"><b>'+esc(c.nombre)+'</b>'+tempChip(c)+'<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sub+'</div></div><span class="chip">'+esc(c.producto||'')+'</span>'+waIc(c)+(c.asignadoPendiente?'<button class="btn sm" onclick="event.stopPropagation();abrirEnCtx(\''+c.id+'\',\'asignados\')">Atender</button>':'')+'</div>';};
   const bloque=(t,arr)=>arr.length?'<div class="panelcard"><h3>'+t+' <span style="color:var(--muted);font-weight:600">· '+arr.length+'</span></h3>'+_famColapsar(arr).map(_famFila(fila)).join('')+'</div>':'';
-  main.innerHTML=h+bloque('⏳ Sin atender',pend)+bloque('✅ Ya atendidos',ok)+'</div>';
+  // Lo que yo asigné: un renglón por vendedor con cuántos tiene y cuántos le faltan atender; al tocar se abre su lista
+  let mh='';
+  if(vids.length){mh='<div class="panelcard"><h3>📤 Asigné a otros vendedores <span style="color:var(--muted);font-weight:600">· '+mios.length+'</span></h3>'+vids.map(vid=>{const cs=porV[vid],np=cs.filter(c=>c.asignadoPendiente).length,nv=cs.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length,nom=_nomUser(vid);
+    return '<div class="frow" style="cursor:pointer" onclick="abrirAsigVend(\''+vid+'\')"><div class="av" style="width:36px;height:36px;background:'+avColor(vid)+';font-size:12px">'+iniciales(nom)+'</div><div style="flex:1;min-width:0"><b>'+esc(nom)+'</b><div style="font-size:12.5px;color:var(--muted)">'+cs.length+' lead(s) asignado(s)'+(np?' · <span style="color:#ff9f0a;font-weight:600">⏳ '+np+' sin atender</span>':' · todos atendidos')+(nv?' · <span style="color:#248a3d;font-weight:600">✅ '+nv+' vendido(s)</span>':'')+'</div></div><span class="chip" style="font-weight:700">'+cs.length+'</span><span class="faint" style="font-size:16px">›</span></div>';}).join('')+'</div>';}
+  main.innerHTML=h+mh+bloque('⏳ Sin atender',pend)+bloque('✅ Ya atendidos',ok)+'</div>';
 }
 function transferHTML(c){if(!c.transferidoA||c.vendedorId!==c.transferidoA)return '';const f=c.transferidoFecha?' el '+fmtFecha(c.transferidoFecha):'';
   if(me&&me.id===c.transferidoPor)return '<div class="banner" style="background:rgba(10,132,255,.10);color:#0a84ff">📤<div><b>Transferido a '+esc(_nomUser(c.transferidoA))+'</b>'+f+'. Lo seguís viendo acá con su seguimiento. <a href="#" onclick="recuperarLead(\''+c.id+'\');return false" style="color:inherit;font-weight:700">↩️ Recuperar</a></div></div>';
