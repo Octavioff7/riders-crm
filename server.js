@@ -383,9 +383,11 @@ function avisarLeadCompartido(user,nuevo,clientes,users){
 function avisarTransferencia(user,c,users){
   const dest=users.find(u=>u.id===c.vendedorId);if(!dest||dest.id===user.id)return;
   const quien=user.nombre||user.usuario||'Un compañero';
-  const body=quien+' te transfirió a "'+(c.nombre||c.whatsapp||'un lead')+'"'+(c.whatsapp?' · '+c.whatsapp:'');
-  try{pushToUser(dest.id,{title:'📤 Lead transferido',body,cid:c.id});}catch(e){}
-  try{if(dest.telegramChatId)tg('sendMessage',{chat_id:dest.telegramChatId,text:'📤 *Lead transferido*: '+body});}catch(e){}
+  const title=quien+' te ha asignado un nuevo lead';
+  const body='¡Atendelo ahora! '+(c.nombre||c.whatsapp||'')+(c.whatsapp?' · '+c.whatsapp:'');
+  try{pushToUser(dest.id,{title:'📥 '+title,body,cid:c.id});}catch(e){} // al tocarla, el celu abre la ficha del lead (sw.js: data.cid)
+  const url=(process.env.PUBLIC_URL||'https://riders-crm-xtev.onrender.com')+'/?c='+encodeURIComponent(c.id);
+  try{if(dest.telegramChatId)tg('sendMessage',{chat_id:dest.telegramChatId,text:'📥 *'+title+'*\n'+body+'\n[Abrir el lead en el CRM]('+url+')',parse_mode:'Markdown'});}catch(e){}
 }
 function mergeClientes(user,incoming){
   const users=loadUsers(),current=loadClientes(),byId={};

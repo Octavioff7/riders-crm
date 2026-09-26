@@ -824,6 +824,7 @@ tr.fin-dragging{will-change:transform}tr.fin-dragging td{background:var(--card);
         <div class="nav-label">Riders Miami</div>
         <button data-view="panel" class="active" aria-current="page"><span class="ic" aria-hidden="true">📊</span><span class="lbl">Inicio</span></button>
         <button data-view="nuevas"><span class="ic" aria-hidden="true" style="background:#34c759">🆕</span><span class="lbl">Nuevas consultas</span><span class="count" id="cnt-nuevas"></span></button>
+        <button data-view="asignados"><span class="ic" aria-hidden="true" style="background:#0a84ff">📥</span><span class="lbl">Asignados</span><span class="count" id="cnt-asig"></span></button>
         <button data-view="list"><span class="ic" aria-hidden="true">👥</span><span class="lbl">Todos</span><span class="count" id="cnt-list"></span></button>
         <button data-view="calientes"><span class="ic" aria-hidden="true">🔥</span><span class="lbl">Calientes</span><span class="count" id="cnt-cal"></span></button>
         <button data-view="frios"><span class="ic" aria-hidden="true">❄️</span><span class="lbl">Fríos</span><span class="count" id="cnt-frios"></span></button>
@@ -1040,6 +1041,7 @@ function updateCounts(){
   const cn=document.getElementById('cnt-anotar');if(cn)cn.textContent=A.filter(sinAnotar).length;
   const cp=document.getElementById('cnt-papelera');if(cp)cp.textContent=misTodos().filter(c=>c.borrado).length;
   const cnu=document.getElementById('cnt-nuevas');if(cnu)cnu.textContent=A.filter(c=>c.sinAtender).length;
+  const cas=document.getElementById('cnt-asig');if(cas)cas.textContent=A.filter(c=>esAsignadoAMi(c)&&c.asignadoPendiente).length;
   const setc=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
   setc('cnt-atra',A.filter(c=>enBucket(c,'atrasado')).length);setc('cnt-hoy',A.filter(c=>enBucket(c,'hoy')).length);setc('cnt-prox',A.filter(c=>enBucket(c,'proximos')).length);setc('cnt-sem',A.filter(c=>enBucket(c,'semana')).length);
   setc('cnt-vendidos',A.filter(c=>c.etapa==='vendido'||c.etapa==='posventa').length);
@@ -1052,11 +1054,12 @@ function render(){
   if(/^aud(Informe|Dashboard)$/.test(navActive))navActive='auditoria';
   document.querySelectorAll('#nav button').forEach(b=>{const on=b.dataset.view===navActive;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   updateCounts();
-  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',solucionar:'Por solucionar',anotar:'Por anotar',vendidos:'Vendidos',calc:'Calculadora',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras',finanzas:'Dashboard Financiero',pedidos:'Pedidos y Logística',pedInforme:'Informe de Pedidos',pedAgrupado:'Pedidos Agrupado',pedOrganizar:'Organizar Pedidos',pedOrdenes:'Órdenes Pedidos',auditoria:'Auditoría',audInforme:'Informe de Auditoría',audDashboard:'Dashboard Auditoría'};
+  const TITLES={panel:'Inicio',nuevas:'Nuevas consultas',asignados:'Asignados',dueno:'Panel del equipo',asis:'Asistente CRM',inbox:'Chats',list:'Todos los clientes',seg:'Seguimiento',calientes:'Calientes',frios:'Fríos · sin contactar',atrasado:'Atrasados',hoy:'Hoy',proximos:'Próximos días',semana:'Próxima semana',solucionar:'Por solucionar',anotar:'Por anotar',vendidos:'Vendidos',calc:'Calculadora',papelera:'Papelera',equipo:'Equipo',cuentas:'Cuentas',ventas:'Ventas',inicioAdmin:'Inicio',inventario:'Inventario',financieras:'Financieras',finanzas:'Dashboard Financiero',pedidos:'Pedidos y Logística',pedInforme:'Informe de Pedidos',pedAgrupado:'Pedidos Agrupado',pedOrganizar:'Organizar Pedidos',pedOrdenes:'Órdenes Pedidos',auditoria:'Auditoría',audInforme:'Informe de Auditoría',audDashboard:'Dashboard Auditoría'};
   const tEl=document.querySelector('.title');if(tEl)tEl.textContent=TITLES[navActive]||'Riders Miami';
   main.className=(view==='asis'||view==='inbox')?'':'scroll';
   if(view==='panel')renderPanel();
   else if(view==='nuevas')renderNuevas();
+  else if(view==='asignados')renderAsignados();
   else if(view==='dueno')renderDueno();
   else if(view==='asis')renderAsis();
   else if(view==='inbox')renderInbox();
@@ -1161,6 +1164,7 @@ function ctxList(ctx){const A=activos();
   const byVenta=(a,b)=>String(b.vendidoFecha||'').localeCompare(String(a.vendidoFecha||'')); // venta más nueva arriba
   // Se respeta el filtro Desde/Hasta que tenga puesto la sección, así la lista de la izquierda muestra lo mismo.
   if(ctx==='nuevas')return A.filter(c=>c.sinAtender&&_enRango('nuevas',_fechaTs(_consultaTs(c)))).sort((a,b)=>_consultaTs(b)-_consultaTs(a));
+  if(ctx==='asignados')return A.filter(esAsignadoAMi).sort(_asigOrden);
   if(ctx==='calientes')return A.filter(c=>{const t=temperatura(c);return t&&t.id==='caliente'&&_enRango('calientes',c.creado);}).sort(byNuevo);
   if(ctx==='frios')return A.filter(c=>{const t=temperatura(c);return t&&(t.id==='sinContacto'||t.id==='frio')&&_enRango('frios',c.creado);}).sort(byNuevo);
   if(ctx==='seg')return A.filter(c=>temperatura(c)).sort(byNuevo);
@@ -1171,7 +1175,7 @@ function ctxList(ctx){const A=activos();
   if(['hoy','proximos','semana'].includes(ctx))return A.filter(c=>enBucket(c,ctx)&&(ctx==='hoy'||_enRango(ctx,c.proximo))).sort(byProxDesc);
   return null;
 }
-const CTX_LABEL={nuevas:'🆕 Nuevas consultas',atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',solucionar:'🛠️ Por solucionar',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
+const CTX_LABEL={nuevas:'🆕 Nuevas consultas',asignados:'📥 Asignados',atrasado:'🔴 Atrasados',hoy:'🟡 Hoy',proximos:'🔵 Próximos días',semana:'🗓️ Próxima semana',solucionar:'🛠️ Por solucionar',calientes:'🔥 Calientes',frios:'❄️ Fríos',seg:'🎯 Seguimiento',anotar:'📝 Por anotar',vendidos:'✅ Vendidos'};
 function abrirEnCtx(id,ctx){inboxCtx=ctx;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
 // Abrir la ficha de un cliente (sin contexto de sección). En celular muestra la ficha de una (un solo toque).
 function verFicha(id){inboxCtx=null;selectedId=id;view='inbox';document.body.classList.add('chat-open');render();pushHistory();}
@@ -1197,6 +1201,7 @@ function _ctxGrupos(ctx,list){
   if(ctx==='hoy')return [['🔴 De hoy, atrasados',list.filter(esAtrasado).sort(asc)],['🟡 Pendientes de hoy',list.filter(c=>!esAtrasado(c)).sort(asc)]];
   if(ctx==='proximos')return [['🟢 Mañana',list.filter(c=>diasA(c)===1).sort(asc)],['🔵 Próxima semana',list.filter(c=>{const d=diasA(c);return d>=2&&d<=7;}).sort(asc)],['🗓️ Otros días',list.filter(c=>diasA(c)>7).sort(asc)]];
   if(ctx==='nuevas')return tres(_consultaTs,['🟢 Llegaron hoy','🟠 Últimos 7 días','🕓 De otros días']);
+  if(ctx==='asignados')return [['⏳ Sin atender',list.filter(c=>c.asignadoPendiente)],['✅ Ya atendidos',list.filter(c=>!c.asignadoPendiente)]];
   if(ctx==='anotar'||ctx==='calientes'||ctx==='frios')return tres(creaKey,['🟢 Cargados hoy','🟠 Últimos 7 días','🕓 De otros días']);
   return null;
 }
@@ -1292,7 +1297,7 @@ function pick(id){selectedId=id;document.body.classList.add('chat-open');
     autoGrow(document.getElementById('edit-nota'));autoGrow(document.getElementById('nueva-nota'));hydrateVentaDocs();}
   else renderInbox();
   pushHistory();}
-function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&c.sinAtender)c.sinAtender=false;if(f==='etapa')setTimeout(_refrescarListaConv,0);if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
+function setF(id,f,v){const c=clientes.find(x=>x.id===id);if(!c)return;c[f]=v;if(f==='etapa'&&c.sinAtender)c.sinAtender=false;if(f==='etapa')_atendidoAsignado(c);if(f==='etapa')setTimeout(_refrescarListaConv,0);if(f==='etapa'&&v==='vendido'&&!c.vendidoFecha)c.vendidoFecha=hoy();save();renderInboxKeepScroll();}
 function enviar(){const c=sel(),el=document.getElementById('composer'),t=el.value.trim();if(!t||!c)return;c.mensajes.push({de:'yo',fecha:hoy(),hora:ahora(),texto:t});derive(c);save();renderInbox();}
 /* ---- Notas y agenda de seguimiento ---- */
 // El recuadro de nota crece solo con el texto (se ve la nota completa, sin cortar).
@@ -1309,7 +1314,7 @@ function renderInboxKeepScroll(){const el=document.querySelector('.col-crm');con
   const el2=document.querySelector('.col-crm');if(el2)el2.scrollTop=y;const cl2=document.querySelector('.conv-list');if(cl2)cl2.scrollTop=cy;}
 function editarNota(id,idx){editNotaKey=id+':'+idx;const c=clientes.find(x=>x.id===id);if(c)refrescarFicha(c);else renderInboxKeepScroll();const t=document.getElementById('edit-nota');if(t){t.focus({preventScroll:true});t.setSelectionRange(t.value.length,t.value.length);}}
 function cancelarEdicionNota(){editNotaKey=null;const c=sel();if(c)refrescarFicha(c);else renderInboxKeepScroll();}
-function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push(_conAutor({fecha:hoy(),hora:ahora(),texto:t}));if(c.sinAtender)c.sinAtender=false;save();el.value='';autoGrow(el);refrescarFicha(c);}
+function agregarNota(id){const c=clientes.find(x=>x.id===id);const el=document.getElementById('nueva-nota');if(!c||!el)return;const t=(el.value||'').trim();if(!t)return;c.log=c.log||[];c.log.push(_conAutor({fecha:hoy(),hora:ahora(),texto:t}));if(c.sinAtender)c.sinAtender=false;_atendidoAsignado(c);save();el.value='';autoGrow(el);refrescarFicha(c);}
 // Toda nota o agenda lleva quién la hizo: si fue una asistente, se ve con fondo rosa suave en la ficha y un chip en las listas.
 function _conAutor(l){if(me){l.por=me.id;l.porNombre=me.nombre||'';l.porRol=me.rol||'';}return l;}
 function asisAyudo(c){const l=(c.log||[]).find(x=>x.porRol==='asistente');return l?(l.porNombre||'Asistente'):'';}
@@ -1415,6 +1420,7 @@ function setProximo(id,silent){
   if(!f){if(!silent)alert('Elegí una fecha para el contacto.');return;}
   c.proximo=f;c.proximoHora=h||'';c.proximoTipo=tp;c.proximoAuto=false; // agendado a mano: este si avisa
   if(!silent&&c.sinAtender){c.sinAtender=false;} // agendar a mano = la consulta ya fue atendida
+  if(!silent)_atendidoAsignado(c);
   c.log=c.log||[];
   const txt='📅 Agendado: '+tp+' para el '+f+(h?' '+h:'');
   const last=c.log[c.log.length-1];
@@ -1549,14 +1555,26 @@ function _trElegir(el){document.querySelectorAll('.tr-opt').forEach(x=>x.classLi
 function transferirLead(cid){
   const c=clientes.find(x=>x.id===cid);if(!c)return;const sel_=document.querySelector('.tr-opt.on');if(!sel_){alert('Elegí a quién transferirlo.');return;}
   const dest=sel_.dataset.id,msg=((document.getElementById('tr-msg')||{}).value||'').trim();const nomDest=_nomUser(dest);
-  c.transferidoDe=c.vendedorId||'';c.vendedorId=dest;c.transferidoPor=(me&&me.id)||'';c.transferidoA=dest;c.transferidoFecha=hoy();delete c.sinAtender;
+  c.transferidoDe=c.vendedorId||'';c.vendedorId=dest;c.transferidoPor=(me&&me.id)||'';c.transferidoA=dest;c.transferidoFecha=hoy();c.asignadoPendiente=true;delete c.sinAtender;
   c.log=c.log||[];c.log.push(_conAutor({fecha:hoy(),hora:ahora(),texto:'📤 Transferido a '+nomDest+' por '+((me&&me.nombre)||'')+(msg?'\n'+msg:''),auto:true}));
   save();_audit({modulo:'CLIENTES',entidad:'CLIENTE',accion:'TRANSFERIR',metodo:'POST',referencia:'Cliente '+c.nombre,cambios:1,detalle:{a:nomDest,mensaje:msg}});
   cerrarModal();renderInboxKeepScroll();_toastCel('📤 '+c.nombre+' transferido a '+nomDest);}
 function recuperarLead(cid){const c=clientes.find(x=>x.id===cid);if(!c||!me||c.transferidoPor!==me.id)return;if(!confirm('¿Recuperar a '+c.nombre+'? Vuelve a tu cartera y sale de la de '+_nomUser(c.vendedorId)+'.'))return;
-  c.vendedorId=c.transferidoDe||me.id;delete c.transferidoDe;delete c.transferidoPor;delete c.transferidoA;delete c.transferidoFecha;
+  c.vendedorId=c.transferidoDe||me.id;delete c.transferidoDe;delete c.transferidoPor;delete c.transferidoA;delete c.transferidoFecha;delete c.asignadoPendiente;
   c.log=c.log||[];c.log.push(_conAutor({fecha:hoy(),hora:ahora(),texto:'↩️ Recuperado por '+(me.nombre||''),auto:true}));
   save();renderInboxKeepScroll();_toastCel('↩️ '+c.nombre+' volvió a tu cartera');}
+function esAsignadoAMi(c){return !!(me&&c.transferidoA===me.id&&c.vendedorId===me.id&&!c.borrado);}
+function _atendidoAsignado(c){if(c.asignadoPendiente&&esAsignadoAMi(c))delete c.asignadoPendiente;}
+function _asigOrden(a,b){return (b.asignadoPendiente?1:0)-(a.asignadoPendiente?1:0)||String(b.transferidoFecha||'').localeCompare(String(a.transferidoFecha||''));}
+function renderAsignados(){
+  const all=activos().filter(esAsignadoAMi).sort(_asigOrden);const pend=all.filter(c=>c.asignadoPendiente),ok=all.filter(c=>!c.asignadoPendiente);
+  let h='<div class="page"><h1>📥 Asignados</h1><div class="sub">'+(all.length?(pend.length+' sin atender · '+ok.length+' ya atendido(s). Leads que otro vendedor te transfirió.'):'Acá aparecen los leads que otro vendedor te transfiera.')+'</div>';
+  if(!all.length){main.innerHTML=h+'<div class="empty">Por ahora no te asignaron ningún lead.</div></div>';return;}
+  const fila=c=>{const l=(c.log||[]).slice().reverse().find(x=>!esLogAuto(c,x));const sub=(c.transferidoPor?'De '+esc(_nomUser(c.transferidoPor)):'')+(c.transferidoFecha?' · '+fmtFecha(c.transferidoFecha):'')+(c.whatsapp?' · '+esc(telVer(c.whatsapp)):'')+(l?' · '+esc((l.texto||'').slice(0,80)):'');
+    return '<div class="frow" style="cursor:pointer" onclick="abrirEnCtx(\''+c.id+'\',\'asignados\')"><div class="av" style="width:36px;height:36px;background:'+avColor(c.id)+';font-size:12px">'+iniciales(c.nombre)+'</div><div style="flex:1;min-width:0"><b>'+esc(c.nombre)+'</b>'+tempChip(c)+'<div style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sub+'</div></div><span class="chip">'+esc(c.producto||'')+'</span>'+waIc(c)+(c.asignadoPendiente?'<button class="btn sm" onclick="event.stopPropagation();abrirEnCtx(\''+c.id+'\',\'asignados\')">Atender</button>':'')+'</div>';};
+  const bloque=(t,arr)=>arr.length?'<div class="panelcard"><h3>'+t+' <span style="color:var(--muted);font-weight:600">· '+arr.length+'</span></h3>'+_famColapsar(arr).map(_famFila(fila)).join('')+'</div>':'';
+  main.innerHTML=h+bloque('⏳ Sin atender',pend)+bloque('✅ Ya atendidos',ok)+'</div>';
+}
 function transferHTML(c){if(!c.transferidoA||c.vendedorId!==c.transferidoA)return '';const f=c.transferidoFecha?' el '+fmtFecha(c.transferidoFecha):'';
   if(me&&me.id===c.transferidoPor)return '<div class="banner" style="background:rgba(10,132,255,.10);color:#0a84ff">📤<div><b>Transferido a '+esc(_nomUser(c.transferidoA))+'</b>'+f+'. Lo seguís viendo acá con su seguimiento. <a href="#" onclick="recuperarLead(\''+c.id+'\');return false" style="color:inherit;font-weight:700">↩️ Recuperar</a></div></div>';
   return '<div class="banner" style="background:rgba(10,132,255,.10);color:#0a84ff">📥<div><b>Te lo transfirió '+esc(_nomUser(c.transferidoPor))+'</b>'+f+'. Él sigue viendo el seguimiento que le hagas.</div></div>';}
@@ -2464,7 +2482,7 @@ function _ncRows(){
 }
 function abrirConsulta(id){abrirEnCtx(id,'nuevas');}
 // Guardar: recien aca la consulta deja de estar "sin atender" y pasa a la seccion que le corresponda.
-function guardarConsulta(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.sinAtender=false;save();renderInboxKeepScroll();} // se queda donde esta: misma seccion, misma ficha
+function guardarConsulta(id){const c=clientes.find(x=>x.id===id);if(!c)return;c.sinAtender=false;_atendidoAsignado(c);save();renderInboxKeepScroll();} // se queda donde esta: misma seccion, misma ficha
 /* ---- Papelera en dos partes: "Otros países" (detección automática por país / teléfono) y "Para más adelante" ---- */
 const _PAIS_RE=/\b(honduras|cuba|venezuela|colombia|m[eé]xico|mexico|guatemala|el salvador|nicaragua|costa rica|panam[aá]|rep[uú]blica dominicana|dominicana|puerto rico|ecuador|per[uú]|chile|argentina|bolivia|paraguay|uruguay|espa[nñ]a|hait[ií]|jamaica|brasil|belice|canad[aá]|otro pa[ií]s|su pa[ií]s|en el exterior|internacional|para (usa|eeuu|estados unidos|miami|la florida|aqu[ií]|ac[aá])|fuera de (usa|eeuu|estados unidos|miami|florida|la florida)|n[uú]mero equivocado|spam|no sirve|ya compr[oó] en otro)\b/i;
 function esOtroPais(c){ // "basura": otro destino (incluido USA), spam o no sirve. Lo decide la IA; lo manual manda.
